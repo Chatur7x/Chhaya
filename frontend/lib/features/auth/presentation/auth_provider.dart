@@ -1,0 +1,37 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../data/auth_service.dart';
+
+final authStateProvider = StateNotifierProvider<AuthNotifier, AsyncValue<bool>>((ref) {
+  return AuthNotifier(ref.watch(authServiceProvider));
+});
+
+class AuthNotifier extends StateNotifier<AsyncValue<bool>> {
+  final AuthService _authService;
+
+  AuthNotifier(this._authService) : super(const AsyncValue.data(false));
+
+  Future<void> login(String username, String password) async {
+    state = const AsyncValue.loading();
+    try {
+      final success = await _authService.login(username, password);
+      state = AsyncValue.data(success);
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+    }
+  }
+
+  Future<void> signup(String username, String email, String password) async {
+    state = const AsyncValue.loading();
+    try {
+      final success = await _authService.signup(username, email, password);
+      state = AsyncValue.data(success);
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+    }
+  }
+
+  Future<void> logout() async {
+    await _authService.logout();
+    state = const AsyncValue.data(false);
+  }
+}

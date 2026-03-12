@@ -1,0 +1,29 @@
+# Java / Spring Boot
+backend/target/
+backend/.mvn/
+backend/*.log
+backend/.factorypath
+backend/.project
+backend/.classpath
+backend/.settings/
+
+# Flutter
+frontend/.dart_tool/
+frontend/.packages
+frontend/.pub-cache/
+frontend/.pub/
+frontend/build/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/.metadata
+frontend/*.lock
+
+# IDEs
+.idea/
+*.iml
+*.iws
+.vscode/
+
+# System
+.DS_Store
+Thumbs.db
