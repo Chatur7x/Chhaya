@@ -1,0 +1,100 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:hive/hive.dart';
+import 'mesh_message.dart';
+
+/// Persistent message queue backed by Hive.
+/// Holds messages for offline recipients and retries delivery.
+/// SOS messages always jump to front of queue.
+class MessageQueue {
+  static const String _boxName = 'mesh_message_queue';
+  Box<String>? _box;
+  final _queueController = StreamController<List<MeshMessage>>.broadcast();
+  
+  Stream<List<MeshMessage>> get queueStream => _queueController.stream;
+  
+  /// Initialize the message queue storage
+  Future<void> initialize() async {
+    _box = await Hive.openBox<String>(_boxName);
+  }
+
+  /// Add a message to the queue
+  Future<void> enqueue(MeshMessage message) async {
+    final box = _box;
+    if (box == null) return;
+    
+    await box.put(message.id, jsonEncode(message.toJson()));
+    _notifyListeners();
+  }
+
+  /// Remove a message from the queue (delivered successfully)
+  Future<void> dequeue(String messageId) async {
+    final box = _box;
+    if (box == null) return;
+    
+    await box.delete(messageId);
+    _notifyListeners();
+  }
+
+  /// Get all queued messages, sorted by priority (SOS first, then by timestamp)
+  List<MeshMessage> getAll() {
+    final box = _box;
+    if (box == null) return [];
+    
+    final messages = box.values
+        .map((json) => MeshMessage.fromJson(jsonDecode(json)))
+        .toList();
+
+    // SOS messages always jump to front
+    messages.sort((a, b) {
+      if (a.isSOS && !b.isSOS) return -1;
+      if (!a.isSOS && b.isSOS) return 1;
+      return a.timestamp.compareTo(b.timestamp);
+    });
+
+    return messages;
+  }
+
+  /// Get messages for a specific recipient
+  List<MeshMessage> getForRecipient(String recipientId) {
+    return getAll().where((m) => m.recipientId == recipientId).toList();
+  }
+
+  /// Update message status
+  Future<void> updateStatus(String messageId, MessageStatus status) async {
+    final box = _box;
+    if (box == null) return;
+    
+    final jsonStr = box.get(messageId);
+    if (jsonStr == null) return;
+    
+    final message = MeshMessage.fromJson(jsonDecode(jsonStr));
+    final updated = message.copyWith(status: status);
+    await box.put(messageId, jsonEncode(updated.toJson()));
+    _notifyListeners();
+  }
+
+  /// Get queue size
+  int get length => _box?.length ?? 0;
+
+  /// Check if queue has messages for a recipient
+  bool hasMessagesFor(String recipientId) {
+    return getForRecipient(recipientId).isNotEmpty;
+  }
+
+  /// Clear all messages (used by panic wipe)
+  Future<void> clear() async {
+    await _box?.clear();
+    _notifyListeners();
+  }
+
+  void _notifyListeners() {
+    _queueController.add(getAll());
+  }
+
+  Future<void> dispose() async {
+    await _queueController.close();
+    await _box?.close();
+  }
+}
