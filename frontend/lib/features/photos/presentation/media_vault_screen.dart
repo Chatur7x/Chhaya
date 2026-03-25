@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../../core/theme/chaaya_theme.dart';
 import '../../../core/providers/app_providers.dart';
@@ -41,22 +42,29 @@ class _MediaVaultScreenState extends ConsumerState<MediaVaultScreen>
     }
   }
 
-  Future<void> _addMockPhoto() async {
-    final storage = ref.read(secureStorageProvider);
-    final dir = await getTemporaryDirectory();
-    final tempFile = File('${dir.path}/mock_photo_${DateTime.now().millisecondsSinceEpoch}.jpg');
-    // Simulate image bytes
-    await tempFile.writeAsBytes([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+  Future<void> _addRealPhoto() async {
+    final picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.camera);
+    if (image == null) return;
     
-    await storage.saveMedia(
-      name: 'mock_photo_${DateTime.now().millisecondsSinceEpoch}.jpg',
-      type: MediaType.photo,
-      sizeBytes: 8,
-      localPath: tempFile.path, 
-      latitude: 37.7749,
-      longitude: -122.4194,
-    );
-    _loadMedia();
+    setState(() => _loading = true);
+    try {
+      final storage = ref.read(secureStorageProvider);
+      final bytes = await image.readAsBytes();
+      
+      await storage.saveMedia(
+        name: image.name,
+        type: MediaType.photo,
+        sizeBytes: bytes.length,
+        localPath: image.path, 
+        latitude: null, 
+        longitude: null,
+      );
+    } catch (e) {
+      debugPrint('[MediaVault] Failed to save photo: $e');
+    } finally {
+      if (mounted) _loadMedia();
+    }
   }
 
   @override
@@ -107,7 +115,7 @@ class _MediaVaultScreenState extends ConsumerState<MediaVaultScreen>
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _addMockPhoto,
+        onPressed: _addRealPhoto,
         backgroundColor: ChaayaTheme.accent,
         child: const Icon(Icons.camera_alt, color: Colors.white),
       ),

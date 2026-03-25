@@ -14,6 +14,18 @@
 	<string>Chaaya needs microphone access for Walkie-Talkie and voice calls.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Chaaya needs photo access to save media to the encrypted vault.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Chaaya needs background location for continuous SOS and safety tracking.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Chaaya needs background location for continuous SOS and safety tracking.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Chaaya needs to broadcast its presence via Bluetooth to discover offline peers.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-central</string>
+		<string>bluetooth-peripheral</string>
+		<string>location</string>
+	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

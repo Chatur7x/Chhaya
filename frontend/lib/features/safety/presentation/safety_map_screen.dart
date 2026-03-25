@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/theme/chaaya_theme.dart';
 import '../../../core/providers/app_providers.dart';
@@ -19,33 +21,60 @@ class _SafetyMapScreenState extends ConsumerState<SafetyMapScreen> {
   bool _sharingLocation = true;
   bool _privateMode = false;
   LatLng _myLocation = const LatLng(37.7749, -122.4194); // Default to SF
+  StreamSubscription<Position>? _positionStream;
 
   @override
   void initState() {
     super.initState();
-    // Simulate initial location
+    // Start real GPS stream
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _startMockGPS();
+      _startRealGPS();
     });
   }
 
-  void _startMockGPS() {
-    // In production, sync with geolocator stream
-    Future.doWhile(() async {
-      await Future.delayed(const Duration(seconds: 10));
-      if (!mounted) return false;
+  void _startRealGPS() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return;
+    }
+    if (permission == LocationPermission.deniedForever) return;
+
+    try {
+      final initial = await Geolocator.getCurrentPosition();
+      if (mounted) {
+        setState(() => _myLocation = LatLng(initial.latitude, initial.longitude));
+        _mapController.move(_myLocation, 15.0);
+      }
+    } catch (_) {}
+
+    _positionStream = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.best, distanceFilter: 10),
+    ).listen((Position position) {
+      if (!mounted) return;
+      setState(() => _myLocation = LatLng(position.latitude, position.longitude));
+      
       if (_sharingLocation && !_privateMode) {
         final locService = ref.read(locationSafetyServiceProvider);
         final ident = ref.read(identityServiceProvider).currentIdentity;
         if (ident != null) {
           locService.updateMyLocation(
-            _myLocation.latitude, _myLocation.longitude,
-            0.0, 0.0, 85, ident.deviceId,
+            position.latitude, position.longitude,
+            position.speed, position.heading, 85, ident.deviceId,
           );
         }
       }
-      return true;
     });
+  }
+
+  @override
+  void dispose() {
+    _positionStream?.cancel();
+    _mapController.dispose();
+    super.dispose();
   }
 
   @override

@@ -96,13 +96,14 @@ class MeshMessage {
     MessageStatus? status,
     int? hopCount,
     String? channel,
+    String? content,
   }) {
     return MeshMessage(
       id: id,
       senderId: senderId,
       senderName: senderName,
       recipientId: recipientId,
-      content: content,
+      content: content ?? this.content,
       timestamp: timestamp,
       type: type,
       channel: channel ?? this.channel,

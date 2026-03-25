@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:io';
 import '../../../core/theme/chaaya_theme.dart';
 import '../../../core/providers/app_providers.dart';
@@ -42,20 +43,27 @@ class _FileVaultScreenState extends ConsumerState<FileVaultScreen> {
     }
   }
 
-  Future<void> _addMockFile() async {
-    final storage = ref.read(secureStorageProvider);
-    final dir = await getTemporaryDirectory();
-    final tempFile = File('${dir.path}/mock_survival_guide.txt');
-    await tempFile.writeAsString('Water purification: boil for 1 minute.');
-    
-    await storage.saveFile(
-      name: 'Survival Guide.txt',
-      mimeType: 'text/plain',
-      sizeBytes: 39,
-      localPath: tempFile.path, 
-      folderId: 'Documents',
-    );
-    _loadFiles();
+  Future<void> _addRealFile() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles();
+    if (result != null && result.files.single.path != null) {
+      setState(() => _loading = true);
+      try {
+        final storage = ref.read(secureStorageProvider);
+        PlatformFile file = result.files.single;
+        
+        await storage.saveFile(
+          name: file.name,
+          mimeType: file.extension != null ? 'application/${file.extension}' : 'application/octet-stream',
+          sizeBytes: file.size,
+          localPath: file.path!,
+          folderId: 'Documents',
+        );
+      } catch (e) {
+        debugPrint('[FileVault] Failed to save file: $e');
+      } finally {
+        if (mounted) _loadFiles();
+      }
+    }
   }
 
   @override
@@ -151,7 +159,7 @@ class _FileVaultScreenState extends ConsumerState<FileVaultScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _addMockFile,
+        onPressed: _addRealFile,
         backgroundColor: ChaayaTheme.accent,
         child: const Icon(Icons.add, color: Colors.white),
       ),

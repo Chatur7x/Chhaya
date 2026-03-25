@@ -20,10 +20,12 @@ class LocationSafetyService {
   final _locationUpdates = StreamController<Map<String, UserLocation>>.broadcast();
   final _sosAlerts = StreamController<SOSAlert>.broadcast();
   final _crashDetected = StreamController<CrashEvent>.broadcast();
+  final _geofenceEvents = StreamController<GeofenceEvent>.broadcast();
 
   Stream<Map<String, UserLocation>> get locationUpdates => _locationUpdates.stream;
   Stream<SOSAlert> get sosAlerts => _sosAlerts.stream;
   Stream<CrashEvent> get crashDetected => _crashDetected.stream;
+  Stream<GeofenceEvent> get geofenceEvents => _geofenceEvents.stream;
 
   // Live location cache: deviceId → latest location
   final Map<String, UserLocation> _liveLocations = {};
@@ -123,19 +125,28 @@ class LocationSafetyService {
             .toList() ?? [];
   }
 
+  // Track previous geofence states: placeId -> isInside
+  final Map<String, bool> _geofenceStates = {};
+
   /// Check arrivals/departures against geofences
   List<GeofenceEvent> checkGeofences(double lat, double lon) {
     final events = <GeofenceEvent>[];
     for (final place in getPlaces()) {
       final dist = _haversineDistance(lat, lon, place.latitude, place.longitude);
       final isInside = dist <= place.radiusMeters;
-      // TODO: Compare with previous state to detect enter/exit
-      if (isInside) {
-        events.add(GeofenceEvent(
-          place: place,
-          type: GeofenceType.enter,
-          timestamp: DateTime.now(),
-        ));
+      
+      final wasInside = _geofenceStates[place.id] ?? false;
+      
+      if (isInside && !wasInside) {
+        final event = GeofenceEvent(place: place, type: GeofenceType.enter, timestamp: DateTime.now());
+        events.add(event);
+        _geofenceEvents.add(event);
+        _geofenceStates[place.id] = true;
+      } else if (!isInside && wasInside) {
+        final event = GeofenceEvent(place: place, type: GeofenceType.exit, timestamp: DateTime.now());
+        events.add(event);
+        _geofenceEvents.add(event);
+        _geofenceStates[place.id] = false;
       }
     }
     return events;
