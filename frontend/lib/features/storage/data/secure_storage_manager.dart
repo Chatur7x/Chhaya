@@ -127,6 +127,11 @@ class SecureStorageManager {
     return all..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
 
+  /// Delete a media item
+  Future<void> deleteMedia(String mediaId) async {
+    await _media?.delete(mediaId);
+  }
+
   /// Get storage usage stats
   StorageStats getStats() {
     int fileCount = _files?.length ?? 0;

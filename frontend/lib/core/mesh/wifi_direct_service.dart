@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import '../mesh_message.dart';
-import '../message_queue.dart';
+import 'mesh_message.dart';
+import 'message_queue.dart';
 
 /// WiFi Direct Transport — peer-to-peer communication for voice, video, and large files.
 /// Range: ~200m. Used when BLE bandwidth is insufficient.

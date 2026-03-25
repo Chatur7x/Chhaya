@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
-import '../../core/identity/identity_service.dart';
+import '../../../core/identity/identity_service.dart';
 
 /// Chaaya Contact Service — manages paired contacts.
 /// Contacts are stored locally in Hive after QR code pairing.

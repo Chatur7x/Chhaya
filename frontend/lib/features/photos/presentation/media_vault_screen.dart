@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../../core/theme/chaaya_theme.dart';
 import '../../../core/providers/app_providers.dart';
-import '../data/secure_storage_manager.dart';
+import '../../storage/data/secure_storage_manager.dart';
 
 /// Media Vault Screen — encrypted photo/video gallery with field reports.
 class MediaVaultScreen extends ConsumerStatefulWidget {
@@ -17,7 +17,7 @@ class MediaVaultScreen extends ConsumerStatefulWidget {
 class _MediaVaultScreenState extends ConsumerState<MediaVaultScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  List<VaultMedia> _media = [];
+  List<MediaItem> _media = [];
   bool _loading = true;
 
   @override
@@ -30,9 +30,9 @@ class _MediaVaultScreenState extends ConsumerState<MediaVaultScreen>
   Future<void> _loadMedia() async {
     setState(() => _loading = true);
     final storage = ref.read(secureStorageProvider);
-    await storage.initialize('vault_master_key_temp_123'); // Production = user PIN
+    await storage.initialize(); // Production = user PIN
     
-    final media = storage.getAllMedia();
+    final media = storage.getMedia();
     if (mounted) {
       setState(() {
         _media = media;
@@ -49,8 +49,10 @@ class _MediaVaultScreenState extends ConsumerState<MediaVaultScreen>
     await tempFile.writeAsBytes([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
     
     await storage.saveMedia(
-      tempFile.path, 
-      MediaType.photo,
+      name: 'mock_photo_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      type: MediaType.photo,
+      sizeBytes: 8,
+      localPath: tempFile.path, 
       latitude: 37.7749,
       longitude: -122.4194,
     );
@@ -161,7 +163,7 @@ class _MediaVaultScreenState extends ConsumerState<MediaVaultScreen>
                 ),
               ),
               // GPS tagged
-              if (photo.hasLocationInfo)
+              if (photo.latitude != null)
                 Positioned(
                   top: 4, left: 4,
                   child: Container(
@@ -204,15 +206,6 @@ class _MediaVaultScreenState extends ConsumerState<MediaVaultScreen>
                   alignment: Alignment.center,
                   children: [
                     const Icon(Icons.play_circle_fill, color: ChaayaTheme.accent, size: 28),
-                    if (video.durationSeconds != null)
-                      Positioned(
-                        bottom: 2, right: 2,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                          decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(3)),
-                          child: Text('${video.durationSeconds}s', style: const TextStyle(fontSize: 8, color: Colors.white)),
-                        ),
-                      ),
                   ],
                 ),
               ),
@@ -221,7 +214,7 @@ class _MediaVaultScreenState extends ConsumerState<MediaVaultScreen>
                 children: [
                   const Icon(Icons.lock, size: 10, color: ChaayaTheme.safeGreen),
                   const SizedBox(width: 4),
-                  Text('${(video.size / 1024 / 1024).toStringAsFixed(1)} MB • ${video.timestamp.month}/${video.timestamp.day}', 
+                  Text('${(video.sizeBytes / 1024 / 1024).toStringAsFixed(1)} MB • ${video.createdAt.month}/${video.createdAt.day}', 
                     style: const TextStyle(fontSize: 11, color: ChaayaTheme.textMuted)),
                 ],
               ),

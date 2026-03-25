@@ -3,6 +3,12 @@ import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import 'package:uuid/uuid.dart';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+final groupChannelServiceProvider = Provider<GroupChannelService>((ref) {
+  return GroupChannelService();
+});
+
 /// Group and Channel service — manages group chats and public IRC-style channels.
 class GroupChannelService {
   static const String _groupsBox = 'chaaya_groups';

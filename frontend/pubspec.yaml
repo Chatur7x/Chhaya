@@ -44,7 +44,7 @@ dependencies:
   convert: ^3.1.1
 
   # Audio & Voice
-  record: ^5.1.2
+  record: ^6.0.0
   audioplayers: ^6.0.0
   flutter_p2p_connection: any
 
@@ -60,6 +60,7 @@ dependencies:
   # Notifications
   firebase_core: ^2.24.2
   firebase_messaging: ^14.7.10
+  stomp_dart_client: ^3.0.1
 
 dev_dependencies:
   flutter_test:

@@ -1,0 +1,204 @@
+﻿Analyzing frontend...                                           
+
+   info - The import of 'dart:typed_data' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/foundation.dart' - lib\core\crypto\signal_protocol_service.dart:2:8 - unnecessary_import
+warning - Unnecessary cast - lib\core\crypto\signal_protocol_service.dart:199:19 - unnecessary_cast
+   info - The import of 'dart:typed_data' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/foundation.dart' - lib\core\identity\identity_service.dart:2:8 - unnecessary_import
+  error - The method 'Ed25519KeyGeneratorParameters' isn't defined for the type 'IdentityService' - lib\core\identity\identity_service.dart:39:23 - undefined_method
+  error - The method 'Ed25519KeyGenerator' isn't defined for the type 'IdentityService' - lib\core\identity\identity_service.dart:45:26 - undefined_method
+  error - The name 'Ed25519PublicKeyParameters' isn't a type, so it can't be used in an 'as' expression - lib\core\identity\identity_service.dart:49:41 - cast_to_non_type
+  error - The name 'Ed25519PrivateKeyParameters' isn't a type, so it can't be used in an 'as' expression - lib\core\identity\identity_service.dart:50:43 - cast_to_non_type
+warning - Unused import: 'dart:convert' - lib\core\mesh\ble_mesh_service.dart:2:8 - unused_import
+warning - Unused import: 'package:flutter/foundation.dart' - lib\core\mesh\message_queue.dart:3:8 - unused_import
+  error - Target of URI doesn't exist: '../mesh_message.dart' - lib\core\mesh\wifi_direct_service.dart:4:8 - uri_does_not_exist
+  error - Target of URI doesn't exist: '../message_queue.dart' - lib\core\mesh\wifi_direct_service.dart:5:8 - uri_does_not_exist
+  error - Undefined class 'MessageQueue' - lib\core\mesh\wifi_direct_service.dart:10:9 - undefined_class
+  error - The name 'MeshMessage' isn't a type, so it can't be used as a type argument - lib\core\mesh\wifi_direct_service.dart:17:46 - non_type_as_type_argument
+  error - The name 'MeshMessage' isn't a type, so it can't be used as a type argument - lib\core\mesh\wifi_direct_service.dart:21:10 - non_type_as_type_argument
+  error - Undefined class 'MeshMessage' - lib\core\mesh\wifi_direct_service.dart:84:28 - undefined_class
+warning - The declaration '_RadioPlaceholder' isn't referenced - lib\core\presentation\main_screen.dart:90:7 - unused_element
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\presentation\main_screen.dart:109:50 - deprecated_member_use
+warning - The declaration '_MapPlaceholder' isn't referenced - lib\core\presentation\main_screen.dart:129:7 - unused_element
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\presentation\main_screen.dart:148:46 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\presentation\main_screen.dart:271:26 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\presentation\widgets\glass_container.dart:21:29 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\presentation\widgets\glass_container.dart:23:48 - deprecated_member_use
+   info - The import of 'dart:ui' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart' - lib\core\theme\chaaya_theme.dart:2:8 - unnecessary_import
+  error - The argument type 'CardTheme' can't be assigned to the parameter type 'CardThemeData?'.  - lib\core\theme\chaaya_theme.dart:82:18 - argument_type_not_assignable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\theme\chaaya_theme.dart:237:22 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\theme\chaaya_theme.dart:239:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\theme\chaaya_theme.dart:274:44 - deprecated_member_use
+warning - Unused import: 'package:flutter/foundation.dart' - lib\features\ai\data\ai_assistant_service.dart:2:8 - unused_import
+   info - Statements in an if should be enclosed in a block - lib\features\ai\data\ai_assistant_service.dart:112:21 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\features\ai\data\ai_assistant_service.dart:113:26 - curly_braces_in_flow_control_structures
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\ai\presentation\ai_assistant_screen.dart:89:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\ai\presentation\ai_assistant_screen.dart:171:36 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\ai\presentation\ai_assistant_screen.dart:188:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\ai\presentation\ai_assistant_screen.dart:189:47 - deprecated_member_use
+  error - Target of URI doesn't exist: '../../core/network/dio_client.dart' - lib\features\auth\data\auth_service.dart:4:8 - uri_does_not_exist
+  error - Undefined name 'dioProvider' - lib\features\auth\data\auth_service.dart:7:32 - undefined_identifier
+  error - Target of URI doesn't exist: '../../core/presentation/main_screen.dart' - lib\features\auth\presentation\login_screen.dart:5:8 - uri_does_not_exist
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\auth\presentation\login_screen.dart:65:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\auth\presentation\login_screen.dart:83:49 - deprecated_member_use
+  error - The name 'MainScreen' isn't a class - lib\features\auth\presentation\login_screen.dart:101:77 - creation_with_non_type
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\auth\presentation\signup_screen.dart:58:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\auth\presentation\signup_screen.dart:75:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\auth\presentation\signup_screen.dart:93:49 - deprecated_member_use
+   info - The imported package 'stomp_dart_client' isn't a dependency of the importing package - lib\features\chat\data\chat_service.dart:2:8 - depend_on_referenced_packages
+  error - Target of URI doesn't exist: 'package:stomp_dart_client/stomp_dart_client.dart' - lib\features\chat\data\chat_service.dart:2:8 - uri_does_not_exist
+  error - Undefined class 'StompClient' - lib\features\chat\data\chat_service.dart:12:3 - undefined_class
+  error - The method 'StompClient' isn't defined for the type 'ChatService' - lib\features\chat\data\chat_service.dart:19:20 - undefined_method
+  error - The method 'StompConfig' isn't defined for the type 'ChatService' - lib\features\chat\data\chat_service.dart:20:15 - undefined_method
+warning - Unused import: 'dart:typed_data' - lib\features\chat\data\encryption_service.dart:2:8 - unused_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\chat\presentation\chat_list_screen.dart:21:75 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\chat\presentation\conversation_screen.dart:56:70 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\chat\presentation\conversation_screen.dart:101:41 - deprecated_member_use
+  error - Target of URI doesn't exist: '../../core/mesh/wifi_direct_service.dart' - lib\features\contacts\data\call_service.dart:3:8 - uri_does_not_exist
+  error - Undefined class 'WifiDirectService' - lib\features\contacts\data\call_service.dart:8:9 - undefined_class
+  error - Target of URI doesn't exist: '../../core/identity/identity_service.dart' - lib\features\contacts\data\contact_service.dart:4:8 - uri_does_not_exist
+  error - Undefined class 'MeshIdentity' - lib\features\contacts\data\contact_service.dart:18:34 - undefined_class
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\contacts\presentation\call_screen.dart:92:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\contacts\presentation\call_screen.dart:93:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\contacts\presentation\call_screen.dart:99:57 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\contacts\presentation\call_screen.dart:109:59 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\contacts\presentation\call_screen.dart:147:46 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\features\contacts\presentation\call_screen.dart:150:22 - prefer_const_constructors
+   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\features\contacts\presentation\call_screen.dart:152:27 - prefer_const_literals_to_create_immutables
+   info - Use 'const' with the constructor to improve performance - lib\features\contacts\presentation\call_screen.dart:153:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\features\contacts\presentation\call_screen.dart:155:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\features\contacts\presentation\call_screen.dart:157:28 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\contacts\presentation\call_screen.dart:181:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\contacts\presentation\call_screen.dart:244:40 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\contacts\presentation\contacts_screen.dart:61:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\contacts\presentation\contacts_screen.dart:114:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\contacts\presentation\qr_pairing_screen.dart:79:50 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\contacts\presentation\qr_pairing_screen.dart:179:45 - deprecated_member_use
+  error - Invalid constant value - lib\features\contacts\presentation\qr_pairing_screen.dart:190:27 - invalid_constant
+  error - There's no constant named 'roundedSquare' in 'QrEyeShape' - lib\features\contacts\presentation\qr_pairing_screen.dart:190:38 - undefined_enum_constant
+  error - Invalid constant value - lib\features\contacts\presentation\qr_pairing_screen.dart:194:34 - invalid_constant
+  error - There's no constant named 'roundedSquare' in 'QrDataModuleShape' - lib\features\contacts\presentation\qr_pairing_screen.dart:194:52 - undefined_enum_constant
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\contacts\presentation\qr_pairing_screen.dart:224:46 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\contacts\presentation\qr_pairing_screen.dart:269:44 - deprecated_member_use
+  error - A value of type 'List<EmergencyAlert>?' can't be returned from the method 'getHistory' because it has a return type of 'List<EmergencyAlert>' - lib\features\emergency\data\emergency_services.dart:48:12 - return_of_invalid_type
+  error - Expected to find ';' - lib\features\emergency\data\emergency_services.dart:51:59 - expected_token
+warning - Dead code - lib\features\emergency\data\emergency_services.dart:51:61 - dead_code
+  error - Expected an identifier - lib\features\emergency\data\emergency_services.dart:51:61 - missing_identifier
+   info - Statements in a for should be enclosed in a block - lib\features\emergency\data\emergency_services.dart:262:32 - curly_braces_in_flow_control_structures
+   info - Statements in a for should be enclosed in a block - lib\features\emergency\data\emergency_services.dart:263:35 - curly_braces_in_flow_control_structures
+warning - Unused import: '../../../core/identity/identity_service.dart' - lib\features\identity\presentation\identity_screen.dart:4:8 - unused_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\identity\presentation\identity_screen.dart:94:51 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\features\identity\presentation\identity_screen.dart:154:17 - prefer_const_constructors
+   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\features\identity\presentation\identity_screen.dart:155:29 - prefer_const_literals_to_create_immutables
+   info - Use 'const' with the constructor to improve performance - lib\features\identity\presentation\identity_screen.dart:156:21 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\features\identity\presentation\identity_screen.dart:158:21 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\features\identity\presentation\identity_screen.dart:160:30 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\identity\presentation\identity_screen.dart:205:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\identity\presentation\identity_screen.dart:208:49 - deprecated_member_use
+warning - Unused import: 'package:flutter/foundation.dart' - lib\features\messenger\data\mesh_chat_service.dart:2:8 - unused_import
+warning - The value of the field '_scrollController' isn't used - lib\features\messenger\presentation\group_chat_screen.dart:27:9 - unused_field
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\messenger\presentation\group_chat_screen.dart:87:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\messenger\presentation\group_chat_screen.dart:97:76 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\messenger\presentation\group_chat_screen.dart:112:49 - deprecated_member_use
+  error - Undefined name 'groupChannelServiceProvider' - lib\features\messenger\presentation\group_chat_screen.dart:185:40 - undefined_identifier
+   info - 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre - lib\features\messenger\presentation\group_chat_screen.dart:295:15 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\messenger\presentation\mesh_chat_list_screen.dart:71:38 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\messenger\presentation\mesh_chat_list_screen.dart:72:40 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\messenger\presentation\mesh_chat_list_screen.dart:113:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\messenger\presentation\mesh_conversation_screen.dart:130:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\messenger\presentation\mesh_conversation_screen.dart:182:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\messenger\presentation\mesh_conversation_screen.dart:192:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\messenger\presentation\mesh_conversation_screen.dart:230:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\messenger\presentation\mesh_conversation_screen.dart:335:36 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\messenger\presentation\mesh_conversation_screen.dart:345:38 - deprecated_member_use
+  error - Target of URI doesn't exist: '../data/secure_storage_manager.dart' - lib\features\photos\presentation\media_vault_screen.dart:7:8 - uri_does_not_exist
+  error - The name 'VaultMedia' isn't a type, so it can't be used as a type argument - lib\features\photos\presentation\media_vault_screen.dart:20:8 - non_type_as_type_argument
+  error - Too many positional arguments: 0 expected, but 1 found - lib\features\photos\presentation\media_vault_screen.dart:33:30 - extra_positional_arguments
+  error - The method 'getAllMedia' isn't defined for the type 'SecureStorageManager' - lib\features\photos\presentation\media_vault_screen.dart:35:27 - undefined_method
+  error - The named parameter 'localPath' is required, but there's no corresponding argument - lib\features\photos\presentation\media_vault_screen.dart:51:19 - missing_required_argument
+  error - The named parameter 'name' is required, but there's no corresponding argument - lib\features\photos\presentation\media_vault_screen.dart:51:19 - missing_required_argument
+  error - The named parameter 'sizeBytes' is required, but there's no corresponding argument - lib\features\photos\presentation\media_vault_screen.dart:51:19 - missing_required_argument
+  error - The named parameter 'type' is required, but there's no corresponding argument - lib\features\photos\presentation\media_vault_screen.dart:51:19 - missing_required_argument
+  error - Too many positional arguments: 0 expected, but 2 found - lib\features\photos\presentation\media_vault_screen.dart:52:7 - extra_positional_arguments_could_be_named
+  error - Undefined name 'MediaType' - lib\features\photos\presentation\media_vault_screen.dart:53:7 - undefined_identifier
+  error - The property 'type' can't be unconditionally accessed because the receiver can be 'null' - lib\features\photos\presentation\media_vault_screen.dart:116:42 - unchecked_use_of_nullable_value
+  error - Undefined name 'MediaType' - lib\features\photos\presentation\media_vault_screen.dart:116:50 - undefined_identifier
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\photos\presentation\media_vault_screen.dart:132:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\photos\presentation\media_vault_screen.dart:133:32 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\photos\presentation\media_vault_screen.dart:134:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\photos\presentation\media_vault_screen.dart:135:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\photos\presentation\media_vault_screen.dart:152:62 - deprecated_member_use
+  error - The property 'type' can't be unconditionally accessed because the receiver can be 'null' - lib\features\photos\presentation\media_vault_screen.dart:181:42 - unchecked_use_of_nullable_value
+  error - Undefined name 'MediaType' - lib\features\photos\presentation\media_vault_screen.dart:181:50 - undefined_identifier
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\photos\presentation\media_vault_screen.dart:200:45 - deprecated_member_use
+  error - The method 'deleteMedia' isn't defined for the type 'SecureStorageManager' - lib\features\photos\presentation\media_vault_screen.dart:243:19 - undefined_method
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\photos\presentation\photos_screen.dart:25:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\photos\presentation\photos_screen.dart:34:46 - deprecated_member_use
+  error - Target of URI doesn't exist: '../../core/mesh/wifi_direct_service.dart' - lib\features\radio\data\walkie_talkie_service.dart:4:8 - uri_does_not_exist
+  error - Undefined class 'WifiDirectService' - lib\features\radio\data\walkie_talkie_service.dart:9:9 - undefined_class
+   info - The private field _isReceiving could be 'final' - lib\features\radio\data\walkie_talkie_service.dart:15:8 - prefer_final_fields
+warning - The value of the field '_isReceiving' isn't used - lib\features\radio\data\walkie_talkie_service.dart:15:8 - unused_field
+  error - The method 'initialize' isn't defined for the type 'WalkieTalkieService' - lib\features\radio\presentation\walkie_talkie_screen.dart:35:19 - undefined_method
+  error - The method 'startTransmission' isn't defined for the type 'WalkieTalkieService' - lib\features\radio\presentation\walkie_talkie_screen.dart:51:23 - undefined_method
+  error - The method 'stopTransmission' isn't defined for the type 'WalkieTalkieService' - lib\features\radio\presentation\walkie_talkie_screen.dart:64:23 - undefined_method
+   info - Use 'const' for final variables initialized to a constant value - lib\features\radio\presentation\walkie_talkie_screen.dart:83:5 - prefer_const_declarations
+  error - The method 'enableRepeaterMode' isn't defined for the type 'WalkieTalkieService' - lib\features\radio\presentation\walkie_talkie_screen.dart:117:29 - undefined_method
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\radio\presentation\walkie_talkie_screen.dart:161:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\radio\presentation\walkie_talkie_screen.dart:289:69 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\radio\presentation\walkie_talkie_screen.dart:291:79 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\radio\presentation\walkie_talkie_screen.dart:292:73 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\radio\presentation\walkie_talkie_screen.dart:297:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\radio\presentation\walkie_talkie_screen.dart:355:49 - deprecated_member_use
+   info - The private field _myLocation could be 'final' - lib\features\safety\presentation\safety_map_screen.dart:21:10 - prefer_final_fields
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\safety\presentation\safety_map_screen.dart:175:59 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\safety\presentation\safety_map_screen.dart:189:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\safety\presentation\safety_map_screen.dart:214:60 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\safety\presentation\safety_map_screen.dart:329:52 - deprecated_member_use
+   info - The import of 'package:flutter/services.dart' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart' - lib\features\settings\presentation\chaaya_settings_screen.dart:2:8 - unnecessary_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\chaaya_settings_screen.dart:46:55 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\features\settings\presentation\chaaya_settings_screen.dart:52:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\features\settings\presentation\chaaya_settings_screen.dart:53:28 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\chaaya_settings_screen.dart:58:50 - deprecated_member_use
+   info - Use 'const' with the constructor to improve performance - lib\features\settings\presentation\chaaya_settings_screen.dart:61:26 - prefer_const_constructors
+   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\features\settings\presentation\chaaya_settings_screen.dart:63:31 - prefer_const_literals_to_create_immutables
+   info - Use 'const' with the constructor to improve performance - lib\features\settings\presentation\chaaya_settings_screen.dart:64:23 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\features\settings\presentation\chaaya_settings_screen.dart:66:23 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\features\settings\presentation\chaaya_settings_screen.dart:66:57 - prefer_const_constructors
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\chaaya_settings_screen.dart:129:26 - deprecated_member_use
+   info - 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre - lib\features\settings\presentation\chaaya_settings_screen.dart:136:9 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\chaaya_settings_screen.dart:154:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\chaaya_settings_screen.dart:186:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\chaaya_settings_screen.dart:203:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\chaaya_settings_screen.dart:205:54 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\settings\presentation\chaaya_settings_screen.dart:211:39 - deprecated_member_use
+  error - Target of URI doesn't exist: '../../core/network/dio_client.dart' - lib\features\sharing\data\sharing_service.dart:3:8 - uri_does_not_exist
+  error - Undefined name 'dioProvider' - lib\features\sharing\data\sharing_service.dart:6:35 - undefined_identifier
+   info - 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre - lib\features\sharing\presentation\share_file_dialog.dart:47:15 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\sharing\presentation\share_file_dialog.dart:59:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\sharing\presentation\share_file_dialog.dart:78:63 - deprecated_member_use
+  error - Target of URI doesn't exist: '../../core/network/dio_client.dart' - lib\features\storage\data\drive_service.dart:3:8 - uri_does_not_exist
+  error - Undefined name 'dioProvider' - lib\features\storage\data\drive_service.dart:6:33 - undefined_identifier
+   info - The import of 'package:flutter/foundation.dart' is unnecessary because all of the used elements are also provided by the import of 'dart:typed_data' - lib\features\storage\data\secure_storage_manager.dart:4:8 - unnecessary_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\storage\presentation\drive_screen.dart:21:33 - deprecated_member_use
+  error - Too many positional arguments: 0 expected, but 1 found - lib\features\storage\presentation\file_vault_screen.dart:31:30 - extra_positional_arguments
+  error - The method 'getAllFiles' isn't defined for the type 'SecureStorageManager' - lib\features\storage\presentation\file_vault_screen.dart:33:27 - undefined_method
+  error - The method 'getStorageStats' isn't defined for the type 'SecureStorageManager' - lib\features\storage\presentation\file_vault_screen.dart:34:33 - undefined_method
+  error - The named parameter 'localPath' is required, but there's no corresponding argument - lib\features\storage\presentation\file_vault_screen.dart:51:19 - missing_required_argument
+  error - The named parameter 'mimeType' is required, but there's no corresponding argument - lib\features\storage\presentation\file_vault_screen.dart:51:19 - missing_required_argument
+  error - The named parameter 'name' is required, but there's no corresponding argument - lib\features\storage\presentation\file_vault_screen.dart:51:19 - missing_required_argument
+  error - The named parameter 'sizeBytes' is required, but there's no corresponding argument - lib\features\storage\presentation\file_vault_screen.dart:51:19 - missing_required_argument
+  error - Too many positional arguments: 0 expected, but 2 found - lib\features\storage\presentation\file_vault_screen.dart:52:7 - extra_positional_arguments_could_be_named
+  error - The named parameter 'folder' isn't defined - lib\features\storage\presentation\file_vault_screen.dart:54:7 - undefined_named_parameter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\storage\presentation\file_vault_screen.dart:98:51 - deprecated_member_use
+  error - The getter 'totalVaultBytes' isn't defined for the type 'StorageStats' - lib\features\storage\presentation\file_vault_screen.dart:108:42 - undefined_getter
+  error - The getter 'totalFiles' isn't defined for the type 'StorageStats' - lib\features\storage\presentation\file_vault_screen.dart:111:41 - undefined_getter
+  error - The getter 'folder' isn't defined for the type 'VaultFile' - lib\features\storage\presentation\file_vault_screen.dart:128:64 - undefined_getter
+  error - The getter 'folder' isn't defined for the type 'VaultFile' - lib\features\storage\presentation\file_vault_screen.dart:129:59 - undefined_getter
+  error - The getter 'folder' isn't defined for the type 'VaultFile' - lib\features\storage\presentation\file_vault_screen.dart:130:61 - undefined_getter
+  error - The getter 'folder' isn't defined for the type 'VaultFile' - lib\features\storage\presentation\file_vault_screen.dart:131:64 - undefined_getter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\storage\presentation\file_vault_screen.dart:192:39 - deprecated_member_use
+  error - The getter 'fileName' isn't defined for the type 'VaultFile' - lib\features\storage\presentation\file_vault_screen.dart:197:26 - undefined_getter
+  error - The getter 'size' isn't defined for the type 'VaultFile' - lib\features\storage\presentation\file_vault_screen.dart:202:27 - undefined_getter
+  error - The getter 'fileName' isn't defined for the type 'VaultFile' - lib\features\storage\presentation\file_vault_screen.dart:220:58 - undefined_getter
+  error - The name 'SystemUIOverlayStyle' isn't a class - lib\main.dart:19:46 - creation_with_non_type
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\main.dart:121:47 - deprecated_member_use
+  error - The name 'MyApp' isn't a class - test\widget_test.dart:16:35 - creation_with_non_type
+

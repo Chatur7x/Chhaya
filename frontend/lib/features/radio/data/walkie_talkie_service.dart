@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
-import '../../core/mesh/wifi_direct_service.dart';
+import '../../../core/mesh/wifi_direct_service.dart';
 
 /// Walkie-Talkie / Push-to-Talk Service
 /// Zello-style PTT with named channels, priority broadcast, scramble mode.

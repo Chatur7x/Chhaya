@@ -32,7 +32,7 @@ class _WalkieTalkieScreenState extends ConsumerState<WalkieTalkieScreen>
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _pttService = ref.read(walkieTalkieServiceProvider);
-      _pttService.initialize();
+      _pttService.switchChannel(_activeChannel);
     });
   }
 
@@ -48,11 +48,11 @@ class _WalkieTalkieScreenState extends ConsumerState<WalkieTalkieScreen>
     setState(() => _isTransmitting = true);
     _pulseController.repeat(reverse: true);
     
-    await _pttService.startTransmission(
-      channel: _activeChannel,
-      useScramble: _scrambleOn,
-      isPriority: _activeChannel == '#emergency',
-    );
+    if (_activeChannel == '#emergency') {
+      await _pttService.priorityBroadcast();
+    } else {
+      await _pttService.startTransmitting();
+    }
   }
 
   void _stopTransmit() async {
@@ -61,7 +61,7 @@ class _WalkieTalkieScreenState extends ConsumerState<WalkieTalkieScreen>
     _pulseController.stop();
     _pulseController.reset();
     
-    await _pttService.stopTransmission();
+    await _pttService.stopTransmitting();
   }
 
   void _triggerSOS() async {
@@ -101,7 +101,10 @@ class _WalkieTalkieScreenState extends ConsumerState<WalkieTalkieScreen>
               color: _scrambleOn ? ChaayaTheme.safeGreen : ChaayaTheme.textMuted,
               size: 20,
             ),
-            onPressed: () => setState(() => _scrambleOn = !_scrambleOn),
+            onPressed: () {
+              setState(() => _scrambleOn = !_scrambleOn);
+              _pttService.toggleScramble();
+            },
             tooltip: 'Scramble',
           ),
           // Repeater toggle
@@ -114,7 +117,7 @@ class _WalkieTalkieScreenState extends ConsumerState<WalkieTalkieScreen>
             onPressed: () {
               setState(() {
                 _repeaterOn = !_repeaterOn;
-                _pttService.enableRepeaterMode(_repeaterOn);
+                _pttService.toggleRepeater();
               });
             },
             tooltip: 'Repeater',
@@ -152,7 +155,10 @@ class _WalkieTalkieScreenState extends ConsumerState<WalkieTalkieScreen>
           final ch = _channels[index];
           final isActive = ch == _activeChannel;
           return GestureDetector(
-            onTap: () => setState(() => _activeChannel = ch),
+            onTap: () {
+              setState(() => _activeChannel = ch);
+              _pttService.switchChannel(ch);
+            },
             child: Container(
               margin: const EdgeInsets.only(right: 8),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),

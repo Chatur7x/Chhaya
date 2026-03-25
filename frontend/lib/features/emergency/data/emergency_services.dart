@@ -45,10 +45,11 @@ class EmergencyBroadcastService {
 
   /// Get alert history
   List<EmergencyAlert> getHistory() {
-    return _box?.values
+    final list = _box?.values
         .map((j) => EmergencyAlert.fromJson(jsonDecode(j)))
-        .toList()
-      ?..sort((a, b) => b.timestamp.compareTo(a.timestamp)) ?? [];
+        .toList() ?? [];
+    list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return list;
   }
 
   Future<void> dispose() async {

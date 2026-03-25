@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import '../../core/mesh/wifi_direct_service.dart';
+import '../../../core/mesh/wifi_direct_service.dart';
 
 /// Voice and Video Call Service — peer-to-peer over WiFi Direct.
 /// No server, no internet. Auto-adjusts quality based on signal.

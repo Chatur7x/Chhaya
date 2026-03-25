@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/network/dio_client.dart';
+import '../../../core/network/dio_client.dart';
 
 final sharingServiceProvider = Provider<SharingService>((ref) {
   return SharingService(ref.watch(dioProvider));

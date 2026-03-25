@@ -187,11 +187,11 @@ class _QRPairingScreenState extends ConsumerState<QRPairingScreen>
               size: 220,
               backgroundColor: Colors.white,
               eyeStyle: const QrEyeStyle(
-                eyeShape: QrEyeShape.roundedSquare,
+                eyeShape: QrEyeShape.square,
                 color: Color(0xFF0D0F14),
               ),
               dataModuleStyle: const QrDataModuleStyle(
-                dataModuleShape: QrDataModuleShape.roundedSquare,
+                dataModuleShape: QrDataModuleShape.square,
                 color: Color(0xFF0D0F14),
               ),
             ),

@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.example.chaaya"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36 // Manually set to ensure compatibility with BLE/WiFi Direct
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -20,19 +20,16 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.chaaya"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        // Bluetooth and WiFi Direct require at least API 21, but 24 is recommended for better support
+        minSdk = 24 
+        targetSdk = 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
         }

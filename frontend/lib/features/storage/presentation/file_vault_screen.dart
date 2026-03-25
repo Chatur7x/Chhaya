@@ -28,10 +28,10 @@ class _FileVaultScreenState extends ConsumerState<FileVaultScreen> {
   Future<void> _loadFiles() async {
     setState(() => _loading = true);
     final storage = ref.read(secureStorageProvider);
-    await storage.initialize('vault_master_key_temp_123'); // In production, derive from user pin
+    await storage.initialize(); // In production, derive from user pin
     
-    final files = storage.getAllFiles();
-    final stats = await storage.getStorageStats();
+    final files = storage.getFiles();
+    final stats = storage.getStats();
     
     if (mounted) {
       setState(() {
@@ -49,9 +49,11 @@ class _FileVaultScreenState extends ConsumerState<FileVaultScreen> {
     await tempFile.writeAsString('Water purification: boil for 1 minute.');
     
     await storage.saveFile(
-      tempFile.path, 
-      'Survival Guide.txt', 
-      folder: 'Documents',
+      name: 'Survival Guide.txt',
+      mimeType: 'text/plain',
+      sizeBytes: 39,
+      localPath: tempFile.path, 
+      folderId: 'Documents',
     );
     _loadFiles();
   }
@@ -105,10 +107,10 @@ class _FileVaultScreenState extends ConsumerState<FileVaultScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('${(_stats!.totalVaultBytes / 1024 / 1024).toStringAsFixed(1)} MB used',
+                        Text('${(_stats!.totalBytes / 1024 / 1024).toStringAsFixed(1)} MB used',
                             style: const TextStyle(color: ChaayaTheme.textPrimary, fontWeight: FontWeight.w500)),
                         const SizedBox(height: 4),
-                        Text('${_stats!.totalFiles} files • All encrypted (AES-256)',
+                        Text('${_stats!.fileCount} files • All encrypted (AES-256)',
                             style: const TextStyle(color: ChaayaTheme.textMuted, fontSize: 12)),
                       ],
                     ),
@@ -125,10 +127,10 @@ class _FileVaultScreenState extends ConsumerState<FileVaultScreen> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               children: [
-                _folderTile('Documents', _files.where((f) => f.folder == 'Documents').length, ChaayaTheme.bleColor),
-                _folderTile('Maps', _files.where((f) => f.folder == 'Maps').length, ChaayaTheme.safeGreen),
-                _folderTile('Shared', _files.where((f) => f.folder == 'Shared').length, ChaayaTheme.warningYellow),
-                _folderTile('Emergency', _files.where((f) => f.folder == 'Emergency').length, ChaayaTheme.sosRed),
+                _folderTile('Documents', _files.where((f) => f.folderId == 'Documents').length, ChaayaTheme.bleColor),
+                _folderTile('Maps', _files.where((f) => f.folderId == 'Maps').length, ChaayaTheme.safeGreen),
+                _folderTile('Shared', _files.where((f) => f.folderId == 'Shared').length, ChaayaTheme.warningYellow),
+                _folderTile('Emergency', _files.where((f) => f.folderId == 'Emergency').length, ChaayaTheme.sosRed),
               ],
             ),
           ),
@@ -194,12 +196,12 @@ class _FileVaultScreenState extends ConsumerState<FileVaultScreen> {
           ),
           child: Icon(icon, color: ChaayaTheme.accent, size: 20),
         ),
-        title: Text(file.fileName, style: const TextStyle(color: ChaayaTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w400)),
+        title: Text(file.name, style: const TextStyle(color: ChaayaTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w400)),
         subtitle: Row(
           children: [
             const Icon(Icons.lock, size: 10, color: ChaayaTheme.safeGreen),
             const SizedBox(width: 4),
-            Text('${(file.size / 1024).toStringAsFixed(1)} KB • Encrypted', style: const TextStyle(fontSize: 11, color: ChaayaTheme.textMuted)),
+            Text('${(file.sizeBytes / 1024).toStringAsFixed(1)} KB • Encrypted', style: const TextStyle(fontSize: 11, color: ChaayaTheme.textMuted)),
           ],
         ),
         trailing: PopupMenuButton(
@@ -217,7 +219,7 @@ class _FileVaultScreenState extends ConsumerState<FileVaultScreen> {
               _loadFiles();
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Deleted ${file.fileName}')),
+                  SnackBar(content: Text('Deleted ${file.name}')),
                 );
               }
             }

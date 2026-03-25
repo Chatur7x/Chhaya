@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hive/hive.dart';
-import 'package:pointycastle/export.dart';
+import 'package:cryptography/cryptography.dart';
 import 'package:uuid/uuid.dart';
 
 /// Chaaya Identity — No-account, keypair-based identity system.
@@ -35,23 +35,15 @@ class IdentityService {
     // Generate device ID
     final deviceId = const Uuid().v4();
 
-    // Generate Ed25519 keypair using pointycastle
-    final keyParams = Ed25519KeyGeneratorParameters();
-    final random = FortunaRandom();
-    random.seed(KeyParameter(
-      Uint8List.fromList(List.generate(32, (i) => DateTime.now().microsecond + i)),
-    ));
-    
-    final keyGenerator = Ed25519KeyGenerator();
-    keyGenerator.init(ParametersWithRandom(keyParams, random));
-    final pair = keyGenerator.generateKeyPair();
-
-    final publicKey = pair.publicKey as Ed25519PublicKeyParameters;
-    final privateKey = pair.privateKey as Ed25519PrivateKeyParameters;
+    // Generate Ed25519 keypair using cryptography package
+    final algorithm = Ed25519();
+    final keyPair = await algorithm.newKeyPair();
+    final publicKey = await keyPair.extractPublicKey();
+    final privateKeyBytes = await keyPair.extractPrivateKeyBytes();
 
     // Encode keys as base64
     final publicKeyStr = base64Encode(publicKey.bytes);
-    final privateKeyStr = base64Encode(privateKey.bytes);
+    final privateKeyStr = base64Encode(privateKeyBytes);
 
     // Store private key securely
     await _secureStorage.write(key: 'chaaya_private_key', value: privateKeyStr);
