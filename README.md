@@ -103,6 +103,4 @@ Chaaya is built with a robust, layered architecture focusing on separation of co
 - [ ] iOS Connectivity (BLE only)
 - [ ] Background Location Sync
 
-## 📜 License
 
-This project is open-source and available under the MIT License. See the [LICENSE](LICENSE) file for more information.
