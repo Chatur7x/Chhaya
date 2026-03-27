@@ -1,0 +1,98 @@
+import 'dart:async';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
+import 'package:pointycastle/export.dart';
+
+/// BLE Channel Hopper — Anti-jamming FHSS (Req 11).
+/// Both devices independently compute the same BLE advertising channel
+/// from a shared secret + 5-second Unix timestamp bucket.
+/// Channel pool: 37 BLE advertising channels (indices 0–36).
+class ChannelHopper {
+  static const int _channelPoolSize = 37; // Req 11.4
+  static const int _hopIntervalSeconds = 5; // Req 11.2
+
+  final Uint8List sharedSecret;
+
+  Timer? _hopTimer;
+  int _currentChannel = 37; // safe default (channel 37 = BLE advertising default)
+  final _channelStream = StreamController<int>.broadcast();
+
+  // Track occupied channels (updated from BLE layer)
+  final Set<int> _occupiedChannels = {};
+
+  ChannelHopper({required this.sharedSecret});
+
+  Stream<int> get channelUpdates => _channelStream.stream;
+  int get currentChannel => _currentChannel;
+
+  /// Start the 5-second hop cycle (Req 11.2)
+  void start() {
+    _computeAndApply();
+    _hopTimer = Timer.periodic(
+      const Duration(seconds: _hopIntervalSeconds),
+      (_) => _computeAndApply(),
+    );
+    debugPrint('[ChannelHopper] Started. Initial channel: $_currentChannel');
+  }
+
+  void stop() {
+    _hopTimer?.cancel();
+    _hopTimer = null;
+  }
+
+  /// Compute the current channel deterministically (Req 11.1, 11.3).
+  /// Uses HMAC-SHA256(sharedSecret, timestamp_bucket) mod 37.
+  int computeChannel(DateTime? at) {
+    final ts = (at ?? DateTime.now()).millisecondsSinceEpoch ~/ 1000;
+    final bucket = ts - (ts % _hopIntervalSeconds); // truncate to 5s boundary
+
+    final hmac = HMac(SHA256Digest(), 64);
+    hmac.init(KeyParameter(sharedSecret));
+
+    // Input: 8-byte big-endian timestamp bucket
+    final input = Uint8List(8);
+    for (var i = 7; i >= 0; i--) {
+      input[i] = bucket & 0xFF;
+      // ignore: parameter_assignments
+      // bucket >>= 8; // Dart int is 64-bit, safe
+    }
+    // Encode bucket properly
+    var b = bucket;
+    for (var i = 7; i >= 0; i--) {
+      input[i] = b & 0xFF;
+      b >>= 8;
+    }
+
+    final output = Uint8List(hmac.macSize);
+    hmac.update(input, 0, input.length);
+    hmac.doFinal(output, 0);
+
+    // Take first 4 bytes as uint32, mod pool size
+    final raw = (output[0] << 24) | (output[1] << 16) | (output[2] << 8) | output[3];
+    return raw.abs() % _channelPoolSize;
+  }
+
+  /// Mark a channel as occupied (from BLE scan results)
+  void markOccupied(int channel) => _occupiedChannels.add(channel);
+  void markFree(int channel) => _occupiedChannels.remove(channel);
+
+  void _computeAndApply() {
+    var channel = computeChannel(null);
+
+    // If occupied, advance sequentially (Req 11.5)
+    var attempts = 0;
+    while (_occupiedChannels.contains(channel) && attempts < _channelPoolSize) {
+      channel = (channel + 1) % _channelPoolSize;
+      attempts++;
+    }
+
+    _currentChannel = channel;
+    _channelStream.add(channel);
+    debugPrint('[ChannelHopper] Hopped to channel $channel');
+  }
+
+  void dispose() {
+    stop();
+    _channelStream.close();
+  }
+}

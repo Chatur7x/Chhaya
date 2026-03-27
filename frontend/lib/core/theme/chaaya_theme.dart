@@ -34,6 +34,7 @@ class ChaayaTheme {
 
   // Glass
   static const Color glassWhite = Color(0x0DFFFFFF); // 5% white
+  static const Color glass = glassWhite; // alias used throughout UI
   static const Color glassBorder = Color(0x1AFFFFFF); // 10% white
 
   // ─── Theme Data ───
