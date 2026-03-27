@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'mesh_message.dart';
@@ -122,12 +121,21 @@ class BleMeshService {
 
       // Flush queued messages for this device
       _flushQueueForDevice(device.remoteId.str);
+      _broadcastConnections();
 
       return true;
     } catch (e) {
       debugPrint('[BLE] Connection failed: $e');
       return false;
     }
+  }
+
+  void _broadcastConnections() {
+    final statusMap = <String, MeshPeerStatus>{};
+    for (var id in _connectedDevices.keys) {
+      statusMap[id] = MeshPeerStatus.nearby;
+    }
+    _connectionStatus.add(statusMap);
   }
 
   /// Send a message over BLE mesh

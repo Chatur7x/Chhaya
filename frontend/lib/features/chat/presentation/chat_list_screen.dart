@@ -31,14 +31,14 @@ class ChatListScreen extends ConsumerWidget {
           return ListTile(
             leading: CircleAvatar(
               backgroundColor: Colors.blueAccent,
-              child: Text(contact.username[0].toUpperCase(), style: const TextStyle(color: Colors.white)),
+              child: Text(contact.name[0].toUpperCase(), style: const TextStyle(color: Colors.white)),
             ),
-            title: Text(contact.username, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            title: Text(contact.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             subtitle: Text('ID: ${contact.deviceId.substring(0, 8)}...', style: const TextStyle(color: Colors.white54)),
             trailing: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(contact.lastSeenText, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                Text(contact.status.name, style: const TextStyle(color: Colors.white38, fontSize: 12)),
               ],
             ),
             onTap: () {

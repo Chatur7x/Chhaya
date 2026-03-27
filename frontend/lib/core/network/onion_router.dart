@@ -58,6 +58,31 @@ class OnionRouter {
     }
   }
 
+  /// Build an OnionPath based on a pre-calculated Dijkstra path
+  List<OnionHop> buildPathFromDijkstra({
+    required List<String> dijkstraPath, // [relay1, ..., target]
+    required Map<String, Uint8List> peerPublicKeys,
+  }) {
+    if (dijkstraPath.isEmpty) throw ArgumentError('Empty routing path');
+    
+    final path = <OnionHop>[];
+    for (var i = 0; i < dijkstraPath.length; i++) {
+        final node = dijkstraPath[i];
+        final nextNode = (i + 1 < dijkstraPath.length) ? dijkstraPath[i + 1] : '';
+        
+        if (!peerPublicKeys.containsKey(node)) {
+          throw ArgumentError('Missing public key for relay node: $node');
+        }
+
+        path.add(OnionHop(
+          nodeId: node,
+          nextHopId: nextNode,
+          publicKeyBytes: peerPublicKeys[node]!
+        ));
+    }
+    return path;
+  }
+
   /// Select a 3-hop path from available peers, excluding self and destination
   List<OnionHop> selectPath({
     required List<String> availablePeerIds,

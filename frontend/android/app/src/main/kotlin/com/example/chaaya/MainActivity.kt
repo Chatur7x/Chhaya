@@ -11,6 +11,10 @@ import io.flutter.chaaya.ble.BleNativeModule
 import io.flutter.chaaya.security.KeyStoreModule
 import io.flutter.chaaya.security.PanicWipeService
 import io.flutter.chaaya.security.PowerButtonReceiver
+import io.flutter.chaaya.pairing.NfcNativeModule
+import io.flutter.chaaya.calling.VoiceCallService
+import io.flutter.chaaya.emergency.SosReceiver
+import android.content.Intent
 
 class MainActivity : FlutterActivity() {
 
@@ -19,6 +23,8 @@ class MainActivity : FlutterActivity() {
         const val BLE_CHANNEL    = "com.chaaya.meshlink/ble"
         const val KS_CHANNEL     = "com.chaaya.meshlink/keystore"
         const val PANIC_CHANNEL  = "com.chaaya.meshlink/panic"
+        const val NFC_CHANNEL    = "com.chaaya.meshlink/nfc"
+        const val CALLING_CHANNEL = "com.chaaya.meshlink/calling"
         // Timeout for method channel calls (Req 17.5)
         const val METHOD_TIMEOUT_MS = 5_000L
     }
@@ -26,6 +32,9 @@ class MainActivity : FlutterActivity() {
     private lateinit var bleModule: BleNativeModule
     private lateinit var keyStoreModule: KeyStoreModule
     private lateinit var panicWipeService: PanicWipeService
+    private lateinit var nfcModule: NfcNativeModule
+    private lateinit var voiceCallService: VoiceCallService
+    private lateinit var sosReceiver: SosReceiver
     private val powerBtnReceiver = PowerButtonReceiver()
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -34,6 +43,7 @@ class MainActivity : FlutterActivity() {
         bleModule = BleNativeModule(applicationContext, null)
         keyStoreModule = KeyStoreModule()
         panicWipeService = PanicWipeService(applicationContext, keyStoreModule)
+        sosReceiver = SosReceiver(applicationContext)
         PowerButtonReceiver.setPanicWipeService(panicWipeService)
 
         // Register power button receiver
@@ -42,9 +52,80 @@ class MainActivity : FlutterActivity() {
         setupBleChannel(flutterEngine)
         setupKeyStoreChannel(flutterEngine)
         setupPanicChannel(flutterEngine)
+        setupNfcChannel(flutterEngine)
+        setupCallingChannel(flutterEngine)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::nfcModule.isInitialized) {
+            nfcModule.enableForegroundDispatch()
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (::nfcModule.isInitialized) {
+            nfcModule.disableForegroundDispatch()
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (::nfcModule.isInitialized) {
+            nfcModule.onNewIntent(intent)
+        }
     }
 
     // ─── BLE Channel (Req 17a) ──────────────────────────────────
+
+    private fun setupNfcChannel(engine: FlutterEngine) {
+        nfcModule = NfcNativeModule(this)
+        val channel = MethodChannel(engine.dartExecutor.binaryMessenger, NFC_CHANNEL)
+        
+        nfcModule.setNfcCallback { payload ->
+            runOnUiThread {
+                channel.invokeMethod("onNdefDiscovered", payload)
+            }
+        }
+
+        channel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "isNfcAvailable" -> result.success(nfcModule.isNfcAvailable())
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun setupCallingChannel(engine: FlutterEngine) {
+        voiceCallService = VoiceCallService(this)
+        val channel = MethodChannel(engine.dartExecutor.binaryMessenger, CALLING_CHANNEL)
+        
+        channel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "startCall" -> {
+                    val ip = call.argument<String>("ip") ?: ""
+                    voiceCallService.startCall(ip)
+                    result.success(null)
+                }
+                "endCall" -> {
+                    voiceCallService.endCall()
+                    result.success(null)
+                }
+                "setMute" -> {
+                    val mute = call.argument<Boolean>("mute") ?: false
+                    voiceCallService.setMute(mute)
+                    result.success(null)
+                }
+                "setSpeakerphoneOn" -> {
+                    val on = call.argument<Boolean>("on") ?: false
+                    voiceCallService.setSpeakerphoneOn(on)
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
 
     private fun setupBleChannel(engine: FlutterEngine) {
         val channel = MethodChannel(engine.dartExecutor.binaryMessenger, BLE_CHANNEL)

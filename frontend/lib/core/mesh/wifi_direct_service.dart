@@ -152,6 +152,12 @@ class WifiDirectService {
   bool get isHost => _isHost;
   String? get connectedPeerId => _connectedPeerId;
 
+  String? getPeerAddress(String peerDeviceId) {
+    if (!_isConnected) return null;
+    // WiFi Direct Group Owner is always 192.168.49.1. Clients reply to host, host broadcasts to subnet.
+    return _isHost ? '192.168.49.255' : '192.168.49.1';
+  }
+
   Future<void> dispose() async {
     await disconnect();
     await _client.stopScan();

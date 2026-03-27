@@ -12,8 +12,12 @@ import '../../core/network/onion_router.dart';
 import '../../core/network/privacy_layer.dart';
 import '../../core/network/dead_drop_service.dart';
 import '../../core/network/platform_channel_bridge.dart';
+import '../../core/network/path_discovery.dart';
 import '../../features/contacts/data/contact_service.dart';
+import '../../features/contacts/data/nfc_service.dart';
 import '../../features/contacts/data/call_service.dart';
+import '../../features/emergency/data/sos_service.dart';
+import '../../features/stealth/data/stealth_service.dart';
 import '../../features/messenger/data/mesh_chat_service.dart';
 import '../../features/messenger/data/group_channel_service.dart';
 import '../../features/radio/data/walkie_talkie_service.dart';
@@ -28,6 +32,8 @@ import '../../features/chat/data/search_service.dart';
 final identityServiceProvider = Provider<IdentityService>((ref) {
   return IdentityService();
 });
+
+
 
 final messageQueueProvider = Provider<MessageQueue>((ref) {
   return MessageQueue();
@@ -60,6 +66,19 @@ final meshRouterProvider = Provider<MeshRouter>((ref) {
   );
 });
 
+final pathDiscoveryServiceProvider = Provider<PathDiscoveryService>((ref) {
+  final myDeviceId = ref.read(identityServiceProvider).currentIdentity?.deviceId ?? '';
+  final contactSvc = ref.read(contactServiceProvider);
+  final service = PathDiscoveryService(contactService: contactSvc, myDeviceId: myDeviceId);
+  
+  // Wire up BLE to PathDiscovery
+  ref.read(bleMeshServiceProvider).connectionStatus.listen((statusMap) {
+    service.updateDirectNeighbors(statusMap.keys.toList());
+  });
+  
+  return service;
+});
+
 final signalProtocolProvider = Provider<SignalProtocolService>((ref) {
   return SignalProtocolService();
 });
@@ -67,7 +86,15 @@ final signalProtocolProvider = Provider<SignalProtocolService>((ref) {
 /// ─── Feature Service Providers ───
 
 final contactServiceProvider = Provider<ContactService>((ref) {
-  return ContactService();
+  final identity = ref.read(identityServiceProvider);
+  return ContactService(identity);
+});
+
+final nfcServiceProvider = Provider<NfcService>((ref) {
+  final contactService = ref.read(contactServiceProvider);
+  final service = NfcService(contactService);
+  service.initialize();
+  return service;
 });
 
 final meshChatServiceProvider = Provider<MeshChatService>((ref) {
@@ -80,10 +107,8 @@ final groupChannelServiceProvider = Provider<GroupChannelService>((ref) {
 
 final callServiceProvider = Provider<CallService>((ref) {
   final wifi = ref.read(wifiDirectServiceProvider);
-  final identity = ref.read(identityServiceProvider);
   return CallService(
     wifiService: wifi,
-    myDeviceId: identity.currentIdentity?.deviceId ?? '',
   );
 });
 
@@ -95,6 +120,23 @@ final walkieTalkieServiceProvider = Provider<WalkieTalkieService>((ref) {
     myDeviceId: identity.currentIdentity?.deviceId ?? '',
     myCallsign: identity.currentIdentity?.username.toUpperCase() ?? 'ALPHA-1',
   );
+});
+
+final sosServiceProvider = Provider<SosService>((ref) {
+  final ble = ref.read(bleMeshServiceProvider);
+  final wifi = ref.read(wifiDirectServiceProvider);
+  final contacts = ref.read(contactServiceProvider);
+  final identity = ref.read(identityServiceProvider);
+  return SosService(
+    bleMesh: ble,
+    wifiDirect: wifi,
+    contactService: contacts,
+    myDeviceId: identity.currentIdentity?.deviceId ?? '',
+  );
+});
+
+final stealthServiceProvider = Provider<StealthService>((ref) {
+  return StealthService();
 });
 
 final locationSafetyServiceProvider = Provider<LocationSafetyService>((ref) {
