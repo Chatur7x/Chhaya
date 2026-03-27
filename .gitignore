@@ -18,12 +18,28 @@ frontend/.flutter-plugins-dependencies
 frontend/.metadata
 frontend/*.lock
 
+# Flutter / Android build artifacts
+frontend/android/build/
+
+# Debug & Build Logs
+*.log
+*.txt
+!README.md
+!SETUP.md
+frontend/errors*.txt
+
 # IDEs
 .idea/
 *.iml
 *.iws
 .vscode/
 
+# Agent / Tool configs
+.kiro/
+.ralphy/
+.projreqspec/
+
 # System
 .DS_Store
 Thumbs.db
+desktop.ini
