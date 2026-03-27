@@ -6,10 +6,11 @@ import '../../../core/presentation/widgets/glass_container.dart';
 import '../../../core/mesh/mesh_message.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../contacts/data/contact_service.dart';
+import '../../contacts/domain/models/contact.dart';
 import '../../../core/crypto/signal_protocol_service.dart';
 
 class ConversationScreen extends ConsumerStatefulWidget {
-  final MeshContact contact;
+  final Contact contact;
   const ConversationScreen({super.key, required this.contact});
 
   @override
@@ -144,14 +145,14 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                 CircleAvatar(
                   radius: 18, 
                   backgroundColor: Colors.blueAccent,
-                  child: Text(widget.contact.username[0].toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 14)),
+                  child: Text(widget.contact.name[0].toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 14)),
                 ),
                 const SizedBox(width: 12),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(widget.contact.username, style: const TextStyle(fontSize: 16)),
+                    Text(widget.contact.name, style: const TextStyle(fontSize: 16)),
                     Row(
                       children: [
                         const Icon(Icons.lock, size: 10, color: Colors.greenAccent),

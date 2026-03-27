@@ -14,6 +14,7 @@ import '../../core/network/dead_drop_service.dart';
 import '../../core/network/platform_channel_bridge.dart';
 import '../../core/network/path_discovery.dart';
 import '../../features/contacts/data/contact_service.dart';
+import '../../features/contacts/domain/models/contact.dart';
 import '../../features/contacts/data/nfc_service.dart';
 import '../../features/contacts/data/call_service.dart';
 import '../../features/emergency/data/sos_service.dart';
@@ -22,7 +23,7 @@ import '../../features/messenger/data/mesh_chat_service.dart';
 import '../../features/messenger/data/group_channel_service.dart';
 import '../../features/radio/data/walkie_talkie_service.dart';
 import '../../features/safety/data/location_safety_service.dart';
-import '../../features/storage/data/secure_storage_manager.dart';
+
 import '../../features/chat/data/voice_message_service.dart';
 import '../../features/chat/data/disappearing_message_service.dart';
 import '../../features/chat/data/search_service.dart';
@@ -143,13 +144,11 @@ final locationSafetyServiceProvider = Provider<LocationSafetyService>((ref) {
   return LocationSafetyService();
 });
 
-final secureStorageProvider = Provider<SecureStorageManager>((ref) {
-  return SecureStorageManager();
-});
+
 
 final identityReadyProvider = StateProvider<bool>((ref) => false);
 final currentIdentityProvider = StateProvider<MeshIdentity?>((ref) => null);
-final contactListProvider = StateProvider<List<MeshContact>>((ref) => []);
+final contactListProvider = StateProvider<List<Contact>>((ref) => []);
 final conversationListProvider = StateProvider<List<ConversationPreview>>((ref) => []);
 final locationStreamProvider = StreamProvider<Map<String, UserLocation>>((ref) {
   return ref.watch(locationSafetyServiceProvider).locationUpdates;

@@ -51,7 +51,7 @@ class SosService {
 
       // Bypass MessageQueue, force direct transport
       _bleMesh.sendMessage(msg);
-      _wifiDirect.sendMessage(msg.toJson());
+      _wifiDirect.sendMessage(msg);
       
       debugPrint('[SOS] Alert cast via BLE and WiFi to \${contact.name}');
     }

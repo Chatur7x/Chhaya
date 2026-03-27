@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/chaaya_theme.dart';
 import '../../features/messenger/presentation/mesh_chat_list_screen.dart';
-import '../../features/contacts/presentation/contacts_screen.dart';
+import '../../features/contacts/presentation/qr_pairing_screen.dart';
 import '../../features/radio/presentation/walkie_talkie_screen.dart';
 import '../../features/safety/presentation/safety_map_screen.dart';
-import '../../features/storage/presentation/file_vault_screen.dart';
-import '../../features/photos/presentation/media_vault_screen.dart';
 import '../../features/ai/presentation/ai_assistant_screen.dart';
 import '../../features/settings/presentation/chaaya_settings_screen.dart';
 
@@ -23,7 +21,7 @@ class _MainScreenState extends State<MainScreen> {
 
   final List<Widget> _screens = [
     const MeshChatListScreen(),
-    const ContactsScreen(),
+    const QrPairingScreen(),
     const WalkieTalkieScreen(),    // PTT Radio — Phase 2 ✅
     const SafetyMapScreen(),       // Map — Phase 3 ✅
     const _MoreScreen(),          // Hub for File Vault, Media, Settings, etc.
@@ -184,14 +182,14 @@ class _MoreScreen extends StatelessWidget {
             title: 'File Vault',
             subtitle: 'Encrypted file storage & sharing',
             color: ChaayaTheme.bleColor,
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FileVaultScreen())),
+            onTap: () {},
           ),
           _MoreTile(
             icon: Icons.photo_library_outlined,
             title: 'Media Vault',
             subtitle: 'Photos, videos & field reports',
             color: ChaayaTheme.accent,
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MediaVaultScreen())),
+            onTap: () {},
           ),
           _MoreTile(
             icon: Icons.shield_outlined,
@@ -212,7 +210,7 @@ class _MoreScreen extends StatelessWidget {
             title: 'AI Assistant',
             subtitle: 'Offline survival intelligence',
             color: ChaayaTheme.warningYellow,
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIAssistantScreen())),
+            onTap: () {},
           ),
           _MoreTile(
             icon: Icons.warning_amber_outlined,
