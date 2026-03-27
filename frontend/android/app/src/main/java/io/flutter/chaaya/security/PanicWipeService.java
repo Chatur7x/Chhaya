@@ -2,7 +2,6 @@ package io.flutter.chaaya.security;
 
 import android.content.*;
 import android.os.*;
-import android.security.keystore.KeyStore;
 import android.util.Log;
 
 import java.security.SecureRandom;
@@ -96,9 +95,10 @@ public class PanicWipeService {
             _wipeSharedPreferences();
 
             // Step 3: Notify Dart layer to wipe Hive DB (Req 14.3)
+            final boolean finalSuccess = success;
             if (wipeCallback != null) {
                 handler.post(() -> {
-                    if (success) {
+                    if (finalSuccess) {
                         wipeCallback.onWipeComplete(true);
                     } else {
                         wipeCallback.onWipeError("KeyStore wipe timeout");

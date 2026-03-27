@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.example.chaaya"
-    compileSdk = 36 // Manually set to ensure compatibility with BLE/WiFi Direct
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -21,11 +21,10 @@ android {
 
     defaultConfig {
         applicationId = "com.example.chaaya"
-        // Bluetooth and WiFi Direct require at least API 21, but 24 is recommended for better support
-        minSdk = 24 
-        targetSdk = 34
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        minSdk = 24
+        targetSdk = 35
+        versionCode = 2
+        versionName = "1.01"
     }
 
     buildTypes {

@@ -62,7 +62,7 @@ public class KeyStoreModule {
         try {
             KeyStore ks = KeyStore.getInstance(ANDROID_KEYSTORE);
             ks.load(null);
-            Certificate cert = ks.getCertificate(alias);
+            java.security.cert.Certificate cert = ks.getCertificate(alias);
             if (cert == null) return null;
             return cert.getPublicKey().getEncoded();
         } catch (Exception e) {
