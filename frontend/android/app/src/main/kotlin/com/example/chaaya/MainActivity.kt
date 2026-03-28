@@ -47,7 +47,11 @@ class MainActivity : FlutterActivity() {
         PowerButtonReceiver.setPanicWipeService(panicWipeService)
 
         // Register power button receiver
-        registerReceiver(powerBtnReceiver, IntentFilter(android.content.Intent.ACTION_SCREEN_OFF))
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(powerBtnReceiver, IntentFilter(android.content.Intent.ACTION_SCREEN_OFF), android.content.Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(powerBtnReceiver, IntentFilter(android.content.Intent.ACTION_SCREEN_OFF))
+        }
 
         setupBleChannel(flutterEngine)
         setupKeyStoreChannel(flutterEngine)
