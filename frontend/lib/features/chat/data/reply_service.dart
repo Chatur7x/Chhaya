@@ -1,0 +1,58 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import '../domain/models/message_metadata.dart';
+
+final replyServiceProvider = Provider<ReplyService>((ref) {
+  return ReplyService();
+});
+
+class ReplyService {
+  static const String _boxName = 'reply_metadata';
+  Box<MessageMetadata>? _box;
+
+  Future<void> initialize() async {
+    if (!Hive.isAdapterRegistered(10)) {
+      Hive.registerAdapter(MessageReactionAdapter());
+    }
+    if (!Hive.isAdapterRegistered(11)) {
+      Hive.registerAdapter(MessageMetadataAdapter());
+    }
+    _box = await Hive.openBox<MessageMetadata>(_boxName);
+  }
+
+  Future<void> setReplyTo(
+      String messageId, String replyToId, String quotedText) async {
+    if (_box == null) return;
+
+    final metadata = _box!.get(messageId) ?? MessageMetadata();
+    metadata.replyToId = replyToId;
+    metadata.quotedText = quotedText;
+
+    await _box!.put(messageId, metadata);
+  }
+
+  MessageMetadata? getReplyMetadata(String messageId) {
+    return _box?.get(messageId);
+  }
+
+  Future<void> markAsEdited(String messageId) async {
+    if (_box == null) return;
+
+    final metadata = _box!.get(messageId) ?? MessageMetadata();
+    metadata.edited = true;
+    metadata.editedAt = DateTime.now();
+
+    await _box!.put(messageId, metadata);
+  }
+
+  Future<void> clearReply(String messageId) async {
+    if (_box == null) return;
+
+    final metadata = _box!.get(messageId);
+    if (metadata != null) {
+      metadata.replyToId = null;
+      metadata.quotedText = null;
+      await _box!.put(messageId, metadata);
+    }
+  }
+}

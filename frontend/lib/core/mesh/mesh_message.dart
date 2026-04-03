@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:uuid/uuid.dart';
+import '../../features/chat/domain/models/message_metadata.dart';
 
 /// Represents a message in the Chaaya mesh network.
 /// Can be serialized for BLE transport or JSON for WiFi.
@@ -17,6 +18,11 @@ class MeshMessage {
   final MessageStatus status;
   final bool isSOS;
   final Map<String, dynamic>? metadata;
+  final String? replyToId;
+  final String? quotedText;
+  final List<MessageReaction> reactions;
+  final bool edited;
+  final DateTime? editedAt;
 
   MeshMessage({
     String? id,
@@ -32,6 +38,11 @@ class MeshMessage {
     this.status = MessageStatus.queued,
     this.isSOS = false,
     this.metadata,
+    this.replyToId,
+    this.quotedText,
+    this.reactions = const [],
+    this.edited = false,
+    this.editedAt,
   })  : id = id ?? const Uuid().v4(),
         timestamp = timestamp ?? DateTime.now();
 
@@ -57,6 +68,22 @@ class MeshMessage {
       ),
       isSOS: json['isSOS'] as bool? ?? false,
       metadata: json['metadata'] as Map<String, dynamic>?,
+      replyToId: json['replyToId'] as String?,
+      quotedText: json['quotedText'] as String?,
+      reactions: (json['reactions'] as List<dynamic>?)
+              ?.map((e) => MessageReaction(
+                    emoji: e['emoji'] as String,
+                    userId: e['userId'] as String,
+                    timestamp: e['timestamp'] != null
+                        ? DateTime.parse(e['timestamp'] as String)
+                        : null,
+                  ))
+              .toList() ??
+          [],
+      edited: json['edited'] as bool? ?? false,
+      editedAt: json['editedAt'] != null
+          ? DateTime.parse(json['editedAt'] as String)
+          : null,
     );
   }
 
@@ -76,6 +103,18 @@ class MeshMessage {
       'status': status.name,
       'isSOS': isSOS,
       if (metadata != null) 'metadata': metadata,
+      if (replyToId != null) 'replyToId': replyToId,
+      if (quotedText != null) 'quotedText': quotedText,
+      if (reactions.isNotEmpty)
+        'reactions': reactions
+            .map((r) => {
+                  'emoji': r.emoji,
+                  'userId': r.userId,
+                  'timestamp': r.timestamp.toIso8601String(),
+                })
+            .toList(),
+      if (edited) 'edited': edited,
+      if (editedAt != null) 'editedAt': editedAt!.toIso8601String(),
     };
   }
 
@@ -97,6 +136,11 @@ class MeshMessage {
     int? hopCount,
     String? channel,
     String? content,
+    String? replyToId,
+    String? quotedText,
+    List<MessageReaction>? reactions,
+    bool? edited,
+    DateTime? editedAt,
   }) {
     return MeshMessage(
       id: id,
@@ -112,6 +156,11 @@ class MeshMessage {
       status: status ?? this.status,
       isSOS: isSOS,
       metadata: metadata,
+      replyToId: replyToId ?? this.replyToId,
+      quotedText: quotedText ?? this.quotedText,
+      reactions: reactions ?? this.reactions,
+      edited: edited ?? this.edited,
+      editedAt: editedAt ?? this.editedAt,
     );
   }
 
@@ -156,10 +205,9 @@ enum MeshMessageType {
 
 /// Message delivery status
 enum MessageStatus {
-  queued,    // ⏳ waiting in queue
-  sent,      // ✓  sent to mesh
+  queued, // ⏳ waiting in queue
+  sent, // ✓  sent to mesh
   delivered, // ✓✓ reached recipient
-  read,      // ✓✓ blue — recipient opened
-  failed,    // ✗  delivery failed
+  read, // ✓✓ blue — recipient opened
+  failed, // ✗  delivery failed
 }
-

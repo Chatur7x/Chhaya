@@ -11,6 +11,11 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # Localization
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.2
+
   # UI
   cupertino_icons: ^1.0.6
   google_fonts: ^6.1.0
@@ -43,6 +48,9 @@ dependencies:
   uuid: ^4.3.3
   convert: ^3.1.1
 
+  # Biometric Auth
+  local_auth: ^2.2.0
+
   # Audio & Voice
   record: ^6.0.0
   audioplayers: ^6.0.0
@@ -51,6 +59,7 @@ dependencies:
   # Camera & Media
   image_picker: ^1.0.7
   file_picker: ^8.0.0+1
+  flutter_webrtc: ^0.11.0
 
   # Location & Maps
   geolocator: ^12.0.0
@@ -71,4 +80,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  generate: true
 

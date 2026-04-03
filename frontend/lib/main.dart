@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'l10n/app_localizations.dart';
 import 'core/theme/chaaya_theme.dart';
 import 'core/identity/identity_service.dart';
 import 'core/mesh/message_queue.dart';
@@ -87,6 +89,17 @@ class _ChaayaAppState extends ConsumerState<ChaayaApp> {
       title: 'Chaaya',
       debugShowCheckedModeBanner: false,
       theme: ChaayaTheme.darkTheme,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('en'),
+        Locale('es'),
+        Locale('ar'),
+      ],
       home: _loading
           ? const _SplashScreen()
           : (identityReady || _hasIdentity)
@@ -123,7 +136,8 @@ class _SplashScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              child: const Icon(Icons.cell_tower_rounded, size: 40, color: Colors.white),
+              child: const Icon(Icons.cell_tower_rounded,
+                  size: 40, color: Colors.white),
             ),
             const SizedBox(height: 24),
             const Text(
@@ -149,4 +163,3 @@ class _SplashScreen extends StatelessWidget {
     );
   }
 }
-

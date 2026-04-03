@@ -30,6 +30,19 @@ public class ChatMessage {
     @Enumerated(EnumType.STRING)
     private MessageStatus status;
 
+    @Column(columnDefinition = "TEXT")
+    private String replyToId;
+
+    @Column(columnDefinition = "TEXT")
+    private String quotedText;
+
+    @Column(columnDefinition = "TEXT")
+    private String reactions;
+
+    private boolean edited = false;
+
+    private LocalDateTime editedAt;
+
     public enum MessageStatus {
         SENT, DELIVERED, READ
     }

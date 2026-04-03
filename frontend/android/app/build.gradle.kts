@@ -27,6 +27,10 @@ android {
         versionName = "1.01"
     }
 
+    dependencies {
+        implementation("org.webrtc:google-webrtc:1.0.+")
+    }
+
     buildTypes {
         release {
             // Signing with the debug keys for now, so `flutter run --release` works.

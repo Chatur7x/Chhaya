@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../contacts/domain/models/contact.dart';
 import '../../../core/theme/chaaya_theme.dart';
 import '../../../core/providers/app_providers.dart';
+import 'video_call_screen.dart';
 
 class CallScreen extends ConsumerStatefulWidget {
   final Contact peer;
@@ -38,7 +39,9 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Call failed: $e'), backgroundColor: ChaayaTheme.sosRed),
+          SnackBar(
+              content: Text('Call failed: $e'),
+              backgroundColor: ChaayaTheme.sosRed),
         );
         Navigator.pop(context);
       }
@@ -55,7 +58,9 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
   void _endCall() async {
     _timer?.cancel();
-    await ref.read(callServiceProvider).endCall(widget.peer.deviceId, _callDuration);
+    await ref
+        .read(callServiceProvider)
+        .endCall(widget.peer.deviceId, _callDuration);
     if (mounted) {
       Navigator.pop(context);
     }
@@ -104,23 +109,32 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             // Identifying Information
             Text(
               widget.peer.name,
-              style: const TextStyle(color: ChaayaTheme.textPrimary, fontSize: 32, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                  color: ChaayaTheme.textPrimary,
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
               'ID: ${widget.peer.deviceId.substring(0, 8)}',
-              style: const TextStyle(color: ChaayaTheme.textSecondary, fontSize: 16),
+              style: const TextStyle(
+                  color: ChaayaTheme.textSecondary, fontSize: 16),
             ),
-            
+
             // Status and Duration
             const SizedBox(height: 40),
             if (!_isCallActive && !widget.isIncoming)
-              const Text('Connecting direct P2P link...', style: TextStyle(color: ChaayaTheme.wifiColor, fontSize: 18))
+              const Text('Connecting direct P2P link...',
+                  style: TextStyle(color: ChaayaTheme.wifiColor, fontSize: 18))
             else if (_isCallActive)
-              Text(_formatDuration(_callDuration), style: const TextStyle(color: ChaayaTheme.safeGreen, fontSize: 24, fontWeight: FontWeight.w500)),
-              
+              Text(_formatDuration(_callDuration),
+                  style: const TextStyle(
+                      color: ChaayaTheme.safeGreen,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w500)),
+
             const Spacer(),
-            
+
             // Connection Quality Indicator
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -134,19 +148,22 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                 children: [
                   Icon(Icons.wifi, color: ChaayaTheme.wifiColor, size: 16),
                   SizedBox(width: 8),
-                  Text('Direct WiFi Link Active', style: TextStyle(color: ChaayaTheme.textSecondary)),
+                  Text('Direct WiFi Link Active',
+                      style: TextStyle(color: ChaayaTheme.textSecondary)),
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 40),
-            
+
             // Call Controls
             Container(
               padding: const EdgeInsets.all(32),
               decoration: const BoxDecoration(
                 color: ChaayaTheme.surface,
-                borderRadius: BorderRadius.only(topLeft: Radius.circular(40), topRight: Radius.circular(40)),
+                borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(40),
+                    topRight: Radius.circular(40)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -154,22 +171,34 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                   // Mute
                   _buildControlBtn(
                     icon: _isMuted ? Icons.mic_off : Icons.mic,
-                    color: _isMuted ? ChaayaTheme.warningYellow : ChaayaTheme.textPrimary,
+                    color: _isMuted
+                        ? ChaayaTheme.warningYellow
+                        : ChaayaTheme.textPrimary,
                     onPressed: _toggleMute,
                   ),
-                  
+
+                  // Video Call
+                  _buildControlBtn(
+                    icon: Icons.video_call,
+                    color: ChaayaTheme.accent,
+                    onPressed: () => _startVideoCall(context),
+                  ),
+
                   // End Call (big red button)
                   FloatingActionButton.large(
                     heroTag: 'end_call',
                     backgroundColor: ChaayaTheme.sosRed,
                     onPressed: _endCall,
-                    child: const Icon(Icons.call_end, color: Colors.white, size: 36),
+                    child: const Icon(Icons.call_end,
+                        color: Colors.white, size: 36),
                   ),
-                  
+
                   // Speaker
                   _buildControlBtn(
                     icon: _isSpeakerOn ? Icons.volume_up : Icons.volume_down,
-                    color: _isSpeakerOn ? ChaayaTheme.accentLight : ChaayaTheme.textPrimary,
+                    color: _isSpeakerOn
+                        ? ChaayaTheme.accentLight
+                        : ChaayaTheme.textPrimary,
                     onPressed: _toggleSpeaker,
                   ),
                 ],
@@ -181,7 +210,23 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     );
   }
 
-  Widget _buildControlBtn({required IconData icon, required Color color, required VoidCallback onPressed}) {
+  void _startVideoCall(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => VideoCallScreen(
+          peer: widget.peer,
+          isIncoming: widget.isIncoming,
+          isVideo: true,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildControlBtn(
+      {required IconData icon,
+      required Color color,
+      required VoidCallback onPressed}) {
     return InkWell(
       onTap: onPressed,
       borderRadius: BorderRadius.circular(30),

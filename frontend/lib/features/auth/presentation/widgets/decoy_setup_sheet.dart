@@ -1,0 +1,199 @@
+import 'package:flutter/material.dart';
+import '../../../../core/theme/chaaya_theme.dart';
+import '../../data/decoy_service.dart';
+
+class DecoySetupSheet extends StatefulWidget {
+  final DecoyService decoyService;
+  final VoidCallback? onComplete;
+
+  const DecoySetupSheet({
+    super.key,
+    required this.decoyService,
+    this.onComplete,
+  });
+
+  @override
+  State<DecoySetupSheet> createState() => _DecoySetupSheetState();
+}
+
+class _DecoySetupSheetState extends State<DecoySetupSheet> {
+  final _decoyController = TextEditingController();
+  final _confirmController = TextEditingController();
+  bool _isLoading = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _decoyController.dispose();
+    _confirmController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: ChaayaTheme.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: ChaayaTheme.textMuted,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded,
+                  color: ChaayaTheme.warningYellow, size: 24),
+              SizedBox(width: 12),
+              Text(
+                'Setup Decoy Password',
+                style: ChaayaTheme.heading2,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Create a secondary password that shows a fake inbox when entered. '
+            'Use this if forced to reveal your device.',
+            style: ChaayaTheme.bodyMedium,
+          ),
+          const SizedBox(height: 24),
+          TextField(
+            controller: _decoyController,
+            obscureText: true,
+            style: const TextStyle(color: ChaayaTheme.textPrimary),
+            decoration: InputDecoration(
+              labelText: 'Decoy Password',
+              labelStyle: const TextStyle(color: ChaayaTheme.textSecondary),
+              hintText: 'Enter a different password',
+              hintStyle: const TextStyle(color: ChaayaTheme.textMuted),
+              prefixIcon: const Icon(Icons.lock_outline,
+                  color: ChaayaTheme.warningYellow),
+              filled: true,
+              fillColor: ChaayaTheme.surfaceLight,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _confirmController,
+            obscureText: true,
+            style: const TextStyle(color: ChaayaTheme.textPrimary),
+            decoration: InputDecoration(
+              labelText: 'Confirm Password',
+              labelStyle: const TextStyle(color: ChaayaTheme.textSecondary),
+              hintText: 'Re-enter decoy password',
+              hintStyle: const TextStyle(color: ChaayaTheme.textMuted),
+              prefixIcon: const Icon(Icons.lock_outline,
+                  color: ChaayaTheme.warningYellow),
+              filled: true,
+              fillColor: ChaayaTheme.surfaceLight,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _error!,
+              style: const TextStyle(color: ChaayaTheme.sosRed, fontSize: 13),
+            ),
+          ],
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: _isLoading ? null : _handleSave,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ChaayaTheme.warningYellow,
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            child: _isLoading
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.black),
+                  )
+                : const Text(
+                    'Enable Decoy Mode',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: ChaayaTheme.textMuted),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleSave() async {
+    setState(() {
+      _error = null;
+    });
+
+    final decoyPassword = _decoyController.text.trim();
+    final confirmPassword = _confirmController.text.trim();
+
+    if (decoyPassword.isEmpty) {
+      setState(() => _error = 'Decoy password cannot be empty');
+      return;
+    }
+
+    if (decoyPassword.length < 6) {
+      setState(() => _error = 'Password must be at least 6 characters');
+      return;
+    }
+
+    if (decoyPassword != confirmPassword) {
+      setState(() => _error = 'Passwords do not match');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      await widget.decoyService.setDecoyPassword(decoyPassword);
+      await widget.decoyService.setDecoyEnabled(true);
+      await widget.decoyService.populateDecoyInbox();
+
+      if (mounted) {
+        Navigator.pop(context);
+        widget.onComplete?.call();
+      }
+    } catch (e) {
+      setState(() => _error = 'Failed to save. Please try again.');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+}

@@ -27,14 +27,19 @@ import '../../features/safety/data/location_safety_service.dart';
 import '../../features/chat/data/voice_message_service.dart';
 import '../../features/chat/data/disappearing_message_service.dart';
 import '../../features/chat/data/search_service.dart';
+import '../../features/chat/data/reaction_service.dart';
+import '../../features/chat/data/reply_service.dart';
+import '../../features/chat/data/presence_service.dart';
+import '../../features/identity/data/key_verification_service.dart';
+import '../../features/auth/data/biometric_service.dart';
+import '../../features/auth/data/decoy_service.dart';
+import '../../features/messenger/data/poll_service.dart';
 
 /// ─── Core Service Providers ───
 
 final identityServiceProvider = Provider<IdentityService>((ref) {
   return IdentityService();
 });
-
-
 
 final messageQueueProvider = Provider<MessageQueue>((ref) {
   return MessageQueue();
@@ -68,15 +73,17 @@ final meshRouterProvider = Provider<MeshRouter>((ref) {
 });
 
 final pathDiscoveryServiceProvider = Provider<PathDiscoveryService>((ref) {
-  final myDeviceId = ref.read(identityServiceProvider).currentIdentity?.deviceId ?? '';
+  final myDeviceId =
+      ref.read(identityServiceProvider).currentIdentity?.deviceId ?? '';
   final contactSvc = ref.read(contactServiceProvider);
-  final service = PathDiscoveryService(contactService: contactSvc, myDeviceId: myDeviceId);
-  
+  final service =
+      PathDiscoveryService(contactService: contactSvc, myDeviceId: myDeviceId);
+
   // Wire up BLE to PathDiscovery
   ref.read(bleMeshServiceProvider).connectionStatus.listen((statusMap) {
     service.updateDirectNeighbors(statusMap.keys.toList());
   });
-  
+
   return service;
 });
 
@@ -144,12 +151,11 @@ final locationSafetyServiceProvider = Provider<LocationSafetyService>((ref) {
   return LocationSafetyService();
 });
 
-
-
 final identityReadyProvider = StateProvider<bool>((ref) => false);
 final currentIdentityProvider = StateProvider<MeshIdentity?>((ref) => null);
 final contactListProvider = StateProvider<List<Contact>>((ref) => []);
-final conversationListProvider = StateProvider<List<ConversationPreview>>((ref) => []);
+final conversationListProvider =
+    StateProvider<List<ConversationPreview>>((ref) => []);
 final locationStreamProvider = StreamProvider<Map<String, UserLocation>>((ref) {
   return ref.watch(locationSafetyServiceProvider).locationUpdates;
 });
@@ -182,7 +188,8 @@ final voiceMessageServiceProvider = Provider<VoiceMessageService>((ref) {
   return VoiceMessageService();
 });
 
-final disappearingMessageServiceProvider = Provider<DisappearingMessageService>((ref) {
+final disappearingMessageServiceProvider =
+    Provider<DisappearingMessageService>((ref) {
   return DisappearingMessageService();
 });
 
@@ -190,8 +197,43 @@ final searchServiceProvider = Provider<SearchService>((ref) {
   return SearchService();
 });
 
-final channelHopperProvider = Provider.family<ChannelHopper, List<int>>((ref, secretBytes) {
+final channelHopperProvider =
+    Provider.family<ChannelHopper, List<int>>((ref, secretBytes) {
   return ChannelHopper(sharedSecret: Uint8List.fromList(secretBytes));
 });
 
+final reactionServiceProvider = Provider<ReactionService>((ref) {
+  final service = ReactionService();
+  service.initialize();
+  return service;
+});
 
+final replyServiceProvider = Provider<ReplyService>((ref) {
+  final service = ReplyService();
+  service.initialize();
+  return service;
+});
+
+final presenceServiceProvider = Provider<PresenceService>((ref) {
+  final service = PresenceService();
+  service.initialize();
+  return service;
+});
+
+final keyVerificationServiceProvider = Provider<KeyVerificationService>((ref) {
+  return KeyVerificationService();
+});
+
+final biometricServiceProvider = Provider<BiometricService>((ref) {
+  return BiometricService();
+});
+
+final decoyServiceProvider = Provider<DecoyService>((ref) {
+  return DecoyService();
+});
+
+final pollServiceProvider = Provider<PollService>((ref) {
+  final service = PollService();
+  service.initialize();
+  return service;
+});

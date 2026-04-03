@@ -5,9 +5,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/presentation/widgets/glass_container.dart';
 import '../../../core/mesh/mesh_message.dart';
 import '../../../core/providers/app_providers.dart';
-import '../../contacts/data/contact_service.dart';
 import '../../contacts/domain/models/contact.dart';
 import '../../../core/crypto/signal_protocol_service.dart';
+import '../../../core/theme/chaaya_theme.dart';
+import 'widgets/reaction_picker.dart';
+import 'widgets/reply_quote_card.dart';
+import 'widgets/typing_indicator.dart';
+import '../domain/models/message_metadata.dart';
+
+class MessageData {
+  final MeshMessage message;
+  final MessageMetadata? metadata;
+
+  MessageData({required this.message, this.metadata});
+}
 
 class ConversationScreen extends ConsumerStatefulWidget {
   final Contact contact;
@@ -19,20 +30,25 @@ class ConversationScreen extends ConsumerStatefulWidget {
 
 class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   final _messageController = TextEditingController();
-  final List<MeshMessage> _messages = [];
+  final List<MessageData> _messages = [];
   bool _isEncrypting = false;
+  MessageData? _replyingTo;
+  bool _showReactionPicker = false;
+  String? _selectedMessageId;
+  bool _isContactTyping = false;
 
   StreamSubscription? _bleSub;
   StreamSubscription? _wifiSub;
+  StreamSubscription? _typingSub;
 
   @override
   void initState() {
     super.initState();
     _setupMessageListeners();
+    _setupTypingListener();
   }
 
   void _setupMessageListeners() {
-    // Listen to incoming messages via BLE
     final ble = ref.read(bleMeshServiceProvider);
     _bleSub = ble.incomingMessages.listen((msg) {
       if (msg.senderId == widget.contact.deviceId) {
@@ -40,7 +56,6 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       }
     });
 
-    // Listen to incoming messages via WiFi Direct
     final wifi = ref.read(wifiDirectServiceProvider);
     _wifiSub = wifi.incomingMessages.listen((msg) {
       if (msg.senderId == widget.contact.deviceId) {
@@ -49,16 +64,37 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     });
   }
 
+  void _setupTypingListener() {
+    final presence = ref.read(presenceServiceProvider);
+    _typingSub = presence.typingStream.listen((event) {
+      if (event.senderId == widget.contact.deviceId) {
+        setState(() {
+          _isContactTyping = event.isTyping;
+        });
+      }
+    });
+  }
+
   Future<void> _handleIncomingEncrypted(MeshMessage msg) async {
     final crypto = ref.read(signalProtocolProvider);
+    final reactionSvc = ref.read(reactionServiceProvider);
+    final replySvc = ref.read(replyServiceProvider);
+
     try {
       final payloadJson = jsonDecode(msg.content);
       final payload = EncryptedPayload.fromJson(payloadJson);
-      final decryptedText = await crypto.decrypt(widget.contact.deviceId, payload);
-      
+      final decryptedText =
+          await crypto.decrypt(widget.contact.deviceId, payload);
+
+      final metadata =
+          reactionSvc.getMetadata(msg.id) ?? replySvc.getReplyMetadata(msg.id);
+
       if (mounted) {
         setState(() {
-          _messages.add(msg.copyWith(content: decryptedText));
+          _messages.add(MessageData(
+            message: msg.copyWith(content: decryptedText),
+            metadata: metadata,
+          ));
         });
       }
     } catch (e) {
@@ -69,9 +105,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
-    
+
     setState(() => _isEncrypting = true);
-    
+
     final myIdentity = ref.read(identityServiceProvider).currentIdentity;
     if (myIdentity == null) {
       setState(() => _isEncrypting = false);
@@ -80,37 +116,47 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
     final crypto = ref.read(signalProtocolProvider);
     final router = ref.read(meshRouterProvider);
+    final replySvc = ref.read(replyServiceProvider);
+    final presence = ref.read(presenceServiceProvider);
 
     try {
-      // Ensure session exists
-      await crypto.getOrCreateSession(widget.contact.deviceId, widget.contact.publicKey);
-      
-      // Encrypt the text using Signal protocol
+      await crypto.getOrCreateSession(
+          widget.contact.deviceId, widget.contact.publicKey);
       final payload = await crypto.encrypt(widget.contact.deviceId, text);
-      
-      // Build offline mesh message
-      final msg = MeshMessage(
+
+      MeshMessage msg = MeshMessage(
         senderId: myIdentity.deviceId,
         senderName: myIdentity.username,
         recipientId: widget.contact.deviceId,
-        content: jsonEncode(payload.toJson()), // send encrypted payload as content
+        content: jsonEncode(payload.toJson()),
+        replyToId: _replyingTo?.message.id,
+        quotedText: _replyingTo?.message.content,
       );
 
-      // Save to local UI unencrypted for display
+      if (_replyingTo != null) {
+        await replySvc.setReplyTo(
+            msg.id, _replyingTo!.message.id, _replyingTo!.message.content);
+      }
+
+      final displayMsg = msg.copyWith(content: text);
+
       if (mounted) {
         setState(() {
           _messageController.clear();
-          _messages.add(msg.copyWith(content: text));
+          _messages.add(MessageData(message: displayMsg));
+          _replyingTo = null;
+          _showReactionPicker = false;
+          _selectedMessageId = null;
         });
       }
 
-      // Route it (BLE -> WiFi Direct -> Queue)
       await router.send(msg);
-
+      presence.sendReadReceipt(msg.id, widget.contact.deviceId);
     } catch (e) {
       debugPrint('[Chat] Send failed: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Encryption failed: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Encryption failed: $e')));
       }
     } finally {
       if (mounted) {
@@ -119,10 +165,38 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     }
   }
 
+  void _handleReaction(String emoji) {
+    if (_selectedMessageId == null) return;
+
+    final reactionSvc = ref.read(reactionServiceProvider);
+    final myIdentity = ref.read(identityServiceProvider).currentIdentity;
+    if (myIdentity == null) return;
+
+    reactionSvc.toggleReaction(_selectedMessageId!, emoji, myIdentity.deviceId);
+
+    setState(() {
+      _showReactionPicker = false;
+      _selectedMessageId = null;
+    });
+  }
+
+  void _showReplyTo(MessageData msgData) {
+    setState(() {
+      _replyingTo = msgData;
+    });
+  }
+
+  void _cancelReply() {
+    setState(() {
+      _replyingTo = null;
+    });
+  }
+
   @override
   void dispose() {
     _bleSub?.cancel();
     _wifiSub?.cancel();
+    _typingSub?.cancel();
     _messageController.dispose();
     super.dispose();
   }
@@ -143,22 +217,30 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
             title: Row(
               children: [
                 CircleAvatar(
-                  radius: 18, 
+                  radius: 18,
                   backgroundColor: Colors.blueAccent,
-                  child: Text(widget.contact.name[0].toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 14)),
+                  child: Text(widget.contact.name[0].toUpperCase(),
+                      style:
+                          const TextStyle(color: Colors.white, fontSize: 14)),
                 ),
                 const SizedBox(width: 12),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(widget.contact.name, style: const TextStyle(fontSize: 16)),
+                    Text(widget.contact.name,
+                        style: const TextStyle(fontSize: 16)),
                     Row(
                       children: [
-                        const Icon(Icons.lock, size: 10, color: Colors.greenAccent),
+                        const Icon(Icons.lock,
+                            size: 10, color: Colors.greenAccent),
                         const SizedBox(width: 4),
-                        Text(widget.contact.status == ContactStatus.nearby ? 'Directly connected' : 'Offline mesh', 
-                          style: const TextStyle(fontSize: 10, color: Colors.white70)),
+                        Text(
+                            widget.contact.status == ContactStatus.nearby
+                                ? 'Directly connected'
+                                : 'Offline mesh',
+                            style: const TextStyle(
+                                fontSize: 10, color: Colors.white70)),
                       ],
                     ),
                   ],
@@ -174,55 +256,192 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       ),
       body: Column(
         children: [
+          if (_showReactionPicker && _selectedMessageId != null)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: ReactionPicker(onReactionSelected: _handleReaction),
+            ),
           Expanded(
-            child: _messages.isEmpty 
-              ? const Center(child: Text('Secure E2EE established.\nMessages are routed offline.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white38)))
-              : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final msg = _messages[index];
-                final isMe = msg.senderId != widget.contact.deviceId;
-                
-                return Align(
-                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isMe ? Colors.blueAccent : Colors.white.withOpacity(0.1),
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(16),
-                        topRight: const Radius.circular(16),
-                        bottomLeft: Radius.circular(isMe ? 16 : 0),
-                        bottomRight: Radius.circular(isMe ? 0 : 16),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          msg.content,
-                          style: TextStyle(color: isMe ? Colors.white : Colors.white70),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
+            child: _messages.isEmpty
+                ? const Center(
+                    child: Text(
+                        'Secure E2EE established.\nMessages are routed offline.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white38)))
+                : ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _messages.length,
+                    itemBuilder: (context, index) {
+                      final msgData = _messages[index];
+                      final msg = msgData.message;
+                      final isMe = msg.senderId != widget.contact.deviceId;
+                      final metadata = msgData.metadata ??
+                          ref.read(reactionServiceProvider).getMetadata(msg.id);
+
+                      return GestureDetector(
+                        onLongPress: () {
+                          setState(() {
+                            _showReactionPicker = true;
+                            _selectedMessageId = msg.id;
+                          });
+                        },
+                        child: Column(
+                          crossAxisAlignment: isMe
+                              ? CrossAxisAlignment.end
+                              : CrossAxisAlignment.start,
                           children: [
-                            if (isMe) const Icon(Icons.lock_outline, size: 10, color: Colors.white54),
-                            if (isMe) const SizedBox(width: 4),
-                            Text('${msg.timestamp.hour}:${msg.timestamp.minute.toString().padLeft(2, '0')}', style: TextStyle(color: isMe ? Colors.white70 : Colors.grey, fontSize: 10)),
+                            if (msg.replyToId != null)
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 4),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: ChaayaTheme.accent.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.reply,
+                                        size: 14, color: ChaayaTheme.accent),
+                                    const SizedBox(width: 4),
+                                    Flexible(
+                                      child: Text(
+                                        (msg.quotedText?.length ?? 0) > 50
+                                            ? '${msg.quotedText!.substring(0, 50)}...'
+                                            : msg.quotedText ?? '',
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            color: ChaayaTheme.accent),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            Align(
+                              alignment: isMe
+                                  ? Alignment.centerRight
+                                  : Alignment.centerLeft,
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 4),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: isMe
+                                      ? Colors.blueAccent
+                                      : Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: const Radius.circular(16),
+                                    topRight: const Radius.circular(16),
+                                    bottomLeft: Radius.circular(isMe ? 16 : 0),
+                                    bottomRight: Radius.circular(isMe ? 0 : 16),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      msg.content,
+                                      style: TextStyle(
+                                          color: isMe
+                                              ? Colors.white
+                                              : Colors.white70),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (isMe)
+                                          const Icon(Icons.lock_outline,
+                                              size: 10, color: Colors.white54),
+                                        if (isMe) const SizedBox(width: 4),
+                                        if (msg.edited) ...[
+                                          const Text('(edited) ',
+                                              style: TextStyle(
+                                                  color: Colors.white54,
+                                                  fontSize: 9,
+                                                  fontStyle: FontStyle.italic)),
+                                        ],
+                                        Text(
+                                            '${msg.timestamp.hour}:${msg.timestamp.minute.toString().padLeft(2, '0')}',
+                                            style: TextStyle(
+                                                color: isMe
+                                                    ? Colors.white70
+                                                    : Colors.grey,
+                                                fontSize: 10)),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            if (metadata != null &&
+                                metadata.reactions.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                    bottom: 8, left: 4, right: 4),
+                                child: ReactionDisplay(
+                                  reactions: metadata.reactions,
+                                  onTap: () {
+                                    setState(() {
+                                      _showReactionPicker = true;
+                                      _selectedMessageId = msg.id;
+                                    });
+                                  },
+                                ),
+                              ),
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _buildActionButton(
+                                      Icons.reply, () => _showReplyTo(msgData)),
+                                  const SizedBox(width: 8),
+                                  _buildActionButton(
+                                      Icons.emoji_emotions_outlined, () {
+                                    setState(() {
+                                      _showReactionPicker = true;
+                                      _selectedMessageId = msg.id;
+                                    });
+                                  }),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
           ),
+          if (_isContactTyping)
+            TypingIndicator(contactName: widget.contact.name),
+          if (_replyingTo != null)
+            ReplyQuoteCard(
+              senderName:
+                  _replyingTo!.message.senderId == widget.contact.deviceId
+                      ? widget.contact.name
+                      : 'You',
+              quotedText: _replyingTo!.message.content,
+              onCancel: _cancelReply,
+            ),
           _buildMessageInput(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, size: 16, color: Colors.white54),
       ),
     );
   }
@@ -233,11 +452,17 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       color: Colors.black,
       child: Row(
         children: [
-          IconButton(icon: const Icon(Icons.add, color: Colors.blueAccent), onPressed: () {}),
+          IconButton(
+              icon: const Icon(Icons.add, color: Colors.blueAccent),
+              onPressed: () {}),
           Expanded(
             child: TextField(
               controller: _messageController,
               style: const TextStyle(color: Colors.white),
+              onChanged: (text) {
+                final presence = ref.read(presenceServiceProvider);
+                presence.sendTyping(widget.contact.deviceId);
+              },
               decoration: InputDecoration(
                 hintText: 'Type a secure message...',
                 hintStyle: const TextStyle(color: Colors.white38),
@@ -247,7 +472,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                   borderRadius: BorderRadius.circular(24),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               ),
             ),
           ),
@@ -255,11 +481,14 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           CircleAvatar(
             backgroundColor: Colors.blueAccent,
             child: _isEncrypting
-              ? const Padding(padding: EdgeInsets.all(10), child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-              : IconButton(
-                  icon: const Icon(Icons.send, color: Colors.white),
-                  onPressed: _sendMessage,
-                ),
+                ? const Padding(
+                    padding: EdgeInsets.all(10),
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2))
+                : IconButton(
+                    icon: const Icon(Icons.send, color: Colors.white),
+                    onPressed: _sendMessage,
+                  ),
           ),
         ],
       ),
