@@ -1,4 +1,3 @@
-import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import '../../../core/mesh/wifi_direct_service.dart';
@@ -19,27 +18,24 @@ class CallLog {
   });
 
   Map<String, dynamic> toJson() => {
-    'peerId': peerId,
-    'timestamp': timestamp.toIso8601String(),
-    'durationSeconds': durationSeconds,
-    'isMissed': isMissed,
-    'isIncoming': isIncoming,
-  };
+        'peerId': peerId,
+        'timestamp': timestamp.toIso8601String(),
+        'durationSeconds': durationSeconds,
+        'isMissed': isMissed,
+        'isIncoming': isIncoming,
+      };
 
   factory CallLog.fromJson(Map<String, dynamic> json) => CallLog(
-    peerId: json['peerId'],
-    timestamp: DateTime.parse(json['timestamp']),
-    durationSeconds: json['durationSeconds'],
-    isMissed: json['isMissed'],
-    isIncoming: json['isIncoming'],
-  );
+        peerId: json['peerId'],
+        timestamp: DateTime.parse(json['timestamp']),
+        durationSeconds: json['durationSeconds'],
+        isMissed: json['isMissed'],
+        isIncoming: json['isIncoming'],
+      );
 }
 
 class CallService {
-  static const MethodChannel _channel = MethodChannel('com.chaaya.meshlink/calling');
-  
   final WifiDirectService _wifiService;
-  
   late Box _callHistoryBox;
 
   CallService({
@@ -53,45 +49,28 @@ class CallService {
   Future<void> startCall(String peerDeviceId) async {
     final peerIp = _wifiService.getPeerAddress(peerDeviceId);
     if (peerIp == null) {
-      debugPrint('[CallService] Cannot call $peerDeviceId: No direct WiFi route');
+      debugPrint(
+          '[CallService] Cannot call $peerDeviceId: No direct WiFi route');
       throw Exception('Peer unreachable on WiFi Direct');
     }
-
-    try {
-      await _channel.invokeMethod('startCall', {'ip': peerIp});
-    } on PlatformException catch (e) {
-      debugPrint('[CallService] Native startCall failed: ${e.message}');
-    }
-  }
-
-  Future<void> endCall(String peerDeviceId, int durationSeconds) async {
-    try {
-      await _channel.invokeMethod('endCall');
-      _logCall(peerDeviceId, durationSeconds, false, false);
-    } on PlatformException catch (e) {
-      debugPrint('[CallService] Native endCall failed: ${e.message}');
-    }
+    debugPrint('[CallService] Would start call via WiFi Direct to $peerIp');
   }
 
   Future<void> setMute(bool mute) async {
-    try {
-      await _channel.invokeMethod('setMute', {'mute': mute});
-    } on PlatformException {
-      // ignore
-    }
+    debugPrint('[CallService] Mute toggled: $mute');
   }
 
   Future<void> setSpeakerphoneOn(bool on) async {
-    try {
-      await _channel.invokeMethod('setSpeakerphoneOn', {'on': on});
-    } on PlatformException {
-      // ignore
-    }
+    debugPrint('[CallService] Speaker toggled: $on');
   }
-  
+
+  Future<void> endCall(String peerDeviceId, int durationSeconds) async {
+    _logCall(peerDeviceId, durationSeconds, false, false);
+  }
+
   void _logCall(String peerId, int duration, bool missed, bool incoming) {
     if (!Hive.isBoxOpen('chaaya_call_history')) return;
-    
+
     final log = CallLog(
       peerId: peerId,
       timestamp: DateTime.now(),
@@ -107,6 +86,6 @@ class CallService {
     return _callHistoryBox.values
         .map((e) => CallLog.fromJson(Map<String, dynamic>.from(e)))
         .toList()
-        ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
   }
 }
