@@ -52,21 +52,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Panic Wipe — power button receiver (Req 14.1) -->
-        <receiver
-            android:name="io.flutter.chaaya.security.PowerButtonReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.SCREEN_OFF" />
-            </intent-filter>
-        </receiver>
-
-        <!-- BLE background foreground service -->
-        <service
-            android:name="io.flutter.chaaya.ble.BleMeshForegroundService"
-            android:foregroundServiceType="connectedDevice"
-            android:exported="false" />
-
         <!-- Flutter embedding meta -->
         <meta-data
             android:name="flutterEmbedding"
