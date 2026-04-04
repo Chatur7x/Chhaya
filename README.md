@@ -12,6 +12,13 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Release](https://img.shields.io/badge/Release-V1.0.3-FF6B6B?style=for-the-badge)](#-download)
 
+### 📊 App Stats
+[![Downloads](https://img.shields.io/github/downloads/Chatur7x/-PROJ16/total?style=for-the-badge&logo=github&color=4CAF50)](https://github.com/Chatur7x/-PROJ16/releases)
+[![Downloads](https://img.shields.io/github/downloads-pre/Chatur7x/-PROJ16/latest/total?style=for-the-badge&logo=github&color=2196F3)](https://github.com/Chatur7x/-PROJ16/releases/latest)
+[![This Release](https://img.shields.io/github/downloads/Chatur7x/-PROJ16/v1.0.3/total?style=for-the-badge&logo=github&color=FF9800)](https://github.com/Chatur7x/-PROJ16/releases/tag/v1.0.3)
+[![Mesh Networks](https://img.shields.io/endpoint?url=https%3A%2F%2Fclck.ru%2F38Hn8&style=for-the-badge&logo=meshnet&color=9C27B0&label=Mesh%20Networks)](https://github.com/Chatur7x/-PROJ16)
+[![Active Testers](https://img.shields.io/endpoint?url=https%3A%2F%2Fclck.ru%2F38HnB&style=for-the-badge&logo=users&color=E91E63&label=Active%20Testers)](https://github.com/Chatur7x/-PROJ16)
+
 ---
 
 **[Features](#-core-features) · [Architecture](#%EF%B8%8F-architecture) · [Security](#-security-posture) · [Installation](#-installation) · [Download APK](#-download)**
@@ -211,6 +218,34 @@ flutter build apk --release
 📱 **[Download Chaaya V1.0.3 APK](https://github.com/Chatur7x/-PROJ16/releases/latest)**
 
 > Install on **at least two physical Android devices** to test mesh messaging and PTT features.
+
+---
+
+## 📊 Stats Counter Setup
+
+This app uses a simple backend to track usage stats displayed in the README.
+
+### Quick Setup (5 minutes)
+
+1. **Deploy Backend** (Free tier available):
+   ```bash
+   # Option 1: Railway
+   # Go to railway.app → New Project → Deploy from GitHub
+   # Set root directory: counter-backend
+   
+   # Option 2: Render
+   # Go to render.com → New → Web Service
+   # Connect repo, set root to counter-backend
+   ```
+
+2. **Update README** with your backend URL:
+   Replace `YOUR-BACKEND-URL` in the stats badges section with your deployed URL.
+
+3. **Track Installs** - The app can call the API when:
+   - Mesh network is created (different devices connect)
+   - App is run locally (same device testing)
+
+See [`counter-backend/README.md`](counter-backend/README.md) for full setup instructions.
 
 ---
 
