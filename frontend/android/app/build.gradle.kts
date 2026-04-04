@@ -28,7 +28,7 @@ android {
     }
 
     dependencies {
-        implementation("org.webrtc:google-webrtc:1.0.+")
+        // flutter_webrtc bundles its own WebRTC, no need for separate dependency
     }
 
     buildTypes {

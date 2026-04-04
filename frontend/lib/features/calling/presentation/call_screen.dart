@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../contacts/domain/models/contact.dart';
 import '../../../core/theme/chaaya_theme.dart';
 import '../../../core/providers/app_providers.dart';
-import 'video_call_screen.dart';
 
 class CallScreen extends ConsumerStatefulWidget {
   final Contact peer;
@@ -177,11 +176,11 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                     onPressed: _toggleMute,
                   ),
 
-                  // Video Call
+                  // Video Call (Coming Soon)
                   _buildControlBtn(
                     icon: Icons.video_call,
-                    color: ChaayaTheme.accent,
-                    onPressed: () => _startVideoCall(context),
+                    color: ChaayaTheme.textMuted,
+                    onPressed: () => _showVideoComingSoon(context),
                   ),
 
                   // End Call (big red button)
@@ -210,15 +209,11 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     );
   }
 
-  void _startVideoCall(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => VideoCallScreen(
-          peer: widget.peer,
-          isIncoming: widget.isIncoming,
-          isVideo: true,
-        ),
+  void _showVideoComingSoon(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Video calling coming soon!'),
+        backgroundColor: ChaayaTheme.accent,
       ),
     );
   }

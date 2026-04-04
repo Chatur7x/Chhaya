@@ -59,7 +59,7 @@ dependencies:
   # Camera & Media
   image_picker: ^1.0.7
   file_picker: ^8.0.0+1
-  flutter_webrtc: ^0.11.0
+  # flutter_webrtc: ^0.11.0  # TODO: Re-add when compatible version available
 
   # Location & Maps
   geolocator: ^12.0.0
