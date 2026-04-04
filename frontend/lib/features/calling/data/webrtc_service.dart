@@ -1,295 +1,48 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_webrtc/flutter_webrtc.dart';
-
-enum CallState { idle, calling, ringing, connected, ended }
-
-final webrtcServiceProvider = Provider<WebRTCService>((ref) => WebRTCService());
+import '../../../core/theme/chaaya_theme.dart';
+import '../../contacts/domain/models/contact.dart';
 
 class WebRTCService {
-  RTCPeerConnection? _peerConnection;
-  MediaStream? _localStream;
-  MediaStream? _remoteStream;
-
-  final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
-  final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
-
   final _callStateController = StreamController<CallState>.broadcast();
-  final _remoteStreamController = StreamController<MediaStream>.broadcast();
-
   Stream<CallState> get callStateStream => _callStateController.stream;
-  Stream<MediaStream> get remoteStreamStream => _remoteStreamController.stream;
 
   CallState _currentState = CallState.idle;
   CallState get currentState => _currentState;
 
-  RTCVideoRenderer get localRenderer => _localRenderer;
-  RTCVideoRenderer get remoteRenderer => _remoteRenderer;
+  bool get isMuted => false;
+  bool get isVideoOff => false;
+  bool get isSpeakerOn => true;
 
-  bool _isMuted = false;
-  bool _isVideoOff = false;
-  bool _isSpeakerOn = true;
-  String? _currentPeerId;
-
-  static const RTCConfiguration _defaultConfig = RTCConfiguration({
-    'iceServers': [
-      {'urls': 'stun:stun.l.google.com:19302'},
-      {'urls': 'stun:stun1.l.google.com:19302'},
-    ],
-    'iceCandidatePoolSize': 10,
-    'bundlePolicy': RTCBundlePolicy.maxbundle,
-    'rtcpMuxPolicy': RTCPChannelMuxPolicy.require,
-  });
-
-  Future<void> initialize() async {
-    await _localRenderer.initialize();
-    await _remoteRenderer.initialize();
-    debugPrint('[WebRTC] Renderers initialized');
+  void initialize() {
+    debugPrint(
+        '[WebRTC] Video calling disabled - flutter_webrtc incompatible with Flutter 3.41+');
   }
 
-  RTCVideoRenderer get local => _localRenderer;
-  RTCVideoRenderer get remote => _remoteRenderer;
-
   Future<void> startCall(String targetPeerId, {bool isVideo = true}) async {
-    try {
-      _currentPeerId = targetPeerId;
-      _updateState(CallState.calling);
-
-      _localStream = await _createMediaStream(isVideo: isVideo);
-      await _localRenderer.setSrcStream(_localStream!);
-
-      _peerConnection = await _createPeerConnection(_defaultConfig);
-      await _peerConnection!.addStream(_localStream!);
-
-      _peerConnection!.onIceCandidate = (candidate) {
-        if (candidate != null) {
-          _sendIceCandidate(candidate, targetPeerId);
-        }
-      };
-
-      _peerConnection!.onAddStream = (stream) {
-        _remoteStream = stream;
-        _remoteRenderer.setSrcStream(stream);
-        _remoteStreamController.add(stream);
-        _updateState(CallState.connected);
-      };
-
-      _peerConnection!.onConnectionState = (state) {
-        debugPrint('[WebRTC] Connection state: $state');
-        if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
-          _updateState(CallState.connected);
-        } else if (state ==
-                RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
-            state ==
-                RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
-          _updateState(CallState.ended);
-        }
-      };
-
-      final offer = await _peerConnection!.createOffer({
-        'mandatory': {
-          'OfferToReceiveAudio': true,
-          'OfferToReceiveVideo': isVideo,
-        },
-      });
-
-      await _peerConnection!.setLocalDescription(offer);
-      _sendOffer(offer, targetPeerId, isVideo);
-
-      debugPrint('[WebRTC] Call started to $targetPeerId');
-    } catch (e) {
-      debugPrint('[WebRTC] Failed to start call: $e');
-      _updateState(CallState.idle);
-      rethrow;
-    }
+    _updateState(CallState.calling);
+    await Future.delayed(const Duration(seconds: 1));
+    _updateState(CallState.ended);
   }
 
   Future<String> handleOffer(String sdp, String targetPeerId,
       {bool isVideo = true}) async {
-    try {
-      _currentPeerId = targetPeerId;
-      _updateState(CallState.ringing);
-
-      _localStream = await _createMediaStream(isVideo: isVideo);
-      await _localRenderer.setSrcStream(_localStream!);
-
-      _peerConnection = await _createPeerConnection(_defaultConfig);
-      await _peerConnection!.addStream(_localStream!);
-
-      _peerConnection!.onIceCandidate = (candidate) {
-        if (candidate != null) {
-          _sendIceCandidate(candidate, targetPeerId);
-        }
-      };
-
-      _peerConnection!.onAddStream = (stream) {
-        _remoteStream = stream;
-        _remoteRenderer.setSrcStream(stream);
-        _remoteStreamController.add(stream);
-        _updateState(CallState.connected);
-      };
-
-      _peerConnection!.onConnectionState = (state) {
-        debugPrint('[WebRTC] Connection state: $state');
-        if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
-          _updateState(CallState.connected);
-        } else if (state ==
-                RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
-            state ==
-                RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
-          _updateState(CallState.ended);
-        }
-      };
-
-      final offer = RTCSessionDescription(sdp, 'offer');
-      await _peerConnection!.setRemoteDescription(offer);
-
-      final answer = await _peerConnection!.createAnswer();
-      await _peerConnection!.setLocalDescription(answer);
-
-      debugPrint('[WebRTC] Processed offer, generated answer');
-      return answer.sdp ?? '';
-    } catch (e) {
-      debugPrint('[WebRTC] Failed to handle offer: $e');
-      _updateState(CallState.idle);
-      rethrow;
-    }
+    _updateState(CallState.ringing);
+    return '';
   }
 
-  Future<void> handleAnswer(String sdp) async {
-    try {
-      final answer = RTCSessionDescription(sdp, 'answer');
-      await _peerConnection?.setRemoteDescription(answer);
-      debugPrint('[WebRTC] Answer applied');
-    } catch (e) {
-      debugPrint('[WebRTC] Failed to handle answer: $e');
-    }
-  }
+  Future<void> handleAnswer(String sdp) async {}
 
-  Future<void> handleIceCandidate(Map<String, dynamic> candidateMap) async {
-    try {
-      final candidate = RTCIceCandidate(
-        candidateMap['candidate'] ?? '',
-        candidateMap['sdpMid'] ?? '',
-        candidateMap['sdpMLineIndex'] ?? 0,
-      );
-      await _peerConnection?.addCandidate(candidate);
-      debugPrint('[WebRTC] ICE candidate added');
-    } catch (e) {
-      debugPrint('[WebRTC] Failed to add ICE candidate: $e');
-    }
-  }
+  Future<void> handleIceCandidate(Map<String, dynamic> candidateMap) async {}
 
-  Future<MediaStream> _createMediaStream({bool isVideo = true}) async {
-    final Map<String, dynamic> mediaConstraints = {
-      'audio': true,
-      'video': isVideo
-          ? {
-              'facingMode': 'user',
-              'width': 1280,
-              'height': 720,
-              'frameRate': 30,
-            }
-          : false,
-    };
-
-    return await navigator.mediaDevices.getUserMedia(mediaConstraints);
-  }
-
-  Future<RTCPeerConnection> _createPeerConnection(
-      RTCConfiguration config) async {
-    return await createPeerConnection(config, {
-      'offerAnswerOptions': {
-        'VoiceActivityDetection': false,
-      },
-    });
-  }
-
-  void _sendOffer(
-      RTCSessionDescription offer, String targetPeerId, bool isVideo) {
-    final payload = {
-      'type': 'offer',
-      'sdp': offer.sdp,
-      'targetPeerId': targetPeerId,
-      'isVideo': isVideo,
-      'timestamp': DateTime.now().toIso8601String(),
-    };
-    debugPrint('[WebRTC] Would send offer via mesh: $payload');
-  }
-
-  void _sendIceCandidate(RTCIceCandidate candidate, String targetPeerId) {
-    final payload = {
-      'type': 'ice_candidate',
-      'candidate': candidate.candidate,
-      'sdpMid': candidate.sdpMid,
-      'sdpMLineIndex': candidate.sdpMLineIndex,
-      'targetPeerId': targetPeerId,
-    };
-    debugPrint(
-        '[WebRTC] Would send ICE candidate via mesh: ${payload['candidate']?.toString().substring(0, 30)}...');
-  }
-
-  Future<void> toggleMute() async {
-    if (_localStream == null) return;
-    _isMuted = !_isMuted;
-    _localStream!.getAudioTracks().forEach((track) {
-      track.enabled = !_isMuted;
-    });
-    debugPrint('[WebRTC] Mute toggled: $_isMuted');
-  }
-
-  Future<void> toggleVideo() async {
-    if (_localStream == null) return;
-    _isVideoOff = !_isVideoOff;
-    _localStream!.getVideoTracks().forEach((track) {
-      track.enabled = !_isVideoOff;
-    });
-    debugPrint('[WebRTC] Video toggled: $_isVideoOff');
-  }
-
-  Future<void> switchCamera() async {
-    if (_localStream == null) return;
-    final videoTrack = _localStream!.getVideoTracks().firstOrNull;
-    if (videoTrack != null) {
-      final helper = CameraHelper.instance;
-      final devices = await helper.cameras;
-      if (devices.length > 1) {
-        final currentFacing = videoTrack.getSettings().facingMode;
-        final newFacing = currentFacing == 'user' ? 'environment' : 'user';
-        await videoTrack.applyConstraints({
-          'facingMode': newFacing,
-        });
-        debugPrint('[WebRTC] Camera switched to: $newFacing');
-      }
-    }
-  }
-
-  bool get isMuted => _isMuted;
-  bool get isVideoOff => _isVideoOff;
-  bool get isSpeakerOn => _isSpeakerOn;
+  Future<void> toggleMute() async {}
+  Future<void> toggleVideo() async {}
+  Future<void> switchCamera() async {}
 
   Future<void> endCall() async {
-    try {
-      await _localStream?.dispose();
-      await _remoteStream?.dispose();
-      _localStream = null;
-      _remoteStream = null;
-
-      await _localRenderer.setSrcStream(null);
-      await _remoteRenderer.setSrcStream(null);
-
-      await _peerConnection?.close();
-      _peerConnection = null;
-
-      _currentPeerId = null;
-      _updateState(CallState.ended);
-      _updateState(CallState.idle);
-
-      debugPrint('[WebRTC] Call ended');
-    } catch (e) {
-      debugPrint('[WebRTC] Error ending call: $e');
-    }
+    _updateState(CallState.ended);
+    _updateState(CallState.idle);
   }
 
   void _updateState(CallState state) {
@@ -298,10 +51,100 @@ class WebRTCService {
   }
 
   Future<void> dispose() async {
-    await endCall();
     await _callStateController.close();
-    await _remoteStreamController.close();
-    await _localRenderer.dispose();
-    await _remoteRenderer.dispose();
+  }
+}
+
+enum CallState { idle, calling, ringing, connected, ended }
+
+final webrtcServiceProvider = Provider<WebRTCService>((ref) => WebRTCService());
+
+class VideoCallScreen extends ConsumerStatefulWidget {
+  final Contact peer;
+  final bool isIncoming;
+  final String? incomingSdp;
+  final bool isVideo;
+
+  const VideoCallScreen({
+    super.key,
+    required this.peer,
+    this.isIncoming = false,
+    this.incomingSdp,
+    this.isVideo = true,
+  });
+
+  @override
+  ConsumerState<VideoCallScreen> createState() => _VideoCallScreenState();
+}
+
+class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showComingSoon();
+    });
+  }
+
+  void _showComingSoon() {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ChaayaTheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.videocam, color: ChaayaTheme.accent, size: 28),
+            SizedBox(width: 12),
+            Text('Video Calling',
+                style: TextStyle(color: ChaayaTheme.textPrimary)),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.construction,
+                color: ChaayaTheme.warningYellow, size: 64),
+            SizedBox(height: 16),
+            Text(
+              'Coming Soon',
+              style: TextStyle(
+                color: ChaayaTheme.accent,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Video calling will be available in a future update when WebRTC compatibility is restored.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: ChaayaTheme.textSecondary),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).pop();
+            },
+            child:
+                const Text('OK', style: TextStyle(color: ChaayaTheme.accent)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: ChaayaTheme.background,
+      body: const Center(
+        child: CircularProgressIndicator(color: ChaayaTheme.accent),
+      ),
+    );
   }
 }
