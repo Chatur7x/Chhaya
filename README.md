@@ -270,12 +270,6 @@ flutter build apk --release
 
 ---
 
-## 📄 License
-
-MIT License - See [LICENSE](LICENSE) for details.
-
----
-
 <div align="center">
 
 **Built for the shadows. Designed to survive.**
