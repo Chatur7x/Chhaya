@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🌑 Chaaya — MeshLink V1.0.2
+# 🌑 Chaaya — MeshLink V1.0.3
 
 **Resilient. Offline. Encrypted. Unstoppable.**
 
@@ -10,7 +10,7 @@
 [![Dart](https://img.shields.io/badge/Dart-3.11+-0175C2?style=for-the-badge&logo=dart&logoColor=white)](https://dart.dev)
 [![Android](https://img.shields.io/badge/Android-API_24+-3DDC84?style=for-the-badge&logo=android&logoColor=white)](#-installation)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](https://opensource.org/licenses/MIT)
-[![Release](https://img.shields.io/badge/Release-V1.0.2-FF6B6B?style=for-the-badge)](#-download)
+[![Release](https://img.shields.io/badge/Release-V1.0.3-FF6B6B?style=for-the-badge)](#-download)
 
 ---
 
@@ -32,76 +32,86 @@ By utilizing **Bluetooth Low Energy (BLE)** and **WiFi Direct**, devices form a 
 
 ## ✨ Core Features
 
+### ✅ Currently Working
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| **Mesh Messaging** | ✅ Active | P2P encrypted messages over BLE/WiFi Direct |
+| **Message Reactions** | ✅ Active | Emoji reactions on messages |
+| **Reply & Quote** | ✅ Active | Reply to specific messages with context |
+| **Typing Indicators** | ✅ Active | Real-time typing status |
+| **Online Presence** | ✅ Active | See when contacts are online |
+| **Read Receipts** | ✅ Active | Know when messages are read |
+| **Message Editing** | ✅ Active | Edit sent messages |
+| **Group Polls** | ✅ Active | Create polls with anonymous voting |
+| **Biometric Auth** | ✅ Active | Fingerprint/Face unlock |
+| **Decoy Password** | ✅ Active | Secondary fake password |
+| **Safety Numbers** | ✅ Active | Key fingerprint verification |
+| **Covert Mode** | ✅ Active | Stealth browsing mode |
+| **Offline Maps** | ✅ Active | Download maps for offline use |
+| **Encrypted Backup** | ✅ Active | Secure backup/restore |
+| **SOS Emergency** | ✅ Active | One-tap emergency broadcast |
+| **Walkie-Talkie (PTT)** | ✅ Active | Push-to-talk voice over WiFi Direct |
+| **QR Pairing** | ✅ Active | Contact pairing via QR code |
+| **Multi-Language** | ✅ Active | English, Spanish, Arabic |
+| **Backend API** | ✅ Active | REST API with rate limiting |
+
+### ⚠️ Coming Soon
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| **Video Calling** | 🔜 Soon | WebRTC integration in progress |
+| **Audio Calling** | 🔜 Soon | VoIP calling |
+| **Voice Messages** | 🔜 Soon | Audio message recording |
+| **File Sharing** | 🔜 Soon | Send files over mesh |
+
+---
+
 ### 🌐 Mesh Networking Engine
 | Transport | Use Case | Range |
 |-----------|----------|-------|
-| **BLE Mesh** | Low-power background discovery, small message routing, device handshake | ~100m per hop |
-| **WiFi Direct** | High-bandwidth voice calls, file transfer, PTT radio, video | ~200m per hop |
+| **BLE Mesh** | Low-power background discovery, small message routing | ~100m per hop |
+| **WiFi Direct** | High-bandwidth PTT radio, file transfer | ~200m per hop |
 
 - **Multi-hop routing** — messages traverse multiple devices to reach distant nodes
-- **Store-and-Forward** — messages are cached and retransmitted when new nodes enter range
-- **Channel Hopping** — automatic frequency switching to avoid interference and detection
-- **Mesh Router** — intelligent path selection with TTL-based routing tables
-- **Background Persistence** — foreground services and wake locks maintain mesh connectivity even when the phone is locked
+- **Store-and-Forward** — messages cached and retransmitted when nodes reconnect
+- **Background Persistence** — foreground services maintain mesh connectivity
 
-### 🔒 Signal-Grade End-to-End Encryption (E2EE)
-- **Double Ratchet Algorithm** with **X3DH** key agreement — the same cryptographic foundation as Signal
+### 🔒 End-to-End Encryption
+- **Double Ratchet Algorithm** with **X3DH** key agreement
 - **Perfect Forward Secrecy** — compromising one key doesn't expose past messages
 - **Ed25519 keypairs** generated locally — no central key registry
-- **AES-256-GCM** encrypted local databases and vault storage
+- **AES-256-GCM** encrypted local databases
 - All keys stored in hardware-backed `flutter_secure_storage`
 
 ### 💬 Encrypted Messenger
-- Real-time P2P messaging over the mesh network
-- Conversation threads with read receipts and typing indicators
-- Offline message queuing with automatic delivery when peers reconnect
-- Media attachments (images, files) over WiFi Direct
+- Real-time P2P messaging over mesh network
+- Message reactions, replies, read receipts & typing indicators
+- Offline message queuing with automatic delivery
+- Group polls with anonymous voting
 
 ### 📻 Walkie-Talkie (PTT Radio)
-- **Zello-style Push-To-Talk** radio interface over WiFi Direct
-- Multiple channel support with channel switching
-- **SOS Priority Channel** — broadcasts instantly to ALL nearby mesh nodes
-- Real-time audio streaming with low-latency codec
-
-### 📞 Encrypted Voice & Video Calling
-- High-quality VoIP piped through device-to-device WiFi Direct connections
-- Call UI with mute, speaker, and video toggle
-- Fully encrypted — no server intermediary
+- **Zello-style Push-To-Talk** over WiFi Direct
+- Multiple channel support
+- **SOS Priority Channel** — broadcasts to ALL nearby nodes
 
 ### 🗺️ Offline Safety Map
-- Pin **hazard zones**, safe points, and resource locations
-- View **last-known GPS positions** of mesh contacts
-- All data stored locally — works completely offline
-- OpenStreetMap tiles via `flutter_map`
-
-### 🤖 Local AI Guardian
-- On-device **Llama/Gemma** powered assistant
-- Survival guides, first-aid instructions, offline data analysis
-- Network diagnostics and mesh health monitoring
-- **Zero cloud dependency** — all inference runs locally
-
-### 🕵️ Stealth & Privacy Layer
-- **Hidden Inbox** — secret message vault accessible only via authentication
-- **Onion Routing** — multi-layer encrypted routing that obscures sender identity
-- **Path Discovery** — anonymous route selection through the mesh
-- **Privacy Layer** — traffic padding and timing obfuscation to prevent analysis
-- **Dead Drop Service** — asynchronous anonymous message exchange via shared mesh locations
-- **Panic Wipe** — instant cryptographic erasure of all sensitive data
+- Pin hazard zones and safe points
+- View last-known GPS positions of contacts
+- Download map tiles for offline use
+- OpenStreetMap via `flutter_map`
 
 ### 🆘 Emergency SOS System
 - One-tap SOS broadcast to all mesh nodes
-- GPS coordinates included in emergency beacons
-- Priority message delivery — SOS packets bypass normal queue
+- GPS coordinates included in beacons
+- Priority message delivery
 
-### 📱 Contact Pairing
-- **QR Code Based** — scan to exchange public keys out-of-band
-- Zero-trust pairing model — no centralized contact server
-- Contact verification with fingerprint comparison
-
-### 📁 Secure Media Vault
-- Biometric-locked encrypted storage
-- AES-256 file encryption at rest
-- Support for documents, photos, and media files
+### 🕵️ Privacy & Security
+- **Biometric authentication** with fingerprint/face
+- **Decoy password** — fake password shows innocent inbox
+- **Safety numbers** — verify key fingerprints
+- **Covert mode** — stealth browsing
+- **Encrypted backup/restore**
 
 ---
 
@@ -117,36 +127,22 @@ chaaya/
 │       │   ├── mesh/                 # Mesh Networking Engine
 │       │   │   ├── ble_mesh_service       # BLE discovery, handshake, routing
 │       │   │   ├── wifi_direct_service    # WiFi Direct P2P connections
-│       │   │   ├── mesh_router            # Multi-hop path selection
-│       │   │   ├── channel_hopper         # Anti-detection frequency hopping
-│       │   │   ├── store_forward_service  # Offline message caching
-│       │   │   └── message_queue          # Reliable delivery queue
-│       │   ├── network/              # Advanced Network Layer
-│       │   │   ├── onion_router           # Multi-layer encrypted routing
-│       │   │   ├── path_discovery         # Anonymous route discovery
-│       │   │   ├── dead_drop_service      # Async anonymous exchange
-│       │   │   ├── privacy_layer          # Traffic analysis protection
-│       │   │   └── platform_channel_bridge # Native Android/iOS bridge
+│       │   │   └── store_forward_service  # Offline message caching
 │       │   ├── providers/            # Riverpod State Management
-│       │   ├── presentation/         # Main App Shell & Navigation
-│       │   ├── theme/                # Chaaya Dark Theme System
-│       │   └── notifications/        # Push & Local Notifications
+│       │   └── theme/                # Chaaya Dark Theme System
 │       └── features/
 │           ├── messenger/            # E2EE Chat & Conversations
 │           ├── radio/                # PTT Walkie-Talkie
-│           ├── calling/              # Encrypted Voice/Video Calls
 │           ├── contacts/             # QR-Based Contact Pairing
-│           ├── chat/                 # Chat Data Layer & Domain
-│           ├── safety/              # Offline GPS Safety Map
+│           ├── chat/                 # Chat Data Layer & Reactions
+│           ├── safety/               # Offline GPS Safety Map
 │           ├── emergency/            # SOS Broadcast System
-│           ├── stealth/              # Hidden Inbox & Panic Wipe
-│           ├── ai/                   # Local AI Assistant
-│           ├── identity/             # Identity Setup & Display
 │           ├── settings/             # App Configuration
-│           └── auth/                 # Authentication Layer
+│           ├── auth/                 # Authentication & Biometrics
+│           └── l10n/                 # Internationalization
 │
 └── backend/                          # Spring Boot (Optional Sync Server)
-    └── src/main/                     # REST API for mesh-island bridging
+    └── src/main/java/                # REST API for mesh-island bridging
 ```
 
 ### Tech Stack
@@ -156,15 +152,16 @@ chaaya/
 | **UI Framework** | Flutter 3.41+ / Dart 3.11+ |
 | **State Management** | Riverpod |
 | **BLE Mesh** | `flutter_blue_plus` |
-| **WiFi Direct** | `flutter_p2p_connection` + Platform Channels |
-| **Cryptography** | `pointycastle`, `cryptography`, `encrypt` |
+| **WiFi Direct** | `flutter_p2p_connection` |
+| **Cryptography** | `pointycastle`, `cryptography` |
 | **Key Storage** | `flutter_secure_storage` (hardware-backed) |
-| **Local DB** | Hive (NoSQL KV) + SQLite (relational messages) |
-| **Maps** | `flutter_map` + `latlong2` (OpenStreetMap) |
+| **Local DB** | Hive (NoSQL KV) |
+| **Maps** | `flutter_map` + OpenStreetMap |
 | **Location** | `geolocator` |
 | **Audio** | `record` + `audioplayers` |
 | **QR Codes** | `qr_flutter` + `mobile_scanner` |
-| **Backend** | Spring Boot (Java) — optional sync server |
+| **Backend** | Spring Boot (Java) |
+| **Biometrics** | `local_auth` |
 
 ---
 
@@ -172,16 +169,14 @@ chaaya/
 
 | Layer | Implementation |
 |-------|---------------|
-| **Identity** | Ed25519 keypairs generated locally — no central registry |
+| **Identity** | Ed25519 keypairs generated locally |
 | **Key Exchange** | X3DH (Extended Triple Diffie-Hellman) |
 | **Message Encryption** | Double Ratchet with AES-256-GCM |
 | **Perfect Forward Secrecy** | New ratchet keys per message exchange |
 | **Pairing** | QR-code based out-of-band public key exchange |
 | **Storage** | AES-256-GCM encrypted databases |
-| **Transit** | E2EE over BLE / WiFi Direct — zero plaintext on the wire |
-| **Anonymity** | Onion routing with multi-layer encryption |
-| **Anti-Analysis** | Traffic padding, timing obfuscation, channel hopping |
-| **Emergency** | Panic wipe — cryptographic key destruction |
+| **Biometrics** | Device-native biometric authentication |
+| **Privacy** | Covert mode, decoy passwords |
 
 ---
 
@@ -205,81 +200,80 @@ flutter pub get
 
 # 3. Build Release APK
 flutter build apk --release
-
-# 4. Install on physical devices
-flutter install
 ```
 
-The generated APK will be at:
-```
-frontend/build/app/outputs/flutter-apk/Chaaya-Release-V1.0.2.apk
-```
-
-> ⚠️ **Permissions Required:** Chaaya requests Location, Nearby Devices, Bluetooth, Camera, and Microphone permissions. These are **strictly required** for mesh networking hardware bridging to function.
+> ⚠️ **Permissions Required:** Chaaya requests Location, Nearby Devices, Bluetooth, Camera, and Microphone permissions for mesh networking.
 
 ---
 
 ## 📥 Download
 
-Grab the latest pre-compiled APK:
+📱 **[Download Chaaya V1.0.3 APK](https://github.com/Chatur7x/-PROJ16/releases/latest)**
 
-👉 **[Download Chaaya V1.0.2 APK](https://github.com/Chatur7x/-PROJ16/releases/latest)**
-
-> Install the APK on **at least two physical Android devices** to test mesh messaging, walkie-talkie, and calling features.
+> Install on **at least two physical Android devices** to test mesh messaging and PTT features.
 
 ---
 
-## 📋 What's New in V1.0.2 — MeshLink
+## 📋 Changelog
 
-This release introduces the **MeshLink architecture** — a complete overhaul of the networking and privacy stack:
+### V1.0.3 (Current)
+- ✅ Message reactions with emoji picker
+- ✅ Reply/quote system for messages
+- ✅ Typing indicators & online presence
+- ✅ Read receipts
+- ✅ Message editing
+- ✅ Group polls with anonymous voting
+- ✅ Biometric authentication
+- ✅ Decoy password system
+- ✅ Safety number verification
+- ✅ Covert mode
+- ✅ Offline maps download
+- ✅ Encrypted backup/restore
+- ✅ Multi-language support (EN/ES/AR)
+- ✅ Backend REST API with rate limiting
+- ✅ OpenAPI documentation
+- ⚠️ Video/Audio calling disabled (WebRTC compatibility issue)
 
-### 🆕 New in V1.0.2
-- ✅ **Onion Routing** — multi-layer encrypted routing to obscure sender identity
-- ✅ **Path Discovery** — anonymous route selection through the mesh
-- ✅ **Dead Drop Service** — asynchronous anonymous message exchange
-- ✅ **Privacy Layer** — traffic padding and timing obfuscation
-- ✅ **Channel Hopping** — automatic frequency switching for anti-detection
-- ✅ **Store-and-Forward** — offline message caching with auto-delivery
-- ✅ **Hidden Inbox (Stealth Mode)** — secret vault for sensitive conversations
-- ✅ **Panic Wipe** — instant cryptographic destruction of all data
-- ✅ **Platform Channel Bridge** — native Android hardware integration
-- ✅ **SOS Emergency System** — one-tap broadcast with GPS coordinates
-- ✅ **Encrypted Voice/Video Calling** — P2P calls over WiFi Direct
-- ✅ **Local AI Guardian** — on-device survival assistant
-- ✅ **Complete Signal Protocol** — full X3DH + Double Ratchet implementation
-
-### 🔄 Improved
-- ⬆️ BLE Mesh Service — enhanced discovery and auto-reconnection
-- ⬆️ WiFi Direct Service — improved stability and bandwidth handling
-- ⬆️ Message Queue — reliable delivery with retry logic
-- ⬆️ Mesh Router — smarter TTL-based multi-hop path selection
-- ⬆️ Theme System — polished dark UI with gradient accents
+### V1.0.2
+- ✅ Onion Routing
+- ✅ Privacy Layer
+- ✅ Store-and-Forward Messaging
+- ✅ SOS Emergency System
+- ✅ Walkie-Talkie PTT
 
 ---
 
 ## 🗺️ Roadmap
 
+### Completed ✅
 - [x] BLE Discovery & Handshake
 - [x] WiFi Direct PTT Audio
 - [x] Signal Protocol E2EE (X3DH + Double Ratchet)
 - [x] Multi-hop Mesh Routing
-- [x] Onion Routing & Privacy Layer
-- [x] Store-and-Forward Messaging
-- [x] Stealth Mode & Panic Wipe
-- [x] Encrypted Calling (Voice + Video)
-- [x] Local AI Assistant
+- [x] Encrypted Messaging
+- [x] Stealth Mode
 - [x] SOS Emergency Broadcasting
+- [x] Group Polls
+- [x] Biometric Authentication
+- [x] Offline Maps
+
+### In Progress 🔄
+- [ ] Video/Audio Calling (WebRTC)
+- [ ] Voice Messages
+- [ ] File Sharing
+
+### Planned 📋
 - [ ] Multi-hop Mesh Routing Optimization (DSDV Protocol)
-- [ ] iOS Support (BLE mesh only)
+- [ ] iOS Support
 - [ ] Background Location Mesh Sync
-- [ ] Group Mesh Chat Rooms
-- [ ] Mesh Network Visualization Dashboard
+- [ ] Mesh Network Visualization
 
 ---
 
 ## 📄 License
 
-------
+MIT License - See [LICENSE](LICENSE) for details.
+
 ---
 
 <div align="center">
