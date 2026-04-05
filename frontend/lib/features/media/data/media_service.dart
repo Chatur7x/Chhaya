@@ -1,0 +1,475 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:encrypt/encrypt.dart' as encrypt;
+import '../../../core/crypto/signal_protocol_service.dart';
+
+enum MediaType { photo, video, voice }
+
+class MediaItem {
+  final String id;
+  final MediaType type;
+  final String filePath;
+  final String? thumbnailPath;
+  final DateTime createdAt;
+  final double? latitude;
+  final double? longitude;
+  final String? note;
+  final List<String> tags;
+  final String albumId;
+  final bool isEncrypted;
+  final String ownerId;
+  final bool isSynced;
+
+  MediaItem({
+    required this.id,
+    required this.type,
+    required this.filePath,
+    this.thumbnailPath,
+    required this.createdAt,
+    this.latitude,
+    this.longitude,
+    this.note,
+    this.tags = const [],
+    required this.albumId,
+    this.isEncrypted = true,
+    required this.ownerId,
+    this.isSynced = false,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'type': type.index,
+        'filePath': filePath,
+        'thumbnailPath': thumbnailPath,
+        'createdAt': createdAt.toIso8601String(),
+        'latitude': latitude,
+        'longitude': longitude,
+        'note': note,
+        'tags': tags,
+        'albumId': albumId,
+        'isEncrypted': isEncrypted,
+        'ownerId': ownerId,
+        'isSynced': isSynced,
+      };
+
+  factory MediaItem.fromJson(Map<String, dynamic> json) => MediaItem(
+        id: json['id'],
+        type: MediaType.values[json['type']],
+        filePath: json['filePath'],
+        thumbnailPath: json['thumbnailPath'],
+        createdAt: DateTime.parse(json['createdAt']),
+        latitude: json['latitude'],
+        longitude: json['longitude'],
+        note: json['note'],
+        tags: List<String>.from(json['tags'] ?? []),
+        albumId: json['albumId'],
+        isEncrypted: json['isEncrypted'] ?? true,
+        ownerId: json['ownerId'],
+        isSynced: json['isSynced'] ?? false,
+      );
+}
+
+class Album {
+  final String id;
+  final String name;
+  final String? coverImageId;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final List<String> sharedWithDeviceIds;
+
+  Album({
+    required this.id,
+    required this.name,
+    this.coverImageId,
+    required this.createdAt,
+    required this.updatedAt,
+    this.sharedWithDeviceIds = const [],
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'coverImageId': coverImageId,
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
+        'sharedWithDeviceIds': sharedWithDeviceIds,
+      };
+
+  factory Album.fromJson(Map<String, dynamic> json) => Album(
+        id: json['id'],
+        name: json['name'],
+        coverImageId: json['coverImageId'],
+        createdAt: DateTime.parse(json['createdAt']),
+        updatedAt: DateTime.parse(json['updatedAt']),
+        sharedWithDeviceIds:
+            List<String>.from(json['sharedWithDeviceIds'] ?? []),
+      );
+}
+
+class MediaService {
+  static const String _mediaBoxName = 'media_items';
+  static const String _albumsBoxName = 'albums';
+  static const String _albumMediaBoxName = 'album_media';
+
+  Box<String>? _mediaBox;
+  Box<String>? _albumsBox;
+  Box<String>? _albumMediaBox;
+  final SignalProtocolService _crypto = SignalProtocolService();
+
+  final Directory _mediaDir;
+  final Directory _thumbDir;
+
+  MediaService._internal(this._mediaDir, this._thumbDir);
+
+  static MediaService? _instance;
+  static Directory? _mediaDirStatic;
+  static Directory? _thumbDirStatic;
+
+  static Future<MediaService> getInstance() async {
+    if (_instance == null) {
+      final appDir = await getApplicationDocumentsDirectory();
+      _mediaDirStatic = Directory('${appDir.path}/media');
+      _thumbDirStatic = Directory('${appDir.path}/thumbnails');
+      await _mediaDirStatic!.create(recursive: true);
+      await _thumbDirStatic!.create(recursive: true);
+      _instance = MediaService._internal(_mediaDirStatic!, _thumbDirStatic!);
+      await _instance!._initialize();
+    }
+    return _instance!;
+  }
+
+  Future<void> _initialize() async {
+    _mediaBox = await Hive.openBox(_mediaBoxName);
+    _albumsBox = await Hive.openBox(_albumsBoxName);
+    _albumMediaBox = await Hive.openBox(_albumMediaBoxName);
+  }
+
+  Future<MediaItem> savePhoto({
+    required Uint8List bytes,
+    required String ownerId,
+    String? albumId,
+    double? latitude,
+    double? longitude,
+    String? note,
+    List<String>? tags,
+    bool encrypt = true,
+  }) async {
+    final id = 'photo_${DateTime.now().millisecondsSinceEpoch}';
+    final fileName = '$id.jpg';
+    final filePath = '${_mediaDir.path}/$fileName';
+
+    Uint8List dataToSave = bytes;
+    if (encrypt) {
+      dataToSave = await _encryptData(bytes);
+    }
+
+    await File(filePath).writeAsBytes(dataToSave);
+
+    final mediaItem = MediaItem(
+      id: id,
+      type: MediaType.photo,
+      filePath: filePath,
+      createdAt: DateTime.now(),
+      latitude: latitude,
+      longitude: longitude,
+      note: note,
+      tags: tags ?? [],
+      albumId: albumId ?? 'default',
+      isEncrypted: encrypt,
+      ownerId: ownerId,
+    );
+
+    await _mediaBox?.put(id, mediaItem.toJson().toString());
+
+    return mediaItem;
+  }
+
+  Future<MediaItem> saveVideo({
+    required Uint8List bytes,
+    required String ownerId,
+    String? albumId,
+    double? latitude,
+    double? longitude,
+    String? note,
+    bool encrypt = true,
+  }) async {
+    final id = 'video_${DateTime.now().millisecondsSinceEpoch}';
+    final fileName = '$id.mp4';
+    final filePath = '${_mediaDir.path}/$fileName';
+
+    Uint8List dataToSave = bytes;
+    if (encrypt) {
+      dataToSave = await _encryptData(bytes);
+    }
+
+    await File(filePath).writeAsBytes(dataToSave);
+
+    final mediaItem = MediaItem(
+      id: id,
+      type: MediaType.video,
+      filePath: filePath,
+      createdAt: DateTime.now(),
+      latitude: latitude,
+      longitude: longitude,
+      note: note,
+      albumId: albumId ?? 'default',
+      isEncrypted: encrypt,
+      ownerId: ownerId,
+    );
+
+    await _mediaBox?.put(id, mediaItem.toJson().toString());
+
+    return mediaItem;
+  }
+
+  Future<Uint8List> _encryptData(Uint8List data) async {
+    final key = encrypt.Key.fromSecureRandom(32);
+    final iv = encrypt.IV.fromSecureRandom(16);
+    final encrypter =
+        encrypt.Encrypter(encrypt.AES(key, mode: encrypt.AESMode.cbc));
+
+    final encrypted = encrypter.encryptBytes(data, iv: iv);
+
+    final result = Uint8List(16 + 32 + encrypted.bytes.length);
+    result.setRange(0, 16, iv.bytes);
+    result.setRange(16, 48, key.bytes);
+    result.setRange(48, result.length, encrypted.bytes);
+
+    return result;
+  }
+
+  Future<Uint8List> _decryptData(Uint8List data) async {
+    if (data.length < 48) return data;
+
+    final iv = encrypt.IV(data.sublist(0, 16));
+    final key = encrypt.Key(data.sublist(16, 48));
+    final encrypted = encrypt.Encrypted(data.sublist(48));
+
+    final encrypter =
+        encrypt.Encrypter(encrypt.AES(key, mode: encrypt.AESMode.cbc));
+    final decrypted = encrypter.decryptBytes(encrypted, iv: iv);
+
+    return Uint8List.fromList(decrypted);
+  }
+
+  Future<Uint8List?> loadMedia(String id) async {
+    final json = _mediaBox?.get(id);
+    if (json == null) return null;
+
+    final mediaItem = MediaItem.fromJson(Uri.splitQueryString(json));
+    final file = File(mediaItem.filePath);
+
+    if (!await file.exists()) return null;
+
+    var bytes = await file.readAsBytes();
+
+    if (mediaItem.isEncrypted) {
+      bytes = await _decryptData(bytes);
+    }
+
+    return bytes;
+  }
+
+  List<MediaItem> getAllMedia({String? albumId, DateTime? from, DateTime? to}) {
+    final items = <MediaItem>[];
+
+    for (final key in _mediaBox?.keys ?? []) {
+      final json = _mediaBox?.get(key);
+      if (json == null) continue;
+
+      try {
+        final item = MediaItem.fromJson(Uri.splitQueryString(json));
+
+        if (albumId != null && item.albumId != albumId) continue;
+        if (from != null && item.createdAt.isBefore(from)) continue;
+        if (to != null && item.createdAt.isAfter(to)) continue;
+
+        items.add(item);
+      } catch (_) {}
+    }
+
+    items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return items;
+  }
+
+  List<MediaItem> searchMedia(
+      {String? query, List<String>? tags, MediaType? type}) {
+    final items = getAllMedia();
+
+    return items.where((item) {
+      if (type != null && item.type != type) return false;
+      if (tags != null && tags.isNotEmpty) {
+        if (!tags.any((tag) => item.tags.contains(tag))) return false;
+      }
+      if (query != null && query.isNotEmpty) {
+        final lowerQuery = query.toLowerCase();
+        if (item.note?.toLowerCase().contains(lowerQuery) != true &&
+            !item.tags.any((t) => t.toLowerCase().contains(lowerQuery))) {
+          return false;
+        }
+      }
+      return true;
+    }).toList();
+  }
+
+  Future<void> deleteMedia(String id) async {
+    final json = _mediaBox?.get(id);
+    if (json == null) return;
+
+    try {
+      final item = MediaItem.fromJson(Uri.splitQueryString(json));
+      final file = File(item.filePath);
+      if (await file.exists()) await file.delete();
+
+      if (item.thumbnailPath != null) {
+        final thumb = File(item.thumbnailPath!);
+        if (await thumb.exists()) await thumb.delete();
+      }
+    } catch (_) {}
+
+    await _mediaBox?.delete(id);
+  }
+
+  Future<void> updateMediaNote(String id, String note) async {
+    final json = _mediaBox?.get(id);
+    if (json == null) return;
+
+    try {
+      final item = MediaItem.fromJson(Uri.splitQueryString(json));
+      final updated = MediaItem(
+        id: item.id,
+        type: item.type,
+        filePath: item.filePath,
+        thumbnailPath: item.thumbnailPath,
+        createdAt: item.createdAt,
+        latitude: item.latitude,
+        longitude: item.longitude,
+        note: note,
+        tags: item.tags,
+        albumId: item.albumId,
+        isEncrypted: item.isEncrypted,
+        ownerId: item.ownerId,
+        isSynced: item.isSynced,
+      );
+
+      await _mediaBox?.put(id, updated.toJson().toString());
+    } catch (_) {}
+  }
+
+  Future<Album> createAlbum(String name, {List<String>? sharedWith}) async {
+    final id = 'album_${DateTime.now().millisecondsSinceEpoch}';
+    final now = DateTime.now();
+
+    final album = Album(
+      id: id,
+      name: name,
+      createdAt: now,
+      updatedAt: now,
+      sharedWithDeviceIds: sharedWith ?? [],
+    );
+
+    await _albumsBox?.put(id, album.toJson().toString());
+
+    return album;
+  }
+
+  List<Album> getAllAlbums() {
+    final albums = <Album>[];
+
+    for (final key in _albumsBox?.keys ?? []) {
+      final json = _albumsBox?.get(key);
+      if (json == null) continue;
+
+      try {
+        albums.add(Album.fromJson(Uri.splitQueryString(json)));
+      } catch (_) {}
+    }
+
+    return albums..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+  }
+
+  Future<void> deleteAlbum(String id) async {
+    await _albumsBox?.delete(id);
+
+    final mediaIds = _albumMediaBox?.get(id) ?? '';
+    for (final mediaId in mediaIds.split(',')) {
+      if (mediaId.isNotEmpty) await deleteMedia(mediaId);
+    }
+    await _albumMediaBox?.delete(id);
+  }
+
+  Future<void> addToAlbum(String albumId, String mediaId) async {
+    final existing = _albumMediaBox?.get(albumId) ?? '';
+    final mediaIds = existing.isEmpty ? <String>[] : existing.split(',');
+
+    if (!mediaIds.contains(mediaId)) {
+      mediaIds.add(mediaId);
+      await _albumMediaBox?.put(albumId, mediaIds.join(','));
+    }
+  }
+
+  List<String> getAlbumMediaIds(String albumId) {
+    final existing = _albumMediaBox?.get(albumId);
+    if (existing == null || existing.isEmpty) return [];
+    return existing.split(',');
+  }
+
+  int getMediaCount({String? albumId}) {
+    return getAllMedia(albumId: albumId).length;
+  }
+
+  Future<Map<String, dynamic>> createIncidentReport({
+    required List<String> mediaIds,
+    required String title,
+    String? description,
+    double? latitude,
+    double? longitude,
+  }) async {
+    final reportId = 'report_${DateTime.now().millisecondsSinceEpoch}';
+    final items = <Map<String, dynamic>>[];
+
+    for (final id in mediaIds) {
+      final json = _mediaBox?.get(id);
+      if (json != null) {
+        try {
+          final item = MediaItem.fromJson(Uri.splitQueryString(json));
+          items.add(item.toJson());
+        } catch (_) {}
+      }
+    }
+
+    final report = {
+      'id': reportId,
+      'title': title,
+      'description': description,
+      'latitude': latitude,
+      'longitude': longitude,
+      'createdAt': DateTime.now().toIso8601String(),
+      'mediaCount': items.length,
+      'media': items,
+    };
+
+    final reportBox = await Hive.openBox('incident_reports');
+    await reportBox.put(reportId, report.toString());
+
+    return report;
+  }
+
+  List<Map<String, dynamic>> getIncidentReports() {
+    final reports = <Map<String, dynamic>>[];
+    final reportBox = Hive.box('incident_reports');
+
+    for (final key in reportBox.keys) {
+      final json = reportBox.get(key);
+      if (json != null) {
+        try {
+          reports.add(Uri.splitQueryString(json));
+        } catch (_) {}
+      }
+    }
+
+    return reports;
+  }
+}
