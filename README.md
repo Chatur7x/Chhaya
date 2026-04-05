@@ -78,6 +78,12 @@ By utilizing **Bluetooth Low Energy (BLE)** and **WiFi Direct**, devices form a 
 | **Encrypted Media** | ✅ Active | AES-256 encrypted media storage |
 | **Field Journal** | ✅ Active | Photo + note + GPS tag |
 | **Album Management** | ✅ Active | Create and organize albums |
+| **File Vault** | ✅ Active | Secure file storage with encryption |
+| **Folder Management** | ✅ Active | Create, rename, delete folders |
+| **File Versioning** | ✅ Active | Track changes, rollback to previous |
+| **File Search** | ✅ Active | Search by name, type, date, tag |
+| **Shared Folders** | ✅ Active | Mesh-accessible group folders |
+| **Recycle Bin** | ✅ Active | Restore deleted files |
 
 ---
 
