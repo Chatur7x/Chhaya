@@ -40,6 +40,7 @@ import '../../features/auth/data/biometric_service.dart';
 import '../../features/auth/data/decoy_service.dart';
 import '../../features/messenger/data/poll_service.dart';
 import '../../features/safety/data/location_share_service.dart';
+import '../../features/safety/data/panic_button_service.dart';
 import '../../core/theme/theme_service.dart';
 
 /// ─── Core Service Providers ───
@@ -273,6 +274,13 @@ final scheduleServiceProvider = Provider<ScheduleService>((ref) {
 
 final locationShareServiceProvider = Provider<LocationShareService>((ref) {
   return LocationShareService();
+});
+
+final panicButtonServiceProvider = Provider<PanicButtonService>((ref) {
+  final safety = ref.read(locationSafetyServiceProvider);
+  final service = PanicButtonService(safety);
+  service.startListening();
+  return service;
 });
 
 final currentThemeProvider =
