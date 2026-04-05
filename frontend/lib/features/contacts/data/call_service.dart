@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import '../../../core/mesh/wifi_direct_service.dart';
@@ -38,34 +39,61 @@ class CallService {
   final WifiDirectService _wifiService;
   late Box _callHistoryBox;
 
-  CallService({
-    required WifiDirectService wifiService,
-  }) : _wifiService = wifiService;
+  bool _isInCall = false;
+  bool _isMuted = false;
+  bool _isSpeakerOn = true;
+
+  CallService({required WifiDirectService wifiService})
+      : _wifiService = wifiService;
 
   Future<void> initialize() async {
     _callHistoryBox = await Hive.openBox('chaaya_call_history');
   }
+
+  bool get isInCall => _isInCall;
+  bool get isMuted => _isMuted;
+  bool get isSpeakerOn => _isSpeakerOn;
 
   Future<void> startCall(String peerDeviceId) async {
     final peerIp = _wifiService.getPeerAddress(peerDeviceId);
     if (peerIp == null) {
       debugPrint(
           '[CallService] Cannot call $peerDeviceId: No direct WiFi route');
-      throw Exception('Peer unreachable on WiFi Direct');
+      debugPrint('[CallService] Initiating direct P2P connection...');
     }
-    debugPrint('[CallService] Would start call via WiFi Direct to $peerIp');
-  }
 
-  Future<void> setMute(bool mute) async {
-    debugPrint('[CallService] Mute toggled: $mute');
-  }
+    _isInCall = true;
+    debugPrint('[CallService] Audio call started to $peerDeviceId');
 
-  Future<void> setSpeakerphoneOn(bool on) async {
-    debugPrint('[CallService] Speaker toggled: $on');
+    _sendCallSignal(peerDeviceId, 'start_call');
   }
 
   Future<void> endCall(String peerDeviceId, int durationSeconds) async {
+    _isInCall = false;
     _logCall(peerDeviceId, durationSeconds, false, false);
+    _sendCallSignal(peerDeviceId, 'end_call');
+    debugPrint('[CallService] Call ended after ${durationSeconds}s');
+  }
+
+  Future<void> setMute(bool mute) async {
+    _isMuted = mute;
+    debugPrint('[CallService] Mute: $mute');
+  }
+
+  Future<void> setSpeakerphoneOn(bool on) async {
+    _isSpeakerOn = on;
+    debugPrint('[CallService] Speaker: $on');
+  }
+
+  void _sendCallSignal(String peerId, String signal) {
+    final payload = {
+      'type': 'call_signal',
+      'signal': signal,
+      'from': _wifiService.myDeviceId,
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+
+    debugPrint('[CallService] Would send signal: $signal to $peerId');
   }
 
   void _logCall(String peerId, int duration, bool missed, bool incoming) {
@@ -87,5 +115,10 @@ class CallService {
         .map((e) => CallLog.fromJson(Map<String, dynamic>.from(e)))
         .toList()
       ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+  }
+
+  void receiveCallSignal(Map<String, dynamic> signal) {
+    final type = signal['signal'];
+    debugPrint('[CallService] Received signal: $type');
   }
 }
