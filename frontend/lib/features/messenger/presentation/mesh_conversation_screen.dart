@@ -5,7 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import '../../../core/theme/chaaya_theme.dart';
 import '../../../core/mesh/mesh_message.dart';
 import '../../../core/providers/app_providers.dart';
-import '../../chat/presentation/widgets/voice_message_recorder.dart';
+import '../../chat/presentation/voice_message_recorder.dart';
 
 /// Mesh Conversation Screen — WhatsApp-style 1:1 chat over BLE mesh.
 class MeshConversationScreen extends ConsumerStatefulWidget {

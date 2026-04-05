@@ -10,10 +10,7 @@ import '../../../core/providers/app_providers.dart';
 import '../../contacts/domain/models/contact.dart';
 import '../../../core/crypto/signal_protocol_service.dart';
 import '../../../core/theme/chaaya_theme.dart';
-import 'widgets/reaction_picker.dart';
-import 'widgets/reply_quote_card.dart';
-import 'widgets/typing_indicator.dart';
-import 'widgets/voice_message_recorder.dart';
+import 'voice_message_recorder.dart';
 import '../domain/models/message_metadata.dart';
 
 class MessageData {
