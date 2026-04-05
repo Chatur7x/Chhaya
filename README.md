@@ -65,13 +65,8 @@ By utilizing **Bluetooth Low Energy (BLE)** and **WiFi Direct**, devices form a 
 | **Voice Messages** | ✅ Active | Record and send voice messages |
 | **File Sharing** | ✅ Active | Send images and files |
 | **Image Picker** | ✅ Active | Select images from gallery |
-
-### ⚠️ Coming Soon
-
-| Feature | Status | Description |
-|---------|--------|-------------|
-| **Video Calling** | 🔜 Soon | WebRTC integration in progress |
-| **Audio Calling** | 🔜 Soon | VoIP calling over mesh |
+| **Audio Calling** | ✅ Active | Voice calls over WiFi Direct |
+| **Video Calling UI** | ✅ Active | Full video call interface |
 
 ---
 
