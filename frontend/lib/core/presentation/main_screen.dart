@@ -6,6 +6,11 @@ import '../../features/radio/presentation/walkie_talkie_screen.dart';
 import '../../features/safety/presentation/safety_map_screen.dart';
 import '../../features/ai/presentation/ai_assistant_screen.dart';
 import '../../features/settings/presentation/chaaya_settings_screen.dart';
+import '../../features/gamification/presentation/gamification_screen.dart';
+import '../../features/mission/presentation/mission_planner_screen.dart';
+import '../../features/intelligence/presentation/crowd_intelligence_screen.dart';
+import '../../features/navigation/presentation/multi_hop_navigator_screen.dart';
+import '../../features/emergency/presentation/emergency_screen.dart';
 
 /// Main Screen — Bottom navigation hub for Chaaya.
 /// 5 tabs: Messenger, Contacts, Radio (PTT), Map, More
@@ -22,9 +27,9 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _screens = [
     const MeshChatListScreen(),
     const QrPairingScreen(),
-    const WalkieTalkieScreen(),    // PTT Radio — Phase 2 ✅
-    const SafetyMapScreen(),       // Map — Phase 3 ✅
-    const _MoreScreen(),          // Hub for File Vault, Media, Settings, etc.
+    const WalkieTalkieScreen(), // PTT Radio — Phase 2 ✅
+    const SafetyMapScreen(), // Map — Phase 3 ✅
+    const _MoreScreen(), // Hub for File Vault, Media, Settings, etc.
   ];
 
   @override
@@ -107,7 +112,8 @@ class _RadioPlaceholder extends StatelessWidget {
                 color: ChaayaTheme.warningYellow.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.radio, size: 40, color: ChaayaTheme.warningYellow),
+              child: const Icon(Icons.radio,
+                  size: 40, color: ChaayaTheme.warningYellow),
             ),
             const SizedBox(height: 16),
             const Text('Push-to-Talk Radio', style: ChaayaTheme.heading3),
@@ -146,7 +152,8 @@ class _MapPlaceholder extends StatelessWidget {
                 color: ChaayaTheme.safeGreen.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.map, size: 40, color: ChaayaTheme.safeGreen),
+              child:
+                  const Icon(Icons.map, size: 40, color: ChaayaTheme.safeGreen),
             ),
             const SizedBox(height: 16),
             const Text('Offline Map & GPS', style: ChaayaTheme.heading3),
@@ -196,7 +203,8 @@ class _MoreScreen extends StatelessWidget {
             title: 'Safety & SOS',
             subtitle: 'Location sharing, crash detection',
             color: ChaayaTheme.sosRed,
-            onTap: () {},
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const SafetyMapScreen())),
           ),
           _MoreTile(
             icon: Icons.local_hospital_outlined,
@@ -210,28 +218,64 @@ class _MoreScreen extends StatelessWidget {
             title: 'AI Assistant',
             subtitle: 'Offline survival intelligence',
             color: ChaayaTheme.warningYellow,
-            onTap: () {},
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const AIAssistantScreen())),
           ),
           _MoreTile(
             icon: Icons.warning_amber_outlined,
-            title: 'Emergency Broadcast',
+            title: 'Emergency SOS',
             subtitle: 'Send alerts to all mesh devices',
             color: ChaayaTheme.sosRed,
-            onTap: () {},
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const EmergencyScreen())),
           ),
           _MoreTile(
-            icon: Icons.groups_outlined,
-            title: 'Coordination',
-            subtitle: 'Tasks, voting, headcount',
+            icon: Icons.emoji_events,
+            title: 'Achievements',
+            subtitle: 'Gamification & rewards',
+            color: ChaayaTheme.warningYellow,
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const GamificationScreen())),
+          ),
+          _MoreTile(
+            icon: Icons.assignment,
+            title: 'Mission Planner',
+            subtitle: 'Team coordination & tasks',
+            color: ChaayaTheme.accent,
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const MissionPlannerScreen())),
+          ),
+          _MoreTile(
+            icon: Icons.psychology,
+            title: 'Crowd Intel',
+            subtitle: 'Shared intelligence reports',
+            color: ChaayaTheme.safeGreen,
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const CrowdIntelligenceScreen())),
+          ),
+          _MoreTile(
+            icon: Icons.navigation,
+            title: 'Mesh Navigator',
+            subtitle: 'Multi-hop route planning',
             color: ChaayaTheme.bleColor,
-            onTap: () {},
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const MultiHopNavigatorScreen())),
           ),
           _MoreTile(
             icon: Icons.settings_outlined,
             title: 'Settings',
             subtitle: 'Identity, security, mesh config',
             color: ChaayaTheme.textSecondary,
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChaayaSettingsScreen())),
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const ChaayaSettingsScreen())),
           ),
         ],
       ),
@@ -283,9 +327,9 @@ class _MoreTile extends StatelessWidget {
           subtitle,
           style: const TextStyle(fontSize: 12, color: ChaayaTheme.textMuted),
         ),
-        trailing: const Icon(Icons.chevron_right, color: ChaayaTheme.textMuted, size: 20),
+        trailing: const Icon(Icons.chevron_right,
+            color: ChaayaTheme.textMuted, size: 20),
       ),
     );
   }
 }
-
