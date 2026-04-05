@@ -69,6 +69,7 @@ dependencies:
   
   # Sensors
   sensors_plus: ^4.0.2
+  battery_plus: ^6.0.0
 
   # Notifications
   firebase_core: ^2.24.2
