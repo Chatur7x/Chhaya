@@ -30,10 +30,16 @@ import '../../features/chat/data/search_service.dart';
 import '../../features/chat/data/reaction_service.dart';
 import '../../features/chat/data/reply_service.dart';
 import '../../features/chat/data/presence_service.dart';
+import '../../features/chat/data/pin_service.dart';
+import '../../features/chat/data/wallpaper_service.dart';
+import '../../features/chat/data/schedule_service.dart';
+import '../../features/chat/data/chat_folder_service.dart';
 import '../../features/identity/data/key_verification_service.dart';
 import '../../features/auth/data/biometric_service.dart';
 import '../../features/auth/data/decoy_service.dart';
 import '../../features/messenger/data/poll_service.dart';
+import '../../features/safety/data/location_share_service.dart';
+import '../../core/theme/theme_service.dart';
 
 /// ─── Core Service Providers ───
 
@@ -237,3 +243,30 @@ final pollServiceProvider = Provider<PollService>((ref) {
   service.initialize();
   return service;
 });
+
+final pinServiceProvider = Provider<PinService>((ref) {
+  final service = PinService();
+  service.initialize();
+  return service;
+});
+
+final wallpaperServiceProvider = Provider<WallpaperService>((ref) {
+  final service = WallpaperService();
+  service.initialize();
+  return service;
+});
+
+final scheduleServiceProvider = Provider<ScheduleService>((ref) {
+  final service = ScheduleService();
+  service.initialize();
+  return service;
+});
+
+final locationShareServiceProvider = Provider<LocationShareService>((ref) {
+  return LocationShareService();
+});
+
+final currentThemeProvider =
+    StateProvider<AppThemeMode>((ref) => AppThemeMode.chaaya);
+final currentFolderProvider =
+    StateProvider<ChatFolder>((ref) => ChatFolder.all);
