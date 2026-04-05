@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../../core/presentation/widgets/glass_container.dart';
 import '../../../core/mesh/mesh_message.dart';
 import '../../../core/providers/app_providers.dart';
@@ -11,6 +13,7 @@ import '../../../core/theme/chaaya_theme.dart';
 import 'widgets/reaction_picker.dart';
 import 'widgets/reply_quote_card.dart';
 import 'widgets/typing_indicator.dart';
+import 'widgets/voice_message_recorder.dart';
 import '../domain/models/message_metadata.dart';
 
 class MessageData {
@@ -36,6 +39,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   bool _showReactionPicker = false;
   String? _selectedMessageId;
   bool _isContactTyping = false;
+  bool _showAttachmentPicker = false;
+  bool _showVoiceRecorder = false;
 
   StreamSubscription? _bleSub;
   StreamSubscription? _wifiSub;
@@ -450,48 +455,103 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       color: Colors.black,
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-              icon: const Icon(Icons.add, color: Colors.blueAccent),
-              onPressed: () {}),
-          Expanded(
-            child: TextField(
-              controller: _messageController,
-              style: const TextStyle(color: Colors.white),
-              onChanged: (text) {
-                final presence = ref.read(presenceServiceProvider);
-                presence.sendTyping(widget.contact.deviceId);
+          if (_showAttachmentPicker)
+            AttachmentPicker(
+              onPickImage: () => _pickImage(),
+              onPickFile: () => _pickFile(),
+              onPickVoice: () {
+                setState(() {
+                  _showAttachmentPicker = false;
+                  _showVoiceRecorder = true;
+                });
               },
-              decoration: InputDecoration(
-                hintText: 'Type a secure message...',
-                hintStyle: const TextStyle(color: Colors.white38),
-                filled: true,
-                fillColor: Colors.white.withOpacity(0.05),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          CircleAvatar(
-            backgroundColor: Colors.blueAccent,
-            child: _isEncrypting
-                ? const Padding(
-                    padding: EdgeInsets.all(10),
-                    child: CircularProgressIndicator(
-                        color: Colors.white, strokeWidth: 2))
-                : IconButton(
-                    icon: const Icon(Icons.send, color: Colors.white),
-                    onPressed: _sendMessage,
+          if (_showVoiceRecorder)
+            VoiceMessageRecorder(
+              onVoiceMessageSent: (base64, duration) {
+                _sendVoiceMessage(base64, duration);
+                setState(() => _showVoiceRecorder = false);
+              },
+            ),
+          Row(
+            children: [
+              IconButton(
+                icon: Icon(_showAttachmentPicker ? Icons.close : Icons.add,
+                    color: Colors.blueAccent),
+                onPressed: () {
+                  setState(() {
+                    _showAttachmentPicker = !_showAttachmentPicker;
+                    _showVoiceRecorder = false;
+                  });
+                },
+              ),
+              Expanded(
+                child: TextField(
+                  controller: _messageController,
+                  style: const TextStyle(color: Colors.white),
+                  onChanged: (text) {
+                    final presence = ref.read(presenceServiceProvider);
+                    presence.sendTyping(widget.contact.deviceId);
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Type a secure message...',
+                    hintStyle: const TextStyle(color: Colors.white38),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.05),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 10),
                   ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              CircleAvatar(
+                backgroundColor: Colors.blueAccent,
+                child: _isEncrypting
+                    ? const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2))
+                    : IconButton(
+                        icon: const Icon(Icons.send, color: Colors.white),
+                        onPressed: _sendMessage,
+                      ),
+              ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _pickImage() async {
+    setState(() => _showAttachmentPicker = false);
+    final picker = ImagePicker();
+    final image = await picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      _sendFileAttachment(image.path, 'image');
+    }
+  }
+
+  Future<void> _pickFile() async {
+    setState(() => _showAttachmentPicker = false);
+    final result = await FilePicker.platform.pickFiles();
+    if (result != null && result.files.isNotEmpty) {
+      _sendFileAttachment(result.files.first.path!, 'file');
+    }
+  }
+
+  void _sendVoiceMessage(String base64Audio, int durationSeconds) {
+    debugPrint('[Chat] Voice message sent: ${durationSeconds}s');
+  }
+
+  void _sendFileAttachment(String path, String type) {
+    debugPrint('[Chat] File attachment sent: $type from $path');
   }
 }

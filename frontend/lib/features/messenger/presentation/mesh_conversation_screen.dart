@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../../core/theme/chaaya_theme.dart';
 import '../../../core/mesh/mesh_message.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../chat/presentation/widgets/voice_message_recorder.dart';
 
 /// Mesh Conversation Screen — WhatsApp-style 1:1 chat over BLE mesh.
 class MeshConversationScreen extends ConsumerStatefulWidget {
@@ -20,10 +23,13 @@ class MeshConversationScreen extends ConsumerStatefulWidget {
       _MeshConversationScreenState();
 }
 
-class _MeshConversationScreenState extends ConsumerState<MeshConversationScreen> {
+class _MeshConversationScreenState
+    extends ConsumerState<MeshConversationScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
   List<MeshMessage> _messages = [];
+  bool _showAttachmentPicker = false;
+  bool _showVoiceRecorder = false;
 
   @override
   void initState() {
@@ -84,7 +90,10 @@ class _MeshConversationScreenState extends ConsumerState<MeshConversationScreen>
     // Update status
     if (result.success) {
       await chatService.updateMessageStatus(
-        identity.deviceId, widget.contactId, message.id, MessageStatus.sent,
+        identity.deviceId,
+        widget.contactId,
+        message.id,
+        MessageStatus.sent,
       );
     }
 
@@ -142,7 +151,8 @@ class _MeshConversationScreenState extends ConsumerState<MeshConversationScreen>
               children: [
                 Text(
                   widget.contactName,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w500),
                 ),
                 Row(
                   children: [
@@ -150,7 +160,8 @@ class _MeshConversationScreenState extends ConsumerState<MeshConversationScreen>
                     const SizedBox(width: 4),
                     const Text(
                       'Nearby • BLE',
-                      style: TextStyle(fontSize: 11, color: ChaayaTheme.textMuted),
+                      style:
+                          TextStyle(fontSize: 11, color: ChaayaTheme.textMuted),
                     ),
                   ],
                 ),
@@ -164,7 +175,8 @@ class _MeshConversationScreenState extends ConsumerState<MeshConversationScreen>
             onPressed: () {},
           ),
           IconButton(
-            icon: const Icon(Icons.videocam_outlined, color: ChaayaTheme.bleColor),
+            icon: const Icon(Icons.videocam_outlined,
+                color: ChaayaTheme.bleColor),
             onPressed: () {},
           ),
           IconButton(
@@ -202,7 +214,8 @@ class _MeshConversationScreenState extends ConsumerState<MeshConversationScreen>
                 ? _buildEmptyChat()
                 : ListView.builder(
                     controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     itemCount: _messages.length,
                     itemBuilder: (context, index) {
                       final msg = _messages[index];
@@ -230,7 +243,8 @@ class _MeshConversationScreenState extends ConsumerState<MeshConversationScreen>
               color: ChaayaTheme.accent.withOpacity(0.08),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.lock_outline, size: 32, color: ChaayaTheme.accent),
+            child: const Icon(Icons.lock_outline,
+                size: 32, color: ChaayaTheme.accent),
           ),
           const SizedBox(height: 16),
           Text(
@@ -253,61 +267,110 @@ class _MeshConversationScreenState extends ConsumerState<MeshConversationScreen>
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: const BoxDecoration(
         color: ChaayaTheme.surface,
-        border: Border(top: BorderSide(color: ChaayaTheme.glassBorder, width: 0.5)),
+        border:
+            Border(top: BorderSide(color: ChaayaTheme.glassBorder, width: 0.5)),
       ),
       child: SafeArea(
         top: false,
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Attachment button
-            IconButton(
-              icon: const Icon(Icons.attach_file, color: ChaayaTheme.textMuted),
-              onPressed: () {},
-            ),
-
-            // Text field
-            Expanded(
-              child: Container(
-                decoration: ChaayaTheme.glassDecoration(borderRadius: 24),
-                child: TextField(
-                  controller: _messageController,
-                  style: const TextStyle(color: ChaayaTheme.textPrimary, fontSize: 15),
-                  maxLines: 4,
-                  minLines: 1,
-                  decoration: InputDecoration(
-                    hintText: 'Message',
-                    hintStyle: const TextStyle(color: ChaayaTheme.textMuted),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.emoji_emotions_outlined, color: ChaayaTheme.textMuted, size: 22),
-                      onPressed: () {},
+            if (_showAttachmentPicker)
+              AttachmentPicker(
+                onPickImage: () => _pickImage(),
+                onPickFile: () => _pickFile(),
+                onPickVoice: () {
+                  setState(() {
+                    _showAttachmentPicker = false;
+                    _showVoiceRecorder = true;
+                  });
+                },
+              ),
+            if (_showVoiceRecorder)
+              VoiceMessageRecorder(
+                onVoiceMessageSent: (base64, duration) {
+                  _sendVoiceMessage(base64, duration);
+                  setState(() => _showVoiceRecorder = false);
+                },
+              ),
+            Row(children: [
+              IconButton(
+                icon: Icon(
+                  _showAttachmentPicker ? Icons.close : Icons.attach_file,
+                  color: _showAttachmentPicker
+                      ? ChaayaTheme.accent
+                      : ChaayaTheme.textMuted,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _showAttachmentPicker = !_showAttachmentPicker;
+                    _showVoiceRecorder = false;
+                  });
+                },
+              ),
+              Expanded(
+                child: Container(
+                  decoration: ChaayaTheme.glassDecoration(borderRadius: 24),
+                  child: TextField(
+                    controller: _messageController,
+                    style: const TextStyle(
+                        color: ChaayaTheme.textPrimary, fontSize: 15),
+                    maxLines: 4,
+                    minLines: 1,
+                    decoration: InputDecoration(
+                      hintText: 'Message',
+                      hintStyle: const TextStyle(color: ChaayaTheme.textMuted),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
                     ),
+                    onSubmitted: (_) => _sendMessage(),
                   ),
-                  onSubmitted: (_) => _sendMessage(),
                 ),
               ),
-            ),
-
-            const SizedBox(width: 8),
-
-            // Send button
-            Container(
-              width: 44,
-              height: 44,
-              decoration: const BoxDecoration(
-                color: ChaayaTheme.accent,
-                shape: BoxShape.circle,
+              const SizedBox(width: 8),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                  color: ChaayaTheme.accent,
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.send, size: 20, color: Colors.white),
+                  onPressed: _sendMessage,
+                ),
               ),
-              child: IconButton(
-                icon: const Icon(Icons.send, size: 20, color: Colors.white),
-                onPressed: _sendMessage,
-              ),
-            ),
+            ]),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _pickImage() async {
+    setState(() => _showAttachmentPicker = false);
+    final picker = ImagePicker();
+    final image = await picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      _sendFileAttachment(image.path, 'image');
+    }
+  }
+
+  Future<void> _pickFile() async {
+    setState(() => _showAttachmentPicker = false);
+    final result = await FilePicker.platform.pickFiles();
+    if (result != null && result.files.isNotEmpty) {
+      _sendFileAttachment(result.files.first.path!, 'file');
+    }
+  }
+
+  void _sendVoiceMessage(String base64Audio, int durationSeconds) {
+    debugPrint('[MeshChat] Voice message sent: ${durationSeconds}s');
+  }
+
+  void _sendFileAttachment(String path, String type) {
+    debugPrint('[MeshChat] File attachment sent: $type from $path');
   }
 }
 
@@ -384,15 +447,19 @@ class _MessageBubble extends StatelessWidget {
   Widget _statusIcon(MessageStatus status) {
     switch (status) {
       case MessageStatus.queued:
-        return const Icon(Icons.access_time, size: 14, color: ChaayaTheme.textMuted);
+        return const Icon(Icons.access_time,
+            size: 14, color: ChaayaTheme.textMuted);
       case MessageStatus.sent:
         return const Icon(Icons.check, size: 14, color: ChaayaTheme.textMuted);
       case MessageStatus.delivered:
-        return const Icon(Icons.done_all, size: 14, color: ChaayaTheme.textMuted);
+        return const Icon(Icons.done_all,
+            size: 14, color: ChaayaTheme.textMuted);
       case MessageStatus.read:
-        return const Icon(Icons.done_all, size: 14, color: ChaayaTheme.bleColor);
+        return const Icon(Icons.done_all,
+            size: 14, color: ChaayaTheme.bleColor);
       case MessageStatus.failed:
-        return const Icon(Icons.error_outline, size: 14, color: ChaayaTheme.sosRed);
+        return const Icon(Icons.error_outline,
+            size: 14, color: ChaayaTheme.sosRed);
     }
   }
 
@@ -402,4 +469,3 @@ class _MessageBubble extends StatelessWidget {
     return '$h:$m';
   }
 }
-
