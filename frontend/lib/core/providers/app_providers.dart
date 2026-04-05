@@ -41,6 +41,7 @@ import '../../features/auth/data/decoy_service.dart';
 import '../../features/messenger/data/poll_service.dart';
 import '../../features/safety/data/location_share_service.dart';
 import '../../features/safety/data/panic_button_service.dart';
+import '../../features/ai/data/offline_ai_service.dart';
 import '../../core/theme/theme_service.dart';
 
 /// ─── Core Service Providers ───
@@ -281,6 +282,10 @@ final panicButtonServiceProvider = Provider<PanicButtonService>((ref) {
   final service = PanicButtonService(safety);
   service.startListening();
   return service;
+});
+
+final offlineAIServiceProvider = Provider<OfflineAIService>((ref) {
+  return OfflineAIService();
 });
 
 final currentThemeProvider =
