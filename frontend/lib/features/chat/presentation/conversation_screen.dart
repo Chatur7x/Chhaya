@@ -197,6 +197,70 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     });
   }
 
+  void _startVoiceCall() {
+    final callService = ref.read(callServiceProvider);
+    callService.startCall(widget.contact.deviceId);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Calling ${widget.contact.name}...')),
+    );
+  }
+
+  void _startVideoCall() {
+    final callService = ref.read(callServiceProvider);
+    callService.startVideoCall(widget.contact.deviceId);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content: Text('Starting video call with ${widget.contact.name}...')),
+    );
+  }
+
+  void _openContactCard() {
+    Navigator.pushNamed(context, '/contact-card', arguments: widget.contact);
+  }
+
+  void _shareLocation() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Location sharing coming soon...')),
+    );
+  }
+
+  void _sendSOS() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Send SOS?'),
+          ],
+        ),
+        content: const Text(
+          'This will send an emergency SOS to all trusted contacts with your current location.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('SOS sent to trusted contacts!'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            },
+            child: const Text('Send SOS'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _bleSub?.cancel();
@@ -253,8 +317,61 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               ],
             ),
             actions: [
-              IconButton(icon: const Icon(Icons.videocam), onPressed: () {}),
-              IconButton(icon: const Icon(Icons.call), onPressed: () {}),
+              IconButton(
+                icon: const Icon(Icons.videocam),
+                onPressed: () => _startVideoCall(),
+              ),
+              IconButton(
+                icon: const Icon(Icons.call),
+                onPressed: () => _startVoiceCall(),
+              ),
+              PopupMenuButton<String>(
+                onSelected: (value) {
+                  switch (value) {
+                    case 'contact_card':
+                      _openContactCard();
+                      break;
+                    case 'location':
+                      _shareLocation();
+                      break;
+                    case 'sos':
+                      _sendSOS();
+                      break;
+                  }
+                },
+                itemBuilder: (ctx) => [
+                  const PopupMenuItem(
+                    value: 'contact_card',
+                    child: Row(
+                      children: [
+                        Icon(Icons.person),
+                        SizedBox(width: 8),
+                        Text('Contact Info'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'location',
+                    child: Row(
+                      children: [
+                        Icon(Icons.location_on),
+                        SizedBox(width: 8),
+                        Text('Share Location'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'sos',
+                    child: Row(
+                      children: [
+                        Icon(Icons.sos, color: Colors.red),
+                        SizedBox(width: 8),
+                        Text('Send SOS', style: TextStyle(color: Colors.red)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),

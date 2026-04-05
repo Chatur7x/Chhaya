@@ -18,9 +18,12 @@ class CallScreen extends ConsumerStatefulWidget {
 class _CallScreenState extends ConsumerState<CallScreen> {
   bool _isMuted = false;
   bool _isSpeakerOn = false;
+  bool _isOnHold = false;
   bool _isCallActive = false;
   int _callDuration = 0;
   Timer? _timer;
+  String _channel = 'BLE';
+  int _hopCount = 1;
 
   @override
   void initState() {
@@ -57,9 +60,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
   void _endCall() async {
     _timer?.cancel();
-    await ref
-        .read(callServiceProvider)
-        .endCall(widget.peer.deviceId, _callDuration);
+    await ref.read(callServiceProvider).endCall();
     if (mounted) {
       Navigator.pop(context);
     }
@@ -73,6 +74,17 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   void _toggleSpeaker() {
     setState(() => _isSpeakerOn = !_isSpeakerOn);
     ref.read(callServiceProvider).setSpeakerphoneOn(_isSpeakerOn);
+  }
+
+  void _toggleHold() async {
+    setState(() => _isOnHold = !_isOnHold);
+    await ref.read(callServiceProvider).toggleHold();
+    if (_isOnHold) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Call on hold'), duration: Duration(seconds: 1)),
+      );
+    }
   }
 
   String _formatDuration(int seconds) {
@@ -142,13 +154,23 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: ChaayaTheme.glassBorder),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.wifi, color: ChaayaTheme.wifiColor, size: 16),
-                  SizedBox(width: 8),
-                  Text('Direct WiFi Link Active',
-                      style: TextStyle(color: ChaayaTheme.textSecondary)),
+                  Icon(
+                    _channel == 'BLE' ? Icons.bluetooth : Icons.wifi,
+                    color: ChaayaTheme.wifiColor,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _channel == 'BLE'
+                        ? 'BLE Direct ($_hopCount ${_hopCount == 1 ? 'hop' : 'hops'})'
+                        : 'WiFi Direct',
+                    style: const TextStyle(color: ChaayaTheme.textSecondary),
+                  ),
+                  const SizedBox(width: 8),
+                  _buildSignalBars(),
                 ],
               ),
             ),
@@ -176,11 +198,13 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                     onPressed: _toggleMute,
                   ),
 
-                  // Video Call (Coming Soon)
+                  // Hold
                   _buildControlBtn(
-                    icon: Icons.video_call,
-                    color: ChaayaTheme.textMuted,
-                    onPressed: () => _showVideoComingSoon(context),
+                    icon: _isOnHold ? Icons.play_arrow : Icons.pause,
+                    color: _isOnHold
+                        ? ChaayaTheme.accent
+                        : ChaayaTheme.textPrimary,
+                    onPressed: _toggleHold,
                   ),
 
                   // End Call (big red button)
@@ -199,6 +223,13 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                         ? ChaayaTheme.accentLight
                         : ChaayaTheme.textPrimary,
                     onPressed: _toggleSpeaker,
+                  ),
+
+                  // Video Call
+                  _buildControlBtn(
+                    icon: Icons.video_call,
+                    color: ChaayaTheme.textMuted,
+                    onPressed: () => _showVideoComingSoon(context),
                   ),
                 ],
               ),
@@ -234,6 +265,25 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         ),
         child: Icon(icon, color: color, size: 32),
       ),
+    );
+  }
+
+  Widget _buildSignalBars() {
+    final bars =
+        _hopCount <= 1 ? 4 : (_hopCount == 2 ? 3 : (_hopCount <= 4 ? 2 : 1));
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(4, (index) {
+        return Container(
+          width: 4,
+          height: 6 + (index * 4).toDouble(),
+          margin: const EdgeInsets.symmetric(horizontal: 1),
+          decoration: BoxDecoration(
+            color: index < bars ? ChaayaTheme.safeGreen : ChaayaTheme.textMuted,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        );
+      }),
     );
   }
 }

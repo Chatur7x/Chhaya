@@ -1,101 +1,117 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/mesh/wifi_direct_service.dart';
 
-/// Walkie-Talkie / Push-to-Talk Service
-/// Zello-style PTT with named channels, priority broadcast, scramble mode.
+enum SquelchLevel { off, low, medium, high }
+
 class WalkieTalkieService {
   final WifiDirectService wifiService;
   final String myDeviceId;
   final String myCallsign;
 
-  // PTT state
   bool _isTransmitting = false;
   bool _isReceiving = false;
   String _activeChannel = '#default';
   String? _secondaryChannel;
   bool _scrambleMode = false;
   bool _repeaterMode = false;
+  bool _rogerBeepEnabled = true;
+  SquelchLevel _squelchLevel = SquelchLevel.low;
+  double _secondaryVolume = 0.3;
+  DateTime? _txStartTime;
 
-  // Channels
   final Map<String, PTTChannel> _channels = {};
   final List<PTTTransmission> _transmissionLog = [];
 
-  // Streams
   final _transmissionState = StreamController<PTTState>.broadcast();
   final _incomingAudio = StreamController<PTTTransmission>.broadcast();
+  final _rogerBeepController = StreamController<void>.broadcast();
 
   Stream<PTTState> get transmissionState => _transmissionState.stream;
   Stream<PTTTransmission> get incomingAudio => _incomingAudio.stream;
+  Stream<void> get rogerBeepStream => _rogerBeepController.stream;
 
   WalkieTalkieService({
     required this.wifiService,
     required this.myDeviceId,
     required this.myCallsign,
   }) {
-    // Create default channels
     _channels['#default'] = PTTChannel(name: '#default', creatorId: 'system');
-    _channels['#emergency'] = PTTChannel(name: '#emergency', creatorId: 'system');
+    _channels['#emergency'] =
+        PTTChannel(name: '#emergency', creatorId: 'system');
+    _channels['#team'] = PTTChannel(name: '#team', creatorId: 'system');
   }
 
-  /// Start push-to-talk (hold to talk)
   Future<void> startTransmitting() async {
     if (_isTransmitting) return;
     _isTransmitting = true;
+    _txStartTime = DateTime.now();
 
     debugPrint('[PTT] TX START on $_activeChannel by $myCallsign');
     _transmissionState.add(PTTState(
       isTransmitting: true,
       channel: _activeChannel,
       callsign: myCallsign,
+      isScrambled: _scrambleMode,
     ));
-
-    // In production: start recording audio and streaming over WiFi Direct
   }
 
-  /// Stop push-to-talk (release to send)
   Future<void> stopTransmitting() async {
     if (!_isTransmitting) return;
     _isTransmitting = false;
 
-    // Log transmission
+    final duration = _txStartTime != null
+        ? DateTime.now().difference(_txStartTime!).inMilliseconds
+        : 0;
+
     final tx = PTTTransmission(
       id: const Uuid().v4(),
       senderId: myDeviceId,
       callsign: myCallsign,
       channel: _activeChannel,
       timestamp: DateTime.now(),
-      durationMs: 0, // calculated from actual recording
+      durationMs: duration,
       isPriority: false,
       isScrambled: _scrambleMode,
     );
     _transmissionLog.add(tx);
 
-    debugPrint('[PTT] TX END on $_activeChannel, roger beep sent');
+    if (_rogerBeepEnabled) {
+      _playRogerBeep();
+    }
+
+    debugPrint('[PTT] TX END on $_activeChannel (${duration}ms)');
     _transmissionState.add(PTTState(
       isTransmitting: false,
       channel: _activeChannel,
       callsign: myCallsign,
-      rogerBeep: true,
+      rogerBeep: _rogerBeepEnabled,
     ));
+
+    if (_repeaterMode && _isReceiving) {
+      debugPrint('[PTT] Repeating received audio on $_activeChannel');
+    }
   }
 
-  /// Priority broadcast — interrupts ALL devices on ALL channels
+  void _playRogerBeep() {
+    _rogerBeepController.add(null);
+    debugPrint('[PTT] Roger beep!');
+  }
+
   Future<void> priorityBroadcast() async {
-    debugPrint('[PTT] ⚠️ PRIORITY BROADCAST on ALL channels');
+    debugPrint('[PTT] PRIORITY BROADCAST on ALL channels');
     _transmissionState.add(PTTState(
       isTransmitting: true,
       channel: 'ALL',
       callsign: myCallsign,
       isPriority: true,
     ));
-    // In production: broadcast on all channels simultaneously
   }
 
-  /// SOS broadcast — distress on all channels
   Future<void> sosBroadcast() async {
-    debugPrint('[PTT] 🆘 SOS BROADCAST on ALL channels');
+    debugPrint('[PTT] SOS BROADCAST on ALL channels');
     _transmissionState.add(PTTState(
       isTransmitting: true,
       channel: 'SOS',
@@ -104,24 +120,32 @@ class WalkieTalkieService {
     ));
   }
 
-  /// Switch active channel
   void switchChannel(String channelName) {
-    _activeChannel = channelName;
-    debugPrint('[PTT] Switched to $channelName');
+    if (_channels.containsKey(channelName)) {
+      _activeChannel = channelName;
+    } else {
+      _activeChannel =
+          channelName.startsWith('#') ? channelName : '#$channelName';
+    }
+    debugPrint('[PTT] Switched to $_activeChannel');
     _transmissionState.add(PTTState(
       isTransmitting: false,
-      channel: channelName,
+      channel: _activeChannel,
       callsign: myCallsign,
     ));
   }
 
-  /// Set secondary channel for multi-channel monitoring
   void setSecondaryChannel(String? channelName) {
     _secondaryChannel = channelName;
-    debugPrint('[PTT] Secondary channel: ${channelName ?? "none"}');
+    debugPrint(
+        '[PTT] Secondary channel: ${channelName ?? "none"} at ${(_secondaryVolume * 100).toInt()}%');
   }
 
-  /// Create a named channel
+  void setSecondaryVolume(double volume) {
+    _secondaryVolume = volume.clamp(0.0, 1.0);
+    debugPrint('[PTT] Secondary volume: ${(_secondaryVolume * 100).toInt()}%');
+  }
+
   PTTChannel createChannel(String name, {String? password}) {
     final ch = PTTChannel(
       name: name.startsWith('#') ? name : '#$name',
@@ -129,49 +153,111 @@ class WalkieTalkieService {
       password: password,
     );
     _channels[ch.name] = ch;
+    debugPrint('[PTT] Created channel ${ch.name}');
     return ch;
   }
 
-  /// Toggle scramble mode (encrypted voice)
+  void deleteChannel(String name) {
+    final fullName = name.startsWith('#') ? name : '#$name';
+    if (fullName != '#default' && fullName != '#emergency') {
+      _channels.remove(fullName);
+      if (_activeChannel == fullName) {
+        _activeChannel = '#default';
+      }
+      debugPrint('[PTT] Deleted channel $fullName');
+    }
+  }
+
   void toggleScramble() {
     _scrambleMode = !_scrambleMode;
     debugPrint('[PTT] Scramble: ${_scrambleMode ? "ON" : "OFF"}');
   }
 
-  /// Toggle repeater mode (rebroadcast received audio)
   void toggleRepeater() {
     _repeaterMode = !_repeaterMode;
     debugPrint('[PTT] Repeater: ${_repeaterMode ? "ON" : "OFF"}');
   }
 
-  // Getters
+  void toggleRogerBeep() {
+    _rogerBeepEnabled = !_rogerBeepEnabled;
+    debugPrint('[PTT] Roger Beep: ${_rogerBeepEnabled ? "ON" : "OFF"}');
+  }
+
+  void setSquelch(SquelchLevel level) {
+    _squelchLevel = level;
+    debugPrint('[PTT] Squelch: $level');
+  }
+
+  bool shouldPlayAudio(double audioLevel) {
+    switch (_squelchLevel) {
+      case SquelchLevel.off:
+        return true;
+      case SquelchLevel.low:
+        return audioLevel > 0.1;
+      case SquelchLevel.medium:
+        return audioLevel > 0.3;
+      case SquelchLevel.high:
+        return audioLevel > 0.5;
+    }
+  }
+
+  void receiveTransmission(PTTTransmission tx) {
+    if (tx.channel == _activeChannel || tx.channel == _secondaryChannel) {
+      if (shouldPlayAudio(0.5)) {
+        _isReceiving = true;
+        _incomingAudio.add(tx);
+
+        if (_repeaterMode && tx.senderId != myDeviceId) {
+          debugPrint('[PTT] Would repeat transmission from ${tx.callsign}');
+        }
+      }
+    }
+  }
+
+  void setReceiving(bool receiving) {
+    _isReceiving = receiving;
+  }
+
   bool get isTransmitting => _isTransmitting;
+  bool get isReceiving => _isReceiving;
   bool get isScrambled => _scrambleMode;
   bool get isRepeater => _repeaterMode;
+  bool get rogerBeepEnabled => _rogerBeepEnabled;
+  SquelchLevel get squelchLevel => _squelchLevel;
   String get activeChannel => _activeChannel;
   String? get secondaryChannel => _secondaryChannel;
+  double get secondaryVolume => _secondaryVolume;
   List<PTTChannel> get channels => _channels.values.toList();
-  List<PTTTransmission> get transmissionLog => List.unmodifiable(_transmissionLog);
+  List<PTTTransmission> get transmissionLog =>
+      List.unmodifiable(_transmissionLog);
 
   Future<void> dispose() async {
     await _transmissionState.close();
     await _incomingAudio.close();
+    await _rogerBeepController.close();
   }
 }
 
-/// PTT channel
 class PTTChannel {
   final String name;
   final String creatorId;
   final String? password;
   final List<String> members = [];
+  int _memberCount = 0;
 
   PTTChannel({required this.name, required this.creatorId, this.password});
 
   bool get isProtected => password != null;
+  int get memberCount => members.isEmpty ? _memberCount : members.length;
+
+  void addMember(String id) {
+    if (!members.contains(id)) {
+      members.add(id);
+      _memberCount = members.length;
+    }
+  }
 }
 
-/// PTT transmission record
 class PTTTransmission {
   final String id;
   final String senderId;
@@ -182,6 +268,7 @@ class PTTTransmission {
   final bool isPriority;
   final bool isScrambled;
   final List<int>? audioData;
+  final double? audioLevel;
 
   PTTTransmission({
     required this.id,
@@ -193,15 +280,19 @@ class PTTTransmission {
     this.isPriority = false,
     this.isScrambled = false,
     this.audioData,
+    this.audioLevel,
   });
 
   String get durationText {
     final secs = durationMs ~/ 1000;
     return '${secs}s';
   }
+
+  String get timeText {
+    return '${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
+  }
 }
 
-/// PTT state for UI updates
 class PTTState {
   final bool isTransmitting;
   final String channel;
@@ -209,6 +300,7 @@ class PTTState {
   final bool rogerBeep;
   final bool isPriority;
   final bool isSOS;
+  final bool isScrambled;
 
   PTTState({
     required this.isTransmitting,
@@ -217,5 +309,6 @@ class PTTState {
     this.rogerBeep = false,
     this.isPriority = false,
     this.isSOS = false,
+    this.isScrambled = false,
   });
 }

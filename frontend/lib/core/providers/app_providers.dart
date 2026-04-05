@@ -15,6 +15,7 @@ import '../../core/network/platform_channel_bridge.dart';
 import '../../core/network/path_discovery.dart';
 import '../../features/contacts/data/contact_service.dart';
 import '../../features/contacts/domain/models/contact.dart';
+import '../../features/contacts/data/contact_group_service.dart';
 import '../../features/contacts/data/nfc_service.dart';
 import '../../features/contacts/data/call_service.dart';
 import '../../features/emergency/data/sos_service.dart';
@@ -72,8 +73,10 @@ final wifiDirectServiceProvider = Provider<WifiDirectService>((ref) {
 final meshRouterProvider = Provider<MeshRouter>((ref) {
   final ble = ref.read(bleMeshServiceProvider);
   final identity = ref.read(identityServiceProvider);
+  final sf = ref.read(storeForwardServiceProvider);
   return MeshRouter(
     bleService: ble,
+    sfService: sf,
     myDeviceId: identity.currentIdentity?.deviceId ?? '',
   );
 });
@@ -102,6 +105,12 @@ final signalProtocolProvider = Provider<SignalProtocolService>((ref) {
 final contactServiceProvider = Provider<ContactService>((ref) {
   final identity = ref.read(identityServiceProvider);
   return ContactService(identity);
+});
+
+final contactGroupServiceProvider = Provider<ContactGroupService>((ref) {
+  final service = ContactGroupService();
+  service.initialize();
+  return service;
 });
 
 final nfcServiceProvider = Provider<NfcService>((ref) {

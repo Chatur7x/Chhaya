@@ -2,89 +2,135 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'mesh_message.dart';
 import 'ble_mesh_service.dart';
+import 'wifi_direct_service.dart';
+import 'store_forward_service.dart';
 
-/// Chaaya Router — Auto-channel selection and message routing.
-/// Priority: BLE → WiFi Direct → Morse Code
-/// Handles routing table, hop counting, and dedup.
 class MeshRouter {
   final BleMeshService bleService;
+  final WifiDirectService? wifiService;
+  final StoreForwardService? sfService;
   final String myDeviceId;
 
-  // Routing table: destination deviceId → next hop deviceId
   final Map<String, String> _routingTable = {};
-  
-  // Channel status
+
   final _channelStatus = StreamController<ChannelStatus>.broadcast();
   Stream<ChannelStatus> get channelStatus => _channelStatus.stream;
 
   MeshRouter({
     required this.bleService,
+    this.wifiService,
+    this.sfService,
     required this.myDeviceId,
   });
 
-  /// Send a message through the best available channel
   Future<SendResult> send(MeshMessage message) async {
-    // Try BLE first (always available if peers are nearby)
     if (bleService.connectedPeerIds.isNotEmpty) {
       final success = await bleService.sendMessage(message);
       if (success) {
-        _channelStatus.add(ChannelStatus(
-          activeChannel: 'ble',
-          isConnected: true,
-          peerCount: bleService.connectedPeerIds.length,
-        ));
+        _updateChannelStatus('ble');
         return SendResult(success: true, channel: 'ble');
       }
     }
 
-    // WiFi Direct (future implementation)
-    // TODO: Phase 2 — WiFi Direct transport
+    if (wifiService != null && wifiService!.isConnected) {
+      final peerId = wifiService!.connectedPeerId;
+      if (peerId != null) {
+        debugPrint('[Router] Sending via WiFi Direct');
+        final success = await wifiService!.sendMessage(message);
+        if (success) {
+          _updateChannelStatus('wifi');
+          return SendResult(success: true, channel: 'wifi');
+        }
+      }
+    }
 
-    // Morse code (future implementation)
-    // TODO: Phase 6 — Morse code transport
+    final result = await _tryRelay(message);
+    if (result.success) {
+      return result;
+    }
 
-    // All channels failed — queue the message
-    debugPrint('[Router] All channels unavailable, queuing message');
-    await bleService.messageQueue.enqueue(message);
-    _channelStatus.add(ChannelStatus(
-      activeChannel: 'none',
-      isConnected: false,
-      peerCount: 0,
-    ));
+    debugPrint('[Router] All channels unavailable, queueing via SFQ');
+    if (sfService != null) {
+      await sfService!.enqueue(message);
+    } else {
+      await bleService.messageQueue.enqueue(message);
+    }
+    _updateChannelStatus('queued');
     return SendResult(success: false, channel: 'queued');
   }
 
-  /// Update routing table when a new peer is discovered
-  void updateRoute(String destinationId, String nextHopId) {
-    _routingTable[destinationId] = nextHopId;
-    debugPrint('[Router] Route: $destinationId → $nextHopId');
+  Future<SendResult> _tryRelay(MeshMessage message) async {
+    for (final peerId in bleService.connectedPeerIds) {
+      if (peerId != myDeviceId) {
+        debugPrint('[Router] Relaying via $peerId');
+        final relayed = message.copyWith(
+          hopCount: message.hopCount + 1,
+          channel: 'ble',
+        );
+        final success = await bleService.sendMessage(relayed);
+        if (success) {
+          updateRoute(message.recipientId, peerId);
+          _updateChannelStatus('relay');
+          return SendResult(success: true, channel: 'relay');
+        }
+      }
+    }
+    return SendResult(success: false, channel: 'none');
   }
 
-  /// Get next hop for a destination
+  void updateRoute(String destinationId, String nextHopId) {
+    _routingTable[destinationId] = nextHopId;
+    debugPrint('[Router] Route: $destinationId via $nextHopId');
+  }
+
   String? getNextHop(String destinationId) {
     return _routingTable[destinationId];
   }
 
-  /// Get the best channel for a specific contact
   String getBestChannel(String contactDeviceId) {
     if (bleService.isConnected(contactDeviceId)) return 'ble';
+    if (wifiService != null && wifiService!.isConnected) {
+      final peerId = wifiService!.connectedPeerId;
+      if (peerId == contactDeviceId) return 'wifi';
+    }
     if (_routingTable.containsKey(contactDeviceId)) return 'relay';
     return 'none';
   }
 
-  /// Get hop count to a destination
   int getHopCount(String destinationId) {
     if (bleService.isConnected(destinationId)) return 1;
-    if (_routingTable.containsKey(destinationId)) return 2; // approximate
-    return -1; // unreachable
+    if (wifiService != null && wifiService!.isConnected) {
+      final peerId = wifiService!.connectedPeerId;
+      if (peerId == destinationId) return 1;
+    }
+    if (_routingTable.containsKey(destinationId)) return 2;
+    return -1;
   }
 
-  /// Get current channel status
+  List<String> getAvailableChannels() {
+    final channels = <String>[];
+    if (bleService.connectedPeerIds.isNotEmpty) channels.add('ble');
+    if (wifiService != null && wifiService!.isConnected) channels.add('wifi');
+    return channels;
+  }
+
+  void _updateChannelStatus(String activeChannel) {
+    int wifiPeers = (wifiService?.isConnected ?? false) ? 1 : 0;
+    _channelStatus.add(ChannelStatus(
+      activeChannel: activeChannel,
+      isConnected: bleService.connectedPeerIds.isNotEmpty || wifiPeers > 0,
+      peerCount: bleService.connectedPeerIds.length + wifiPeers,
+    ));
+  }
+
   ChannelStatus getCurrentStatus() {
+    int wifiPeers = (wifiService?.isConnected ?? false) ? 1 : 0;
     return ChannelStatus(
-      activeChannel: bleService.connectedPeerIds.isNotEmpty ? 'ble' : 'none',
-      isConnected: bleService.connectedPeerIds.isNotEmpty,
-      peerCount: bleService.connectedPeerIds.length,
+      activeChannel: bleService.connectedPeerIds.isNotEmpty
+          ? 'ble'
+          : (wifiPeers > 0 ? 'wifi' : 'none'),
+      isConnected: bleService.connectedPeerIds.isNotEmpty || wifiPeers > 0,
+      peerCount: bleService.connectedPeerIds.length + wifiPeers,
     );
   }
 
@@ -93,7 +139,6 @@ class MeshRouter {
   }
 }
 
-/// Result of a send attempt
 class SendResult {
   final bool success;
   final String channel;
@@ -101,7 +146,6 @@ class SendResult {
   SendResult({required this.success, required this.channel});
 }
 
-/// Current channel status
 class ChannelStatus {
   final String activeChannel;
   final bool isConnected;
@@ -113,4 +157,3 @@ class ChannelStatus {
     required this.peerCount,
   });
 }
-

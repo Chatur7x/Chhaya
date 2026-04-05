@@ -3,12 +3,18 @@ import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import '../../../core/mesh/wifi_direct_service.dart';
 
+enum CallType { voice, video }
+
+enum CallState2 { idle, calling, ringing, connected, onHold, ended }
+
 class CallLog {
   final String peerId;
   final DateTime timestamp;
   final int durationSeconds;
   final bool isMissed;
   final bool isIncoming;
+  final String channel;
+  final CallType callType;
 
   CallLog({
     required this.peerId,
@@ -16,6 +22,8 @@ class CallLog {
     required this.durationSeconds,
     required this.isMissed,
     required this.isIncoming,
+    this.channel = 'ble',
+    this.callType = CallType.voice,
   });
 
   Map<String, dynamic> toJson() => {
@@ -24,6 +32,8 @@ class CallLog {
         'durationSeconds': durationSeconds,
         'isMissed': isMissed,
         'isIncoming': isIncoming,
+        'channel': channel,
+        'callType': callType.index,
       };
 
   factory CallLog.fromJson(Map<String, dynamic> json) => CallLog(
@@ -32,6 +42,8 @@ class CallLog {
         durationSeconds: json['durationSeconds'],
         isMissed: json['isMissed'],
         isIncoming: json['isIncoming'],
+        channel: json['channel'] ?? 'ble',
+        callType: CallType.values[json['callType'] ?? 0],
       );
 }
 
@@ -42,6 +54,15 @@ class CallService {
   bool _isInCall = false;
   bool _isMuted = false;
   bool _isSpeakerOn = true;
+  bool _isOnHold = false;
+  bool _autoAnswerSOS = false;
+  String? _currentPeerId;
+  CallType _currentCallType = CallType.voice;
+  DateTime? _callStartTime;
+
+  final _callStateController = StreamController<CallState2>.broadcast();
+  Stream<CallState2> get callStateStream => _callStateController.stream;
+  CallState2 _currentState = CallState2.idle;
 
   CallService({required WifiDirectService wifiService})
       : _wifiService = wifiService;
@@ -53,8 +74,20 @@ class CallService {
   bool get isInCall => _isInCall;
   bool get isMuted => _isMuted;
   bool get isSpeakerOn => _isSpeakerOn;
+  bool get isOnHold => _isOnHold;
+  bool get autoAnswerSOS => _autoAnswerSOS;
+  String? get currentPeerId => _currentPeerId;
+  CallType get currentCallType => _currentCallType;
+  CallState2 get currentState => _currentState;
+  String get currentChannel => 'ble';
 
-  Future<void> startCall(String peerDeviceId) async {
+  Future<void> setAutoAnswerSOS(bool enabled) async {
+    _autoAnswerSOS = enabled;
+    debugPrint('[CallService] Auto-answer SOS: $enabled');
+  }
+
+  Future<void> startCall(String peerDeviceId,
+      {CallType type = CallType.voice}) async {
     final peerIp = _wifiService.getPeerAddress(peerDeviceId);
     if (peerIp == null) {
       debugPrint(
@@ -62,22 +95,98 @@ class CallService {
       debugPrint('[CallService] Initiating direct P2P connection...');
     }
 
+    _currentPeerId = peerDeviceId;
+    _currentCallType = type;
+    _callStartTime = DateTime.now();
     _isInCall = true;
-    debugPrint('[CallService] Audio call started to $peerDeviceId');
+    _currentState = CallState2.calling;
+    _callStateController.add(_currentState);
 
-    _sendCallSignal(peerDeviceId, 'start_call');
+    debugPrint(
+        '[CallService] ${type == CallType.video ? "Video" : "Audio"} call started to $peerDeviceId');
+    _sendCallSignal(peerDeviceId, 'start_call', type: type);
   }
 
-  Future<void> endCall(String peerDeviceId, int durationSeconds) async {
+  Future<void> startVideoCall(String peerDeviceId) async {
+    await startCall(peerDeviceId, type: CallType.video);
+  }
+
+  Future<void> answerCall() async {
+    if (_currentPeerId == null) return;
+
+    _isInCall = true;
+    _callStartTime = DateTime.now();
+    _currentState = CallState2.connected;
+    _callStateController.add(_currentState);
+
+    debugPrint('[CallService] Call answered');
+    _sendCallSignal(_currentPeerId!, 'answer');
+  }
+
+  Future<void> endCall() async {
+    if (_currentPeerId == null) return;
+
+    final duration = _callStartTime != null
+        ? DateTime.now().difference(_callStartTime!).inSeconds
+        : 0;
+
     _isInCall = false;
-    _logCall(peerDeviceId, durationSeconds, false, false);
-    _sendCallSignal(peerDeviceId, 'end_call');
-    debugPrint('[CallService] Call ended after ${durationSeconds}s');
+    _isOnHold = false;
+    _currentState = CallState2.ended;
+    _callStateController.add(_currentState);
+
+    _logCall(_currentPeerId!, duration, false, false);
+    _sendCallSignal(_currentPeerId!, 'end_call');
+    debugPrint('[CallService] Call ended after ${duration}s');
+
+    _currentPeerId = null;
+    _callStartTime = null;
+
+    await Future.delayed(const Duration(seconds: 1));
+    _currentState = CallState2.idle;
+    _callStateController.add(_currentState);
+  }
+
+  Future<void> holdCall() async {
+    if (!_isInCall) return;
+
+    _isOnHold = true;
+    _currentState = CallState2.onHold;
+    _callStateController.add(_currentState);
+
+    debugPrint('[CallService] Call placed on hold');
+    _sendCallSignal(_currentPeerId!, 'hold');
+  }
+
+  Future<void> resumeCall() async {
+    if (!_isInCall) return;
+
+    _isOnHold = false;
+    _currentState = CallState2.connected;
+    _callStateController.add(_currentState);
+
+    debugPrint('[CallService] Call resumed');
+    _sendCallSignal(_currentPeerId!, 'resume');
+  }
+
+  Future<void> toggleHold() async {
+    if (_isOnHold) {
+      await resumeCall();
+    } else {
+      await holdCall();
+    }
   }
 
   Future<void> setMute(bool mute) async {
     _isMuted = mute;
     debugPrint('[CallService] Mute: $mute');
+    if (_currentPeerId != null) {
+      _sendCallSignal(_currentPeerId!, mute ? 'mute' : 'unmute');
+    }
+  }
+
+  Future<void> toggleMute() async {
+    await setMute(!_isMuted);
   }
 
   Future<void> setSpeakerphoneOn(bool on) async {
@@ -85,11 +194,16 @@ class CallService {
     debugPrint('[CallService] Speaker: $on');
   }
 
-  void _sendCallSignal(String peerId, String signal) {
+  Future<void> toggleSpeaker() async {
+    await setSpeakerphoneOn(!_isSpeakerOn);
+  }
+
+  void _sendCallSignal(String peerId, String signal, {CallType? type}) {
     final payload = {
       'type': 'call_signal',
       'signal': signal,
       'from': _wifiService.myDeviceId,
+      'callType': type?.index ?? _currentCallType.index,
       'timestamp': DateTime.now().toIso8601String(),
     };
 
@@ -105,6 +219,8 @@ class CallService {
       durationSeconds: duration,
       isMissed: missed,
       isIncoming: incoming,
+      channel: currentChannel,
+      callType: _currentCallType,
     );
     _callHistoryBox.add(log.toJson());
   }
@@ -119,6 +235,45 @@ class CallService {
 
   void receiveCallSignal(Map<String, dynamic> signal) {
     final type = signal['signal'];
-    debugPrint('[CallService] Received signal: $type');
+    final from = signal['from'] as String?;
+
+    debugPrint('[CallService] Received signal: $type from $from');
+
+    switch (type) {
+      case 'start_call':
+        _currentPeerId = from;
+        _currentState = CallState2.ringing;
+        _callStateController.add(_currentState);
+        if (_autoAnswerSOS && signal['isSOS'] == true) {
+          debugPrint('[CallService] Auto-answering SOS call!');
+          answerCall();
+        }
+        break;
+      case 'answer':
+        _currentState = CallState2.connected;
+        _callStateController.add(_currentState);
+        break;
+      case 'end_call':
+        endCall();
+        break;
+      case 'hold':
+        _isOnHold = true;
+        _currentState = CallState2.onHold;
+        _callStateController.add(_currentState);
+        break;
+      case 'resume':
+        _isOnHold = false;
+        _currentState = CallState2.connected;
+        _callStateController.add(_currentState);
+        break;
+      case 'mute':
+      case 'unmute':
+        _isMuted = type == 'mute';
+        break;
+    }
+  }
+
+  void dispose() {
+    _callStateController.close();
   }
 }

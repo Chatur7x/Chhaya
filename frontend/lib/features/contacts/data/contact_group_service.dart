@@ -1,0 +1,105 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
+import '../domain/models/contact.dart';
+
+class ContactGroupService {
+  static const String _boxName = 'chaaya_contact_groups';
+  late Box<ContactGroupModel> _box;
+
+  Future<void> initialize() async {
+    _box = await Hive.openBox<ContactGroupModel>(_boxName);
+    await _ensureSystemGroups();
+  }
+
+  Future<void> _ensureSystemGroups() async {
+    if (_box.isEmpty) {
+      final systemGroups = [
+        ContactGroupModel(
+            name: 'Family',
+            colorValue: Colors.blue.value,
+            iconName: 'family_restroom',
+            isSystem: true),
+        ContactGroupModel(
+            name: 'Team',
+            colorValue: Colors.green.value,
+            iconName: 'groups',
+            isSystem: true),
+        ContactGroupModel(
+            name: 'Emergency',
+            colorValue: Colors.red.value,
+            iconName: 'emergency',
+            isSystem: true),
+        ContactGroupModel(
+            name: 'Work',
+            colorValue: Colors.purple.value,
+            iconName: 'work',
+            isSystem: true),
+      ];
+      for (var group in systemGroups) {
+        await _box.add(group);
+      }
+    }
+  }
+
+  List<ContactGroupModel> getAll() => _box.values.toList();
+
+  List<ContactGroupModel> getCustom() =>
+      _box.values.where((g) => !g.isSystem).toList();
+
+  Future<ContactGroupModel> createGroup(String name,
+      {int? colorValue, String? iconName}) async {
+    final group = ContactGroupModel(
+      name: name,
+      colorValue: colorValue ?? Colors.grey.value,
+      iconName: iconName ?? 'folder',
+    );
+    await _box.add(group);
+    return group;
+  }
+
+  Future<void> updateGroup(ContactGroupModel group) async {
+    await group.save();
+  }
+
+  Future<void> deleteGroup(ContactGroupModel group) async {
+    if (!group.isSystem) {
+      await group.delete();
+    }
+  }
+
+  Future<void> addContactToGroup(String groupName, String contactId) async {
+    final group = _box.values.firstWhere(
+      (g) => g.name.toLowerCase() == groupName.toLowerCase(),
+      orElse: () => throw Exception('Group not found'),
+    );
+    if (!group.memberIds.contains(contactId)) {
+      group.memberIds.add(contactId);
+      await group.save();
+    }
+  }
+
+  Future<void> removeContactFromGroup(
+      String groupName, String contactId) async {
+    final group = _box.values.firstWhere(
+      (g) => g.name.toLowerCase() == groupName.toLowerCase(),
+      orElse: () => throw Exception('Group not found'),
+    );
+    group.memberIds.remove(contactId);
+    await group.save();
+  }
+
+  List<ContactGroupModel> getGroupsForContact(String contactId) {
+    return _box.values.where((g) => g.memberIds.contains(contactId)).toList();
+  }
+
+  Future<void> sendBroadcastToGroup(String groupName, String message) async {
+    final group = _box.values.firstWhere(
+      (g) => g.name.toLowerCase() == groupName.toLowerCase(),
+      orElse: () => throw Exception('Group not found'),
+    );
+    for (var contactId in group.memberIds) {
+      debugPrint('[GroupService] Would send broadcast to $contactId: $message');
+    }
+  }
+}
