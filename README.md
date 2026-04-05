@@ -73,6 +73,11 @@ By utilizing **Bluetooth Low Energy (BLE)** and **WiFi Direct**, devices form a 
 | **Multiple Themes** | ✅ Active | 5 dark themes (Chaaya, Midnight, Ocean, Forest, Sunset) |
 | **Message Scheduling** | ✅ Active | Schedule messages to send later |
 | **Location Sharing** | ✅ Active | Share live location with contacts |
+| **Media Gallery** | ✅ Active | Offline photo/video gallery |
+| **In-app Camera** | ✅ Active | Capture photos and videos |
+| **Encrypted Media** | ✅ Active | AES-256 encrypted media storage |
+| **Field Journal** | ✅ Active | Photo + note + GPS tag |
+| **Album Management** | ✅ Active | Create and organize albums |
 
 ---
 
