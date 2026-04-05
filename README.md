@@ -62,15 +62,16 @@ By utilizing **Bluetooth Low Energy (BLE)** and **WiFi Direct**, devices form a 
 | **QR Pairing** | ✅ Active | Contact pairing via QR code |
 | **Multi-Language** | ✅ Active | English, Spanish, Arabic |
 | **Backend API** | ✅ Active | REST API with rate limiting |
+| **Voice Messages** | ✅ Active | Record and send voice messages |
+| **File Sharing** | ✅ Active | Send images and files |
+| **Image Picker** | ✅ Active | Select images from gallery |
 
 ### ⚠️ Coming Soon
 
 | Feature | Status | Description |
 |---------|--------|-------------|
 | **Video Calling** | 🔜 Soon | WebRTC integration in progress |
-| **Audio Calling** | 🔜 Soon | VoIP calling |
-| **Voice Messages** | 🔜 Soon | Audio message recording |
-| **File Sharing** | 🔜 Soon | Send files over mesh |
+| **Audio Calling** | 🔜 Soon | VoIP calling over mesh |
 
 ---
 
