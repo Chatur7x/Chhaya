@@ -67,6 +67,12 @@ By utilizing **Bluetooth Low Energy (BLE)** and **WiFi Direct**, devices form a 
 | **Image Picker** | ✅ Active | Select images from gallery |
 | **Audio Calling** | ✅ Active | Voice calls over WiFi Direct |
 | **Video Calling UI** | ✅ Active | Full video call interface |
+| **Chat Folders** | ✅ Active | Organize chats by category |
+| **Message Pinning** | ✅ Active | Pin important messages |
+| **Chat Wallpapers** | ✅ Active | Custom backgrounds per chat |
+| **Multiple Themes** | ✅ Active | 5 dark themes (Chaaya, Midnight, Ocean, Forest, Sunset) |
+| **Message Scheduling** | ✅ Active | Schedule messages to send later |
+| **Location Sharing** | ✅ Active | Share live location with contacts |
 
 ---
 
