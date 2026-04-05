@@ -11,7 +11,7 @@ class DTNBundle {
   final String id;
   final String sourceEid;
   final String destinationEid;
-  final String? custodianEid;
+  String? custodianEid;
   final DateTime creationTime;
   final Duration lifetime;
   final Uint8List payload;
@@ -29,7 +29,7 @@ class DTNBundle {
     required this.id,
     required this.sourceEid,
     required this.destinationEid,
-    this.custodianEid,
+    String? initialCustodian,
     required this.creationTime,
     required this.lifetime,
     required this.payload,
@@ -37,7 +37,11 @@ class DTNBundle {
     required this.vectorClock,
     this.metadata = const {},
     this.custodyCount = 0,
-  }) : _custodyHistory = custodianEid != null ? [custodianEid] : [];
+  }) : custodianEid = initialCustodian {
+    if (initialCustodian != null) {
+      _custodyHistory.add(initialCustodian);
+    }
+  }
 
   BundleStatus get status => _status;
   DateTime? get deliveredAt => _deliveredAt;
@@ -57,7 +61,7 @@ class DTNBundle {
     String? id,
     String? sourceEid,
     String? destinationEid,
-    String? custodianEid,
+    String? initialCustodian,
     DateTime? creationTime,
     Duration? lifetime,
     Uint8List? payload,
@@ -70,7 +74,7 @@ class DTNBundle {
       id: id ?? this.id,
       sourceEid: sourceEid ?? this.sourceEid,
       destinationEid: destinationEid ?? this.destinationEid,
-      custodianEid: custodianEid ?? this.custodianEid,
+      initialCustodian: initialCustodian ?? this.custodianEid,
       creationTime: creationTime ?? this.creationTime,
       lifetime: lifetime ?? this.lifetime,
       payload: payload ?? this.payload,
@@ -119,7 +123,7 @@ class DTNBundle {
       id: json['id'],
       sourceEid: json['sourceEid'],
       destinationEid: json['destinationEid'],
-      custodianEid: json['custodianEid'],
+      initialCustodian: json['custodianEid'],
       creationTime: DateTime.parse(json['creationTime']),
       lifetime: Duration(milliseconds: json['lifetimeMs']),
       payload: Uint8List(json['payloadSize']),
@@ -177,7 +181,7 @@ class DTNBundleProtocol {
       id: id,
       sourceEid: sourceEid,
       destinationEid: destinationEid,
-      custodianEid: initialCustodian,
+      initialCustodian: initialCustodian,
       creationTime: DateTime.now(),
       lifetime: lifetime ?? _defaultLifetime,
       payload: payload,

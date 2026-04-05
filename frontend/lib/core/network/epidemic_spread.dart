@@ -54,6 +54,8 @@ class GossipMessage {
 class SummaryVector {
   final Map<String, Set<String>> _messagesByNode = {};
 
+  SummaryVector();
+
   void addMessage(String nodeId, String messageId) {
     _messagesByNode[nodeId] ??= {};
     _messagesByNode[nodeId]!.add(messageId);
@@ -316,8 +318,14 @@ class EpidemicSpreadProtocol {
   void decrementTTL() {
     for (final entry in _messageStore.entries) {
       if (entry.value.ttl > 0) {
-        _messageStore[entry.key] =
-            entry.value.copyWith(ttl: entry.value.ttl - 1);
+        _messageStore[entry.key] = GossipMessage(
+          messageId: entry.value.messageId,
+          senderId: entry.value.senderId,
+          content: entry.value.content,
+          timestamp: entry.value.timestamp,
+          ttl: entry.value.ttl - 1,
+          seenBy: entry.value.seenBy,
+        );
       }
     }
   }

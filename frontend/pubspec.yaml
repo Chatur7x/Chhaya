@@ -41,10 +41,12 @@ dependencies:
   qr_flutter: ^4.1.0
   mobile_scanner: ^5.1.1
 
-  # Crypto
+  # Crypto & HTTP
   pointycastle: ^3.9.1
   encrypt: ^5.0.3
   cryptography: ^2.5.0
+  http: ^1.2.0
+  crypto: ^3.0.5
   uuid: ^4.3.3
   convert: ^3.1.1
 

@@ -313,7 +313,7 @@ class _ContactCardScreenState extends State<ContactCardScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(_getStatusColor().dot, size: 12),
+                Icon(Icons.circle, color: _getStatusColor(), size: 12),
                 const SizedBox(width: 4),
                 Text(
                   _getStatusText(),

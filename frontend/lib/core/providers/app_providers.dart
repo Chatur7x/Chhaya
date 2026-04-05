@@ -43,6 +43,23 @@ import '../../features/safety/data/location_share_service.dart';
 import '../../features/safety/data/panic_button_service.dart';
 import '../../features/ai/data/offline_ai_service.dart';
 import '../../core/theme/theme_service.dart';
+import '../../core/network/dtn_bundle_protocol.dart';
+import '../../core/network/epidemic_spread.dart';
+import '../../core/network/mixnet_router.dart';
+import '../../core/network/predictive_failure_detector.dart';
+import '../../core/network/adaptive_routing_engine.dart';
+import '../../core/network/route_optimizer.dart';
+import '../../core/network/qos_scheduler.dart';
+import '../../core/intelligence/context_aware_ui_engine.dart';
+import '../../core/power/survival_mode.dart';
+import '../../core/storage/distributed_storage.dart';
+import '../../core/sync/dedup_cache.dart';
+import '../../core/sync/crdt_message_store.dart';
+import '../../core/sync/vector_clock.dart';
+import '../../core/crypto/key_rotation_manager.dart';
+import '../../core/crypto/anti_replay_cache.dart';
+import '../../core/mesh/node_reputation.dart';
+import '../../core/mesh/adaptive_bluetooth_scanner.dart';
 
 /// ─── Core Service Providers ───
 
@@ -292,3 +309,94 @@ final currentThemeProvider =
     StateProvider<AppThemeMode>((ref) => AppThemeMode.chaaya);
 final currentFolderProvider =
     StateProvider<ChatFolder>((ref) => ChatFolder.all);
+
+/// ─── V2 Network Service Providers ───
+
+final dtnBundleProtocolProvider = Provider<DTNBundleProtocol>((ref) {
+  return DTNBundleProtocol();
+});
+
+final epidemicSpreadProtocolProvider = Provider<EpidemicSpreadProtocol>((ref) {
+  return EpidemicSpreadProtocol();
+});
+
+final mixnetRouterProvider = Provider<MixnetRouter>((ref) {
+  return MixnetRouter();
+});
+
+final predictiveFailureDetectorProvider =
+    Provider<PredictiveFailureDetector>((ref) {
+  return PredictiveFailureDetector();
+});
+
+final adaptiveRoutingEngineProvider = Provider<AdaptiveRoutingEngine>((ref) {
+  return AdaptiveRoutingEngine();
+});
+
+final routeOptimizerProvider = Provider<RouteOptimizer>((ref) {
+  final nodeReputation = ref.read(nodeReputationSystemProvider);
+  return RouteOptimizer(nodeReputation);
+});
+
+final qosSchedulerProvider = Provider<QoSScheduler>((ref) {
+  return QoSScheduler();
+});
+
+/// ─── V2 Intelligence Providers ───
+
+final contextAwareUIEngineProvider = Provider<ContextAwareUIEngine>((ref) {
+  return ContextAwareUIEngine();
+});
+
+/// ─── V2 Power Providers ───
+
+final survivalModeProvider = Provider<SurvivalMode>((ref) {
+  return SurvivalMode();
+});
+
+/// ─── V2 Storage Providers ───
+
+final distributedStorageProvider = Provider<DistributedStorage>((ref) {
+  return DistributedStorage();
+});
+
+/// ─── V2 Sync Providers ───
+
+final dedupCacheProvider = Provider<DedupCache>((ref) {
+  return DedupCache();
+});
+
+final crdtMessageStoreProvider = Provider<CRDTMessageStore>((ref) {
+  final store = CRDTMessageStore();
+  store.initialize();
+  return store;
+});
+
+final vectorClockProvider = Provider<VectorClock>((ref) {
+  final identity = ref.read(identityServiceProvider);
+  return VectorClock(identity.currentIdentity?.deviceId ?? 'unknown');
+});
+
+/// ─── V2 Crypto Providers ───
+
+final keyRotationManagerProvider = Provider<KeyRotationManager>((ref) {
+  return KeyRotationManager();
+});
+
+final antiReplayCacheProvider = Provider<AntiReplayCache>((ref) {
+  return AntiReplayCache();
+});
+
+final messageValidatorProvider = Provider<MessageValidator>((ref) {
+  return MessageValidator();
+});
+
+/// ─── V2 Mesh Providers ───
+
+final nodeReputationSystemProvider = Provider<NodeReputationSystem>((ref) {
+  return NodeReputationSystem();
+});
+
+final adaptiveBLEScannerProvider = Provider<AdaptiveBLEScanner>((ref) {
+  return AdaptiveBLEScanner();
+});

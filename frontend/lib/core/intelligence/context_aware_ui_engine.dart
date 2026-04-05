@@ -293,7 +293,7 @@ class ContextAwareUIEngine {
       _contextController.add(ContextState(
         context: AppContext.emergency,
         confidence: 1.0,
-        signals: _contextWeights,
+        signals: _contextWeights.map((k, v) => MapEntry(k.name, v)),
         timestamp: DateTime.now(),
       ));
     }

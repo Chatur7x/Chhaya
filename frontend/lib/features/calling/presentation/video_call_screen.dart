@@ -70,7 +70,7 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
   void _endCall() async {
     _timer?.cancel();
     final callService = ref.read(callServiceProvider);
-    await callService.endCall(widget.peer.deviceId, _callDuration);
+    await callService.endCall();
     if (mounted) {
       Navigator.pop(context);
     }
