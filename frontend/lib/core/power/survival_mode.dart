@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:battery_plus/battery_plus.dart';
+import '../mesh/adaptive_bluetooth_scanner.dart';
+import '../mesh/mesh_router.dart';
 
 enum PowerMode { normal, survival, deepSleep }
 
@@ -50,6 +52,12 @@ class SurvivalMode {
   PowerMode _currentMode = PowerMode.normal;
   SurvivalConfig _config = SurvivalConfig();
   final Battery _battery = Battery();
+
+  /// Optional: wire to AdaptiveBLEScanner for scan mode control
+  AdaptiveBLEScanner? bleScanner;
+
+  /// Optional: wire to MeshRouter for compression control
+  MeshRouter? meshRouter;
 
   bool _isEnabled = false;
   DateTime? _enabledAt;
@@ -121,14 +129,24 @@ class SurvivalMode {
 
   Future<void> _applySurvivalSettings() async {
     debugPrint('Applying survival settings: BLE only, batched transmissions');
+    // Switch BLE scanner to conservative mode
+    bleScanner?.setScanMode(ScanMode.conservative);
+    // Enable message compression
+    if (meshRouter != null) meshRouter!.enableCompression = true;
   }
 
   Future<void> _applyDeepSleepSettings() async {
     debugPrint('Applying deep sleep settings: minimal activity');
+    // Switch BLE scanner to sleep mode
+    bleScanner?.setScanMode(ScanMode.sleep);
+    // Enable message compression
+    if (meshRouter != null) meshRouter!.enableCompression = true;
   }
 
   Future<void> _restoreNormalMode() async {
     debugPrint('Restoring normal mode settings');
+    // Let scanner decide based on battery
+    bleScanner?.setScanMode(ScanMode.balanced);
   }
 
   void batchMessage() {

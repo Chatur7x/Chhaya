@@ -379,20 +379,19 @@ class RouteOptimizer {
 
     if (path.isEmpty || path.last != sourceId) return null;
 
-    path.removeRange(0, path.length);
-    current = destinationId;
-    while (current != null) {
-      path.add(current);
-      current = previous[current];
-    }
+    // Reverse: path was built destination→source, we need source→destination
+    final reversedPath = path.reversed.toList();
+
+    if (reversedPath.length > _maxHops + 1) return null;
 
     int totalCost = 0;
     int totalLatency = 0;
     int minBandwidth = 10000;
     double totalQuality = 0;
+    int linkCount = 0;
 
-    for (int i = 0; i < path.length - 1; i++) {
-      final link = _links[path[i]]?[path[i + 1]];
+    for (int i = 0; i < reversedPath.length - 1; i++) {
+      final link = _links[reversedPath[i]]?[reversedPath[i + 1]];
       if (link != null) {
         totalCost += link.cost;
         totalLatency += link.latencyMs;
@@ -400,13 +399,14 @@ class RouteOptimizer {
             ? minBandwidth
             : link.bandwidthKbps;
         totalQuality += link.qualityScore;
+        linkCount++;
       }
     }
 
     return Route(
-      nodeIds: path,
+      nodeIds: reversedPath,
       totalCost: totalCost,
-      qualityScore: totalQuality / (path.length - 1),
+      qualityScore: linkCount > 0 ? totalQuality / linkCount : 0,
       estimatedLatencyMs: totalLatency,
       availableBandwidthKbps: minBandwidth,
       calculatedAt: DateTime.now(),

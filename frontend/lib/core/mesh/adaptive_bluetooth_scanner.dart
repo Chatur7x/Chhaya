@@ -2,7 +2,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:battery_plus/battery_plus.dart';
 import 'dart:math';
+import '../network/predictive_failure_detector.dart';
 
 enum DeviceRole { peer, relay, coordinator }
 
@@ -10,6 +12,8 @@ enum ScanMode { aggressive, balanced, conservative, sleep }
 
 class AdaptiveBLEScanner {
   static const String _serviceUUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+
+  final Battery _battery = Battery();
 
   ScanMode _currentMode = ScanMode.balanced;
   DeviceRole _deviceRole = DeviceRole.peer;
@@ -72,19 +76,23 @@ class AdaptiveBLEScanner {
   }
 
   void _startBatteryMonitoring() {
-    _batteryLevel = _estimateBatteryLevel();
-    _batteryState.add(_batteryLevel);
+    // Get initial battery level asynchronously
+    _fetchBatteryLevel();
 
     Timer.periodic(const Duration(minutes: 5), (_) {
-      _batteryLevel = _estimateBatteryLevel();
-      _batteryState.add(_batteryLevel);
-      _adjustForBatteryLevel();
+      _fetchBatteryLevel();
     });
   }
 
-  int _estimateBatteryLevel() {
-    final random = Random();
-    return 50 + random.nextInt(50);
+  Future<void> _fetchBatteryLevel() async {
+    try {
+      _batteryLevel = await _battery.batteryLevel;
+      _batteryState.add(_batteryLevel);
+      _adjustForBatteryLevel();
+    } catch (e) {
+      debugPrint('[AdaptiveScanner] Battery read error: $e');
+      // Keep last known value
+    }
   }
 
   void _adjustForBatteryLevel() {
@@ -261,6 +269,36 @@ class AdaptiveBLEScanner {
     return (_connectionAttempts[deviceId] ?? 0) ~/ 2;
   }
 
+  /// Optional: wire to PredictiveFailureDetector for proactive scanning.
+  PredictiveFailureDetector? _failureDetector;
+  StreamSubscription? _failureSubscription;
+
+  /// Connect a PredictiveFailureDetector.
+  /// When imminent node failures are detected, scanner auto-switches
+  /// to aggressive mode to discover replacement relay nodes.
+  void wireFailureDetector(PredictiveFailureDetector detector) {
+    _failureDetector = detector;
+    _failureSubscription?.cancel();
+    _failureSubscription = detector.failureStream.listen((prediction) {
+      if (prediction.isImminent || prediction.isWarning) {
+        debugPrint(
+            '[AdaptiveScanner] Node ${prediction.nodeId} failing '
+            '(${(prediction.probability * 100).round()}%) — aggressive scan');
+        setScanMode(ScanMode.aggressive);
+        // After 30 seconds, revert to normal battery-based mode
+        Future.delayed(const Duration(seconds: 30), () {
+          _adjustForBatteryLevel();
+        });
+      }
+    });
+  }
+
+  /// Feed BLE scan RSSI data into the failure detector.
+  /// Call this when processing scan results.
+  void _feedFailureDetector(String deviceId, int rssi) {
+    _failureDetector?.recordSignal(deviceId, rssi.toDouble());
+  }
+
   Map<String, dynamic> getNetworkStats() {
     return {
       'scanMode': _currentMode.name,
@@ -277,9 +315,11 @@ class AdaptiveBLEScanner {
   void dispose() {
     _scanTimer?.cancel();
     _dutyCycleTimer?.cancel();
+    _failureSubscription?.cancel();
     _discoveredDevices.close();
     _connectionState.close();
     _batteryState.close();
     _scanModeChanged.close();
   }
 }
+

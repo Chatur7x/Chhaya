@@ -1,14 +1,16 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import 'dart:convert';
+import 'package:pointycastle/export.dart';
 
 class KeyRotationManager {
   static const String _keysBoxName = 'chaaya_key_rotation';
 
   late Box<String> _keysBox;
-  final Random _random = Random.secure();
+  static final Random _random = Random.secure();
 
   DateTime? _lastIdentityRotation;
   DateTime? _lastSessionRotation;
@@ -171,9 +173,21 @@ class KeyRotationManager {
     return base64Encode(bytes).replaceAll('=', '');
   }
 
+  /// Generate an EC keypair and return the base64-encoded public key.
+  /// Uses platform-native secure random for seed material.
   String _generateKeyPair() {
-    final bytes = List<int>.generate(32, (_) => _random.nextInt(256));
-    return base64Encode(bytes);
+    final secureRandom = FortunaRandom();
+    secureRandom.seed(KeyParameter(Uint8List.fromList(
+      List.generate(32, (_) => _random.nextInt(256)),
+    )));
+    final keyGen = ECKeyGenerator();
+    keyGen.init(ParametersWithRandom(
+      ECKeyGeneratorParameters(ECCurve_secp256r1()),
+      secureRandom,
+    ));
+    final pair = keyGen.generateKeyPair();
+    final publicKey = pair.publicKey as ECPublicKey;
+    return base64Encode(publicKey.Q!.getEncoded(true));
   }
 
   String _generateSessionKey() {

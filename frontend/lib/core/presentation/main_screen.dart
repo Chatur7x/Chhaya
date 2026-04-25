@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import '../../core/theme/chaaya_theme.dart';
 import '../../features/messenger/presentation/mesh_chat_list_screen.dart';
 import '../../features/contacts/presentation/qr_pairing_screen.dart';
@@ -12,11 +13,8 @@ import '../../features/intelligence/presentation/crowd_intelligence_screen.dart'
 import '../../features/navigation/presentation/multi_hop_navigator_screen.dart';
 import '../../features/emergency/presentation/emergency_screen.dart';
 
-/// Main Screen — Bottom navigation hub for Chaaya.
-/// 5 tabs: Messenger, Contacts, Radio (PTT), Map, More
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
-
   @override
   State<MainScreen> createState() => _MainScreenState();
 }
@@ -27,149 +25,48 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _screens = [
     const MeshChatListScreen(),
     const QrPairingScreen(),
-    const WalkieTalkieScreen(), // PTT Radio — Phase 2 ✅
-    const SafetyMapScreen(), // Map — Phase 3 ✅
-    const _MoreScreen(), // Hub for File Vault, Media, Settings, etc.
+    const WalkieTalkieScreen(),
+    const SafetyMapScreen(),
+    const _MoreScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: ChaayaTheme.surface,
-          border: Border(
-            top: BorderSide(color: ChaayaTheme.glassBorder, width: 0.5),
+      body: IndexedStack(index: _currentIndex, children: _screens),
+      bottomNavigationBar: ClipRRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+          child: Container(
+            decoration: BoxDecoration(
+              color: ChaayaTheme.surface.withValues(alpha: 0.85),
+              border: const Border(top: BorderSide(color: ChaayaTheme.glassBorder, width: 0.5)),
+            ),
+            child: BottomNavigationBar(
+              currentIndex: _currentIndex,
+              onTap: (i) => setState(() => _currentIndex = i),
+              type: BottomNavigationBarType.fixed,
+              backgroundColor: Colors.transparent,
+              selectedItemColor: ChaayaTheme.accent,
+              unselectedItemColor: ChaayaTheme.textMuted,
+              selectedFontSize: 11,
+              unselectedFontSize: 11,
+              elevation: 0,
+              items: const [
+                BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), activeIcon: Icon(Icons.chat_bubble), label: 'Messenger'),
+                BottomNavigationBarItem(icon: Icon(Icons.people_outline), activeIcon: Icon(Icons.people), label: 'Contacts'),
+                BottomNavigationBarItem(icon: Icon(Icons.radio_outlined), activeIcon: Icon(Icons.radio), label: 'Radio'),
+                BottomNavigationBarItem(icon: Icon(Icons.map_outlined), activeIcon: Icon(Icons.map), label: 'Map'),
+                BottomNavigationBarItem(icon: Icon(Icons.grid_view_outlined), activeIcon: Icon(Icons.grid_view), label: 'More'),
+              ],
+            ),
           ),
         ),
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: ChaayaTheme.surface,
-          selectedItemColor: ChaayaTheme.accent,
-          unselectedItemColor: ChaayaTheme.textMuted,
-          selectedFontSize: 11,
-          unselectedFontSize: 11,
-          elevation: 0,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.chat_bubble_outline),
-              activeIcon: Icon(Icons.chat_bubble),
-              label: 'Messenger',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.people_outline),
-              activeIcon: Icon(Icons.people),
-              label: 'Contacts',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.radio_outlined),
-              activeIcon: Icon(Icons.radio),
-              label: 'Radio',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.map_outlined),
-              activeIcon: Icon(Icons.map),
-              label: 'Map',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.grid_view_outlined),
-              activeIcon: Icon(Icons.grid_view),
-              label: 'More',
-            ),
-          ],
-        ),
       ),
     );
   }
 }
 
-/// Placeholder for Radio/PTT (Phase 2)
-class _RadioPlaceholder extends StatelessWidget {
-  const _RadioPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: ChaayaTheme.background,
-      appBar: AppBar(
-        title: const Text('Walkie-Talkie'),
-        backgroundColor: ChaayaTheme.background,
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: ChaayaTheme.warningYellow.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.radio,
-                  size: 40, color: ChaayaTheme.warningYellow),
-            ),
-            const SizedBox(height: 16),
-            const Text('Push-to-Talk Radio', style: ChaayaTheme.heading3),
-            const SizedBox(height: 8),
-            const Text(
-              'Coming in Phase 2',
-              style: ChaayaTheme.bodyMedium,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Placeholder for Map (Phase 3)
-class _MapPlaceholder extends StatelessWidget {
-  const _MapPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: ChaayaTheme.background,
-      appBar: AppBar(
-        title: const Text('Mesh Map'),
-        backgroundColor: ChaayaTheme.background,
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: ChaayaTheme.safeGreen.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child:
-                  const Icon(Icons.map, size: 40, color: ChaayaTheme.safeGreen),
-            ),
-            const SizedBox(height: 16),
-            const Text('Offline Map & GPS', style: ChaayaTheme.heading3),
-            const SizedBox(height: 8),
-            const Text(
-              'Coming in Phase 3',
-              style: ChaayaTheme.bodyMedium,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// More screen — hub for File Vault, Media, Safety, Health, AI, Settings
 class _MoreScreen extends StatelessWidget {
   const _MoreScreen();
 
@@ -177,158 +74,104 @@ class _MoreScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: ChaayaTheme.background,
-      appBar: AppBar(
-        title: const Text('More'),
-        backgroundColor: ChaayaTheme.background,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _MoreTile(
-            icon: Icons.folder_outlined,
-            title: 'File Vault',
-            subtitle: 'Encrypted file storage & sharing',
-            color: ChaayaTheme.bleColor,
-            onTap: () {},
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 100,
+            floating: true,
+            backgroundColor: ChaayaTheme.background,
+            flexibleSpace: FlexibleSpaceBar(
+              titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
+              title: const Text('More', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, letterSpacing: -0.5)),
+            ),
           ),
-          _MoreTile(
-            icon: Icons.photo_library_outlined,
-            title: 'Media Vault',
-            subtitle: 'Photos, videos & field reports',
-            color: ChaayaTheme.accent,
-            onTap: () {},
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 1.15,
+              ),
+              delegate: SliverChildListDelegate([
+                _Card3D(icon: Icons.warning_amber_rounded, title: 'Emergency', subtitle: 'SOS Alerts', color: ChaayaTheme.sosRed,
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EmergencyScreen()))),
+                _Card3D(icon: Icons.smart_toy_outlined, title: 'AI Assistant', subtitle: 'Offline Intel', color: ChaayaTheme.warningYellow,
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIAssistantScreen()))),
+                _Card3D(icon: Icons.emoji_events, title: 'Achievements', subtitle: 'Rewards', color: ChaayaTheme.warningYellow,
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GamificationScreen()))),
+                _Card3D(icon: Icons.assignment, title: 'Missions', subtitle: 'Team Tasks', color: ChaayaTheme.accent,
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MissionPlannerScreen()))),
+                _Card3D(icon: Icons.psychology, title: 'Crowd Intel', subtitle: 'Shared Reports', color: ChaayaTheme.safeGreen,
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CrowdIntelligenceScreen()))),
+                _Card3D(icon: Icons.navigation, title: 'Navigator', subtitle: 'Multi-Hop', color: ChaayaTheme.bleColor,
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MultiHopNavigatorScreen()))),
+                _Card3D(icon: Icons.folder_outlined, title: 'File Vault', subtitle: 'Encrypted Storage', color: ChaayaTheme.bleColor, onTap: () {}),
+                _Card3D(icon: Icons.settings_outlined, title: 'Settings', subtitle: 'Security & Mesh', color: ChaayaTheme.textSecondary,
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChaayaSettingsScreen()))),
+              ]),
+            ),
           ),
-          _MoreTile(
-            icon: Icons.shield_outlined,
-            title: 'Safety & SOS',
-            subtitle: 'Location sharing, crash detection',
-            color: ChaayaTheme.sosRed,
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const SafetyMapScreen())),
-          ),
-          _MoreTile(
-            icon: Icons.local_hospital_outlined,
-            title: 'Health & Medical',
-            subtitle: 'First aid, triage, medication',
-            color: ChaayaTheme.safeGreen,
-            onTap: () {},
-          ),
-          _MoreTile(
-            icon: Icons.smart_toy_outlined,
-            title: 'AI Assistant',
-            subtitle: 'Offline survival intelligence',
-            color: ChaayaTheme.warningYellow,
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const AIAssistantScreen())),
-          ),
-          _MoreTile(
-            icon: Icons.warning_amber_outlined,
-            title: 'Emergency SOS',
-            subtitle: 'Send alerts to all mesh devices',
-            color: ChaayaTheme.sosRed,
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const EmergencyScreen())),
-          ),
-          _MoreTile(
-            icon: Icons.emoji_events,
-            title: 'Achievements',
-            subtitle: 'Gamification & rewards',
-            color: ChaayaTheme.warningYellow,
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const GamificationScreen())),
-          ),
-          _MoreTile(
-            icon: Icons.assignment,
-            title: 'Mission Planner',
-            subtitle: 'Team coordination & tasks',
-            color: ChaayaTheme.accent,
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const MissionPlannerScreen())),
-          ),
-          _MoreTile(
-            icon: Icons.psychology,
-            title: 'Crowd Intel',
-            subtitle: 'Shared intelligence reports',
-            color: ChaayaTheme.safeGreen,
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const CrowdIntelligenceScreen())),
-          ),
-          _MoreTile(
-            icon: Icons.navigation,
-            title: 'Mesh Navigator',
-            subtitle: 'Multi-hop route planning',
-            color: ChaayaTheme.bleColor,
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const MultiHopNavigatorScreen())),
-          ),
-          _MoreTile(
-            icon: Icons.settings_outlined,
-            title: 'Settings',
-            subtitle: 'Identity, security, mesh config',
-            color: ChaayaTheme.textSecondary,
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const ChaayaSettingsScreen())),
-          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
       ),
     );
   }
 }
 
-class _MoreTile extends StatelessWidget {
+class _Card3D extends StatefulWidget {
   final IconData icon;
   final String title;
   final String subtitle;
   final Color color;
   final VoidCallback onTap;
+  const _Card3D({required this.icon, required this.title, required this.subtitle, required this.color, required this.onTap});
+  @override
+  State<_Card3D> createState() => _Card3DState();
+}
 
-  const _MoreTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.color,
-    required this.onTap,
-  });
+class _Card3DState extends State<_Card3D> {
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: ChaayaTheme.glassDecoration(borderRadius: 14),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        onTap: onTap,
-        leading: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: color, size: 24),
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) { setState(() => _pressed = false); widget.onTap(); },
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+        transform: Matrix4.identity()..scale(_pressed ? 0.95 : 1.0),
+        transformAlignment: Alignment.center,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: ChaayaTheme.surfaceLight,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: widget.color.withValues(alpha: _pressed ? 0.3 : 0.1)),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withValues(alpha: _pressed ? 0.15 : 0.35), blurRadius: _pressed ? 8 : 20, offset: Offset(0, _pressed ? 3 : 10)),
+            BoxShadow(color: widget.color.withValues(alpha: _pressed ? 0.02 : 0.06), blurRadius: 30, offset: const Offset(0, 2)),
+          ],
         ),
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontWeight: FontWeight.w500,
-            color: ChaayaTheme.textPrimary,
-            fontSize: 15,
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: widget.color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(widget.icon, color: widget.color, size: 24),
+            ),
+            const Spacer(),
+            Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w600, color: ChaayaTheme.textPrimary, fontSize: 15)),
+            const SizedBox(height: 2),
+            Text(widget.subtitle, style: const TextStyle(fontSize: 12, color: ChaayaTheme.textMuted)),
+          ],
         ),
-        subtitle: Text(
-          subtitle,
-          style: const TextStyle(fontSize: 12, color: ChaayaTheme.textMuted),
-        ),
-        trailing: const Icon(Icons.chevron_right,
-            color: ChaayaTheme.textMuted, size: 20),
       ),
     );
   }

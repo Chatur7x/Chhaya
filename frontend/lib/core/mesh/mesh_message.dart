@@ -141,6 +141,7 @@ class MeshMessage {
     List<MessageReaction>? reactions,
     bool? edited,
     DateTime? editedAt,
+    Map<String, dynamic>? metadata,
   }) {
     return MeshMessage(
       id: id,
@@ -155,7 +156,7 @@ class MeshMessage {
       maxHops: maxHops,
       status: status ?? this.status,
       isSOS: isSOS,
-      metadata: metadata,
+      metadata: metadata ?? this.metadata,
       replyToId: replyToId ?? this.replyToId,
       quotedText: quotedText ?? this.quotedText,
       reactions: reactions ?? this.reactions,
