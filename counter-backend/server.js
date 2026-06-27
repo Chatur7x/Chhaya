@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -58,7 +58,7 @@ app.get('/', (req, res) => {
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Chaaya Stats</title>
+      <title>Catus Chat Stats</title>
       <style>
         body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #1a1a2e; color: white; }
         .stat { font-size: 48px; margin: 20px; }
@@ -68,7 +68,7 @@ app.get('/', (req, res) => {
       </style>
     </head>
     <body>
-      <h1>🌑 Chaaya MeshLink Stats</h1>
+      <h1>🌑 Catus Chat MeshLink Stats</h1>
       <div class="container">
         <div class="card">
           <div class="label">Mesh Networks Created</div>
@@ -99,5 +99,5 @@ app.get('/', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🌑 Chaaya Counter Backend running on port ${PORT}`);
+  console.log(`🌑 Catus Chat Counter Backend running on port ${PORT}`);
 });

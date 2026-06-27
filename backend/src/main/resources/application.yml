@@ -1,9 +1,9 @@
-server:
+﻿server:
   port: 8080
 
 spring:
   application:
-    name: meshlink-backend
+    name: catus-chat-backend
 
   datasource:
     url: jdbc:postgresql://localhost:5432/meshlink_db

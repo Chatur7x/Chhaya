@@ -1,6 +1,6 @@
-# Chaaya Counter Backend
+﻿# Catus Chat Counter Backend
 
-Simple backend for tracking Chaaya mesh network statistics.
+Simple backend for tracking Catus Chat mesh network statistics.
 
 ## Deploy to Railway (Free)
 
@@ -9,7 +9,7 @@ Simple backend for tracking Chaaya mesh network statistics.
 3. Set root directory to `counter-backend`
 4. Deploy!
 
-Your backend URL will be: `https://chaaya-counter.up.railway.app`
+Your backend URL will be: `https://Catus Chat-counter.up.railway.app`
 
 ## Deploy to Render (Free)
 

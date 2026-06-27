@@ -1,10 +1,10 @@
 <div align="center">
 
-# 🌑 Chaaya — MeshLink V1.0.3
+# 🐱 Catus Chat — MeshLink V1.0.0
 
 **Resilient. Offline. Encrypted. Unstoppable.**
 
-*A decentralized mesh-network communication & survival platform that keeps you connected when the grid goes dark.*
+*A decentralized mesh-network communication & survival platform that keeps you connected when the grid goes dark. Open source.*
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.41+-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.11+-0175C2?style=for-the-badge&logo=dart&logoColor=white)](https://dart.dev)
@@ -29,7 +29,7 @@
 
 ## 🌟 The Vision
 
-**Chaaya** (छाया — *Shadow*) is built for the moments when traditional infrastructure fails. Whether you're in a disaster zone, at a crowded festival with no signal, navigating a conflict region, or seeking privacy from centralized surveillance — Chaaya ensures your communications survive.
+**Catus Chat** is built for the moments when traditional infrastructure fails. Whether you're in a disaster zone, at a crowded festival with no signal, navigating a conflict region, or seeking privacy from centralized surveillance — Catus Chat ensures your communications survive.
 
 By utilizing **Bluetooth Low Energy (BLE)** and **WiFi Direct**, devices form a self-healing, peer-to-peer mesh network. Messages hop from phone to phone until they reach their destination — entirely independent of cellular towers, Wi-Fi routers, or the internet.
 
@@ -70,7 +70,7 @@ By utilizing **Bluetooth Low Energy (BLE)** and **WiFi Direct**, devices form a 
 | **Chat Folders** | ✅ Active | Organize chats by category |
 | **Message Pinning** | ✅ Active | Pin important messages |
 | **Chat Wallpapers** | ✅ Active | Custom backgrounds per chat |
-| **Multiple Themes** | ✅ Active | 5 dark themes (Chaaya, Midnight, Ocean, Forest, Sunset) |
+| **Multiple Themes** | ✅ Active | 5 dark themes (Catus, Midnight, Ocean, Forest, Sunset) |
 | **Message Scheduling** | ✅ Active | Schedule messages to send later |
 | **Location Sharing** | ✅ Active | Share live location with contacts |
 | **Media Gallery** | ✅ Active | Offline photo/video gallery |
@@ -138,7 +138,7 @@ By utilizing **Bluetooth Low Energy (BLE)** and **WiFi Direct**, devices form a 
 ## 🏗️ Architecture
 
 ```
-chaaya/
+catus-chat/
 ├── frontend/                         # Flutter Mobile App
 │   └── lib/
 │       ├── core/
@@ -149,7 +149,7 @@ chaaya/
 │       │   │   ├── wifi_direct_service    # WiFi Direct P2P connections
 │       │   │   └── store_forward_service  # Offline message caching
 │       │   ├── providers/            # Riverpod State Management
-│       │   └── theme/                # Chaaya Dark Theme System
+│       │   └── theme/                # Catus Dark Theme System
 │       └── features/
 │           ├── messenger/            # E2EE Chat & Conversations
 │           ├── radio/                # PTT Walkie-Talkie
@@ -222,13 +222,13 @@ flutter pub get
 flutter build apk --release
 ```
 
-> ⚠️ **Permissions Required:** Chaaya requests Location, Nearby Devices, Bluetooth, Camera, and Microphone permissions for mesh networking.
+> ⚠️ **Permissions Required:** Catus Chat requests Location, Nearby Devices, Bluetooth, Camera, and Microphone permissions for mesh networking.
 
 ---
 
 ## 📥 Download
 
-📱 **[Download Chaaya V1.0.3 APK](https://github.com/Chatur7x/-PROJ16/releases/latest)**
+📱 **[Download Catus Chat APK](https://github.com/Chatur7x/-PROJ16/releases/latest)**
 
 > Install on **at least two physical Android devices** to test mesh messaging and PTT features.
 
@@ -322,6 +322,6 @@ See [`counter-backend/README.md`](counter-backend/README.md) for full setup inst
 
 **Built for the shadows. Designed to survive.**
 
-*Chaaya — When the grid goes dark, the mesh lights up.* 🌑
+*Catus Chat — When the grid goes dark, the mesh lights up.* 🐱
 
 </div>

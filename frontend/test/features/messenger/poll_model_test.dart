@@ -1,5 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-import 'package:chaaya/features/messenger/domain/models/poll.dart';
+﻿import 'package:flutter_test/flutter_test.dart';
+import 'package:catus_chat/features/messenger/domain/models/poll.dart';
 
 void main() {
   group('Poll', () {

@@ -1,6 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
+﻿import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
-import 'package:chaaya/features/chat/data/presence_service.dart';
+import 'package:catus_chat/features/chat/data/presence_service.dart';
 
 void main() {
   group('PresenceService', () {

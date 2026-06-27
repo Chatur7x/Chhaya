@@ -1,4 +1,4 @@
-# Chaaya Setup Guide
+﻿# Catus Chat Setup Guide
 
 Since this is a deeply integrated offline hardware project, you must set up your local environment and native permissions before compiling the project.
 
@@ -44,17 +44,17 @@ Open `frontend/ios/Runner/Info.plist` and add inside the `<dict>` tag:
 
 ```xml
 <key>NSBluetoothAlwaysUsageDescription</key>
-<string>Chaaya needs Bluetooth to route offline messages and discover peers.</string>
+<string>Catus Chat needs Bluetooth to route offline messages and discover peers.</string>
 <key>NSLocationWhenInUseUsageDescription</key>
-<string>Chaaya needs location access for SOS and safety maps.</string>
+<string>Catus Chat needs location access for SOS and safety maps.</string>
 <key>NSLocalNetworkUsageDescription</key>
-<string>Chaaya needs local network access for high-speed WiFi Direct transfers.</string>
+<string>Catus Chat needs local network access for high-speed WiFi Direct transfers.</string>
 <key>NSCameraUsageDescription</key>
-<string>Chaaya needs camera access for QR pairing and field reports.</string>
+<string>Catus Chat needs camera access for QR pairing and field reports.</string>
 <key>NSMicrophoneUsageDescription</key>
-<string>Chaaya needs microphone access for Walkie-Talkie and voice calls.</string>
+<string>Catus Chat needs microphone access for Walkie-Talkie and voice calls.</string>
 <key>NSPhotoLibraryUsageDescription</key>
-<string>Chaaya needs photo access to save media to the encrypted vault.</string>
+<string>Catus Chat needs photo access to save media to the encrypted vault.</string>
 ```
 
 ## 4. Run the Project

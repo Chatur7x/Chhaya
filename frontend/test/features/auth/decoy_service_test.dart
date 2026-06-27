@@ -1,6 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
+﻿import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
-import 'package:chaaya/features/auth/data/decoy_service.dart';
+import 'package:catus_chat/features/auth/data/decoy_service.dart';
 
 void main() {
   group('DecoyService', () {

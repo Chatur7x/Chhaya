@@ -3,23 +3,23 @@
 <plist version="1.0">
 <dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Chaaya needs Bluetooth to route offline messages and discover peers.</string>
+	<string>Catus Chat needs Bluetooth to route offline messages and discover peers.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Chaaya needs location access for SOS and safety maps.</string>
+	<string>Catus Chat needs location access for SOS and safety maps.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Chaaya needs local network access for high-speed WiFi Direct transfers.</string>
+	<string>Catus Chat needs local network access for high-speed WiFi Direct transfers.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Chaaya needs camera access for QR pairing and field reports.</string>
+	<string>Catus Chat needs camera access for QR pairing and field reports.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Chaaya needs microphone access for Walkie-Talkie and voice calls.</string>
+	<string>Catus Chat needs microphone access for Walkie-Talkie and voice calls.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Chaaya needs photo access to save media to the encrypted vault.</string>
+	<string>Catus Chat needs photo access to save media to the encrypted vault.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Chaaya needs background location for continuous SOS and safety tracking.</string>
+	<string>Catus Chat needs background location for continuous SOS and safety tracking.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Chaaya needs background location for continuous SOS and safety tracking.</string>
+	<string>Catus Chat needs background location for continuous SOS and safety tracking.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>Chaaya needs to broadcast its presence via Bluetooth to discover offline peers.</string>
+	<string>Catus Chat needs to broadcast its presence via Bluetooth to discover offline peers.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>bluetooth-central</string>
@@ -31,7 +31,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Chaaya</string>
+	<string>Catus Chat</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -39,7 +39,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>chaaya</string>
+	<string>Catus Chat</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
