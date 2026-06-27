@@ -1,1 +1,280 @@
-﻿import 'dart:convert';import 'package:flutter/foundation.dart';import 'package:hive/hive.dart';import 'package:uuid/uuid.dart';import 'package:flutter_riverpod/flutter_riverpod.dart';final groupChannelServiceProvider = Provider<GroupChannelService>((ref) {  return GroupChannelService();});/// Group and Channel service — manages group chats and public IRC-style channels.class GroupChannelService {  static const String _groupsBox = 'catus_groups';  static const String _channelsBox = 'catus_channels';  Box<String>? _grpBox;  Box<String>? _chnBox;  Future<void> initialize() async {    _grpBox = await Hive.openBox<String>(_groupsBox);    _chnBox = await Hive.openBox<String>(_channelsBox);  }  // ─── Group Chats ───  /// Create a private group chat  Future<MeshGroup> createGroup({    required String name,    required String creatorId,    required String creatorName,    List<String> memberIds = const [],  }) async {    final group = MeshGroup(      id: const Uuid().v4(),      name: name,      creatorId: creatorId,      createdAt: DateTime.now(),      members: [creatorId, ...memberIds],      admins: [creatorId],    );    await _grpBox?.put(group.id, jsonEncode(group.toJson()));    return group;  }  /// Get all groups  List<MeshGroup> getGroups() {    return _grpBox?.values            .map((j) => MeshGroup.fromJson(jsonDecode(j)))            .toList() ??        [];  }  /// Get group by ID  MeshGroup? getGroup(String groupId) {    final j = _grpBox?.get(groupId);    return j != null ? MeshGroup.fromJson(jsonDecode(j)) : null;  }  /// Add member to group  Future<void> addMember(String groupId, String memberId) async {    final group = getGroup(groupId);    if (group == null) return;    if (group.members.contains(memberId)) return;    final updated = group.copyWith(members: [...group.members, memberId]);    await _grpBox?.put(groupId, jsonEncode(updated.toJson()));  }  /// Remove member from group  Future<void> removeMember(String groupId, String memberId) async {    final group = getGroup(groupId);    if (group == null) return;    final updated = group.copyWith(      members: group.members.where((m) => m != memberId).toList(),    );    await _grpBox?.put(groupId, jsonEncode(updated.toJson()));  }  // ─── Public Channels ───  /// Create or join a public channel (IRC-style)  Future<MeshChannel> createChannel({    required String name,    required String creatorId,    String? password,  }) async {    // Check if channel already exists    final existing = getChannelByName(name);    if (existing != null) return existing;    final channel = MeshChannel(      id: const Uuid().v4(),      name: name.startsWith('#') ? name : '#$name',      creatorId: creatorId,      createdAt: DateTime.now(),      hasPassword: password != null,      passwordHash: password,      members: [creatorId],      blockedKeys: [],    );    await _chnBox?.put(channel.id, jsonEncode(channel.toJson()));    return channel;  }  /// Get all channels  List<MeshChannel> getChannels() {    return _chnBox?.values            .map((j) => MeshChannel.fromJson(jsonDecode(j)))            .toList() ??        [];  }  /// Find channel by name  MeshChannel? getChannelByName(String name) {    final channels = getChannels();    return channels.cast<MeshChannel?>().firstWhere(          (c) => c!.name.toLowerCase() == name.toLowerCase(),          orElse: () => null,        );  }  /// Join a channel  Future<bool> joinChannel(String channelId, String userId, {String? password}) async {    final j = _chnBox?.get(channelId);    if (j == null) return false;    final channel = MeshChannel.fromJson(jsonDecode(j));    // Check password if protected    if (channel.hasPassword && channel.passwordHash != password) return false;    // Check if blocked    if (channel.blockedKeys.contains(userId)) return false;    if (!channel.members.contains(userId)) {      final updated = channel.copyWith(members: [...channel.members, userId]);      await _chnBox?.put(channelId, jsonEncode(updated.toJson()));    }    return true;  }  /// Block a user from a channel (decentralized moderation)  Future<void> blockFromChannel(String channelId, String publicKey) async {    final j = _chnBox?.get(channelId);    if (j == null) return;    final channel = MeshChannel.fromJson(jsonDecode(j));    final updated = channel.copyWith(      blockedKeys: [...channel.blockedKeys, publicKey],    );    await _chnBox?.put(channelId, jsonEncode(updated.toJson()));  }  Future<void> clearAll() async {    await _grpBox?.clear();    await _chnBox?.clear();  }  // ─── Message Routing ───  /// Send a message to a private group  Future<void> sendGroupMessage(String groupId, String content, String senderId) async {    debugPrint('[GroupChannelService] Sending Group Msg to $groupId: $content');    // In full implementation, this calls BleMeshService to broadcast     // to all memberIds encrypted with the group's shared key layer.  }  /// Send a message to a public channel  Future<void> sendChannelMessage(String channelId, String content, String senderId) async {    debugPrint('[GroupChannelService] Sending Channel Msg to $channelId: $content');    // In full implementation, this broadcasts plain or channel-encrypted    // text over the mesh using a predefined topic hash.  }}/// Private group chat modelclass MeshGroup {  final String id;  final String name;  final String creatorId;  final DateTime createdAt;  final List<String> members;  final List<String> admins;  final int maxMembers;  MeshGroup({    required this.id,    required this.name,    required this.creatorId,    required this.createdAt,    required this.members,    required this.admins,    this.maxMembers = 256,  });  factory MeshGroup.fromJson(Map<String, dynamic> json) => MeshGroup(        id: json['id'],        name: json['name'],        creatorId: json['creatorId'],        createdAt: DateTime.parse(json['createdAt']),        members: List<String>.from(json['members'] ?? []),        admins: List<String>.from(json['admins'] ?? []),        maxMembers: json['maxMembers'] ?? 256,      );  Map<String, dynamic> toJson() => {        'id': id,        'name': name,        'creatorId': creatorId,        'createdAt': createdAt.toIso8601String(),        'members': members,        'admins': admins,        'maxMembers': maxMembers,      };  MeshGroup copyWith({List<String>? members, List<String>? admins}) => MeshGroup(        id: id,        name: name,        creatorId: creatorId,        createdAt: createdAt,        members: members ?? this.members,        admins: admins ?? this.admins,        maxMembers: maxMembers,      );}/// Public IRC-style channel modelclass MeshChannel {  final String id;  final String name; // e.g. #emergency, #camp-alpha  final String creatorId;  final DateTime createdAt;  final bool hasPassword;  final String? passwordHash;  final List<String> members;  final List<String> blockedKeys;  MeshChannel({    required this.id,    required this.name,    required this.creatorId,    required this.createdAt,    this.hasPassword = false,    this.passwordHash,    required this.members,    required this.blockedKeys,  });  factory MeshChannel.fromJson(Map<String, dynamic> json) => MeshChannel(        id: json['id'],        name: json['name'],        creatorId: json['creatorId'],        createdAt: DateTime.parse(json['createdAt']),        hasPassword: json['hasPassword'] ?? false,        passwordHash: json['passwordHash'],        members: List<String>.from(json['members'] ?? []),        blockedKeys: List<String>.from(json['blockedKeys'] ?? []),      );  Map<String, dynamic> toJson() => {        'id': id,        'name': name,        'creatorId': creatorId,        'createdAt': createdAt.toIso8601String(),        'hasPassword': hasPassword,        if (passwordHash != null) 'passwordHash': passwordHash,        'members': members,        'blockedKeys': blockedKeys,      };  MeshChannel copyWith({List<String>? members, List<String>? blockedKeys}) =>      MeshChannel(        id: id,        name: name,        creatorId: creatorId,        createdAt: createdAt,        hasPassword: hasPassword,        passwordHash: passwordHash,        members: members ?? this.members,        blockedKeys: blockedKeys ?? this.blockedKeys,      );}
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:hive/hive.dart';
+import 'package:uuid/uuid.dart';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+final groupChannelServiceProvider = Provider<GroupChannelService>((ref) {
+  return GroupChannelService();
+});
+
+/// Group and Channel service — manages group chats and public IRC-style channels.
+class GroupChannelService {
+  static const String _groupsBox = 'chaaya_groups';
+  static const String _channelsBox = 'chaaya_channels';
+  Box<String>? _grpBox;
+  Box<String>? _chnBox;
+
+  Future<void> initialize() async {
+    _grpBox = await Hive.openBox<String>(_groupsBox);
+    _chnBox = await Hive.openBox<String>(_channelsBox);
+  }
+
+  // ─── Group Chats ───
+
+  /// Create a private group chat
+  Future<MeshGroup> createGroup({
+    required String name,
+    required String creatorId,
+    required String creatorName,
+    List<String> memberIds = const [],
+  }) async {
+    final group = MeshGroup(
+      id: const Uuid().v4(),
+      name: name,
+      creatorId: creatorId,
+      createdAt: DateTime.now(),
+      members: [creatorId, ...memberIds],
+      admins: [creatorId],
+    );
+    await _grpBox?.put(group.id, jsonEncode(group.toJson()));
+    return group;
+  }
+
+  /// Get all groups
+  List<MeshGroup> getGroups() {
+    return _grpBox?.values
+            .map((j) => MeshGroup.fromJson(jsonDecode(j)))
+            .toList() ??
+        [];
+  }
+
+  /// Get group by ID
+  MeshGroup? getGroup(String groupId) {
+    final j = _grpBox?.get(groupId);
+    return j != null ? MeshGroup.fromJson(jsonDecode(j)) : null;
+  }
+
+  /// Add member to group
+  Future<void> addMember(String groupId, String memberId) async {
+    final group = getGroup(groupId);
+    if (group == null) return;
+    if (group.members.contains(memberId)) return;
+    final updated = group.copyWith(members: [...group.members, memberId]);
+    await _grpBox?.put(groupId, jsonEncode(updated.toJson()));
+  }
+
+  /// Remove member from group
+  Future<void> removeMember(String groupId, String memberId) async {
+    final group = getGroup(groupId);
+    if (group == null) return;
+    final updated = group.copyWith(
+      members: group.members.where((m) => m != memberId).toList(),
+    );
+    await _grpBox?.put(groupId, jsonEncode(updated.toJson()));
+  }
+
+  // ─── Public Channels ───
+
+  /// Create or join a public channel (IRC-style)
+  Future<MeshChannel> createChannel({
+    required String name,
+    required String creatorId,
+    String? password,
+  }) async {
+    // Check if channel already exists
+    final existing = getChannelByName(name);
+    if (existing != null) return existing;
+
+    final channel = MeshChannel(
+      id: const Uuid().v4(),
+      name: name.startsWith('#') ? name : '#$name',
+      creatorId: creatorId,
+      createdAt: DateTime.now(),
+      hasPassword: password != null,
+      passwordHash: password,
+      members: [creatorId],
+      blockedKeys: [],
+    );
+    await _chnBox?.put(channel.id, jsonEncode(channel.toJson()));
+    return channel;
+  }
+
+  /// Get all channels
+  List<MeshChannel> getChannels() {
+    return _chnBox?.values
+            .map((j) => MeshChannel.fromJson(jsonDecode(j)))
+            .toList() ??
+        [];
+  }
+
+  /// Find channel by name
+  MeshChannel? getChannelByName(String name) {
+    final channels = getChannels();
+    return channels.cast<MeshChannel?>().firstWhere(
+          (c) => c!.name.toLowerCase() == name.toLowerCase(),
+          orElse: () => null,
+        );
+  }
+
+  /// Join a channel
+  Future<bool> joinChannel(String channelId, String userId, {String? password}) async {
+    final j = _chnBox?.get(channelId);
+    if (j == null) return false;
+    final channel = MeshChannel.fromJson(jsonDecode(j));
+
+    // Check password if protected
+    if (channel.hasPassword && channel.passwordHash != password) return false;
+
+    // Check if blocked
+    if (channel.blockedKeys.contains(userId)) return false;
+
+    if (!channel.members.contains(userId)) {
+      final updated = channel.copyWith(members: [...channel.members, userId]);
+      await _chnBox?.put(channelId, jsonEncode(updated.toJson()));
+    }
+    return true;
+  }
+
+  /// Block a user from a channel (decentralized moderation)
+  Future<void> blockFromChannel(String channelId, String publicKey) async {
+    final j = _chnBox?.get(channelId);
+    if (j == null) return;
+    final channel = MeshChannel.fromJson(jsonDecode(j));
+    final updated = channel.copyWith(
+      blockedKeys: [...channel.blockedKeys, publicKey],
+    );
+    await _chnBox?.put(channelId, jsonEncode(updated.toJson()));
+  }
+
+  Future<void> clearAll() async {
+    await _grpBox?.clear();
+    await _chnBox?.clear();
+  }
+
+  // ─── Message Routing ───
+
+  /// Send a message to a private group
+  Future<void> sendGroupMessage(String groupId, String content, String senderId) async {
+    debugPrint('[GroupChannelService] Sending Group Msg to $groupId: $content');
+    // In full implementation, this calls BleMeshService to broadcast 
+    // to all memberIds encrypted with the group's shared key layer.
+  }
+
+  /// Send a message to a public channel
+  Future<void> sendChannelMessage(String channelId, String content, String senderId) async {
+    debugPrint('[GroupChannelService] Sending Channel Msg to $channelId: $content');
+    // In full implementation, this broadcasts plain or channel-encrypted
+    // text over the mesh using a predefined topic hash.
+  }
+}
+
+/// Private group chat model
+class MeshGroup {
+  final String id;
+  final String name;
+  final String creatorId;
+  final DateTime createdAt;
+  final List<String> members;
+  final List<String> admins;
+  final int maxMembers;
+
+  MeshGroup({
+    required this.id,
+    required this.name,
+    required this.creatorId,
+    required this.createdAt,
+    required this.members,
+    required this.admins,
+    this.maxMembers = 256,
+  });
+
+  factory MeshGroup.fromJson(Map<String, dynamic> json) => MeshGroup(
+        id: json['id'],
+        name: json['name'],
+        creatorId: json['creatorId'],
+        createdAt: DateTime.parse(json['createdAt']),
+        members: List<String>.from(json['members'] ?? []),
+        admins: List<String>.from(json['admins'] ?? []),
+        maxMembers: json['maxMembers'] ?? 256,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'creatorId': creatorId,
+        'createdAt': createdAt.toIso8601String(),
+        'members': members,
+        'admins': admins,
+        'maxMembers': maxMembers,
+      };
+
+  MeshGroup copyWith({List<String>? members, List<String>? admins}) => MeshGroup(
+        id: id,
+        name: name,
+        creatorId: creatorId,
+        createdAt: createdAt,
+        members: members ?? this.members,
+        admins: admins ?? this.admins,
+        maxMembers: maxMembers,
+      );
+}
+
+/// Public IRC-style channel model
+class MeshChannel {
+  final String id;
+  final String name; // e.g. #emergency, #camp-alpha
+  final String creatorId;
+  final DateTime createdAt;
+  final bool hasPassword;
+  final String? passwordHash;
+  final List<String> members;
+  final List<String> blockedKeys;
+
+  MeshChannel({
+    required this.id,
+    required this.name,
+    required this.creatorId,
+    required this.createdAt,
+    this.hasPassword = false,
+    this.passwordHash,
+    required this.members,
+    required this.blockedKeys,
+  });
+
+  factory MeshChannel.fromJson(Map<String, dynamic> json) => MeshChannel(
+        id: json['id'],
+        name: json['name'],
+        creatorId: json['creatorId'],
+        createdAt: DateTime.parse(json['createdAt']),
+        hasPassword: json['hasPassword'] ?? false,
+        passwordHash: json['passwordHash'],
+        members: List<String>.from(json['members'] ?? []),
+        blockedKeys: List<String>.from(json['blockedKeys'] ?? []),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'creatorId': creatorId,
+        'createdAt': createdAt.toIso8601String(),
+        'hasPassword': hasPassword,
+        if (passwordHash != null) 'passwordHash': passwordHash,
+        'members': members,
+        'blockedKeys': blockedKeys,
+      };
+
+  MeshChannel copyWith({List<String>? members, List<String>? blockedKeys}) =>
+      MeshChannel(
+        id: id,
+        name: name,
+        creatorId: creatorId,
+        createdAt: createdAt,
+        hasPassword: hasPassword,
+        passwordHash: passwordHash,
+        members: members ?? this.members,
+        blockedKeys: blockedKeys ?? this.blockedKeys,
+      );
+}
+

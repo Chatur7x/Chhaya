@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.catus"
+    namespace = "com.example.chaaya"
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
@@ -20,7 +20,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.catus"
+        applicationId = "com.example.chaaya"
         minSdk = 24
         targetSdk = 35
         versionCode = 2

@@ -1,1 +1,213 @@
-﻿import 'dart:collection';import 'package:flutter/foundation.dart';class AntiReplayCache {  static const int _maxCacheSize = 1000;  static const Duration _timestampWindow = Duration(minutes: 5);  final _messageCache = LinkedHashMap<String, _CacheEntry>();  final _nonceCache = LinkedHashMap<String, DateTime>();  final _seenSignatures = LinkedHashMap<String, DateTime>();  void recordMessage(String messageId, DateTime timestamp,      {String? nonce, String? signature}) {    final now = DateTime.now();    _cleanup(now);    _messageCache[messageId] = _CacheEntry(      timestamp: timestamp,      nonce: nonce,      signature: signature,    );    if (nonce != null) {      _nonceCache[nonce] = now;    }    if (signature != null) {      _seenSignatures[signature] = now;    }    while (_messageCache.length > _maxCacheSize) {      _messageCache.remove(_messageCache.keys.first);    }  }  bool isReplay(String messageId, DateTime timestamp,      {String? nonce, String? signature}) {    final now = DateTime.now();    _cleanup(now);    if (_messageCache.containsKey(messageId)) {      debugPrint('[AntiReplay] REJECTED: Message ID already seen');      return true;    }    if (timestamp.isBefore(now.subtract(_timestampWindow))) {      debugPrint('[AntiReplay] REJECTED: Message too old');      return true;    }    if (timestamp.isAfter(now.add(_timestampWindow))) {      debugPrint('[AntiReplay] REJECTED: Message from future');      return true;    }    if (nonce != null && _nonceCache.containsKey(nonce)) {      debugPrint('[AntiReplay] REJECTED: Nonce already used');      return true;    }    if (signature != null && _seenSignatures.containsKey(signature)) {      debugPrint('[AntiReplay] REJECTED: Signature already used');      return true;    }    return false;  }  void _cleanup(DateTime now) {    final cutoff = now.subtract(_timestampWindow);    _messageCache.removeWhere((_, entry) => entry.timestamp.isBefore(cutoff));    _nonceCache.removeWhere((_, timestamp) => timestamp.isBefore(cutoff));    _seenSignatures.removeWhere((_, timestamp) => timestamp.isBefore(cutoff));  }  bool validateTimestamp(DateTime timestamp) {    final now = DateTime.now();    final diff = now.difference(timestamp).abs();    return diff < _timestampWindow;  }  bool validateNonce(String nonce) {    return !_nonceCache.containsKey(nonce);  }  bool validateSignature(String signature) {    return !_seenSignatures.containsKey(signature);  }  int get cacheSize => _messageCache.length;  int get nonceCacheSize => _nonceCache.length;  int get signatureCacheSize => _seenSignatures.length;  void clear() {    _messageCache.clear();    _nonceCache.clear();    _seenSignatures.clear();  }  Map<String, dynamic> getStats() {    return {      'messageCacheSize': _messageCache.length,      'nonceCacheSize': _nonceCache.length,      'signatureCacheSize': _seenSignatures.length,      'timestampWindowMinutes': _timestampWindow.inMinutes,      'maxCacheSize': _maxCacheSize,    };  }}class _CacheEntry {  final DateTime timestamp;  final String? nonce;  final String? signature;  _CacheEntry({    required this.timestamp,    this.nonce,    this.signature,  });}class MessageValidator {  final AntiReplayCache _cache = AntiReplayCache();  AntiReplayCache get antiReplayCache => _cache;  ValidationResult validate({    required String messageId,    required DateTime timestamp,    String? content,    String? senderId,    String? recipientId,    String? nonce,    String? signature,  }) {    if (_cache.isReplay(messageId, timestamp,        nonce: nonce, signature: signature)) {      return ValidationResult(        isValid: false,        reason: 'Message is a replay attack',        code: ValidationErrorCode.replayDetected,      );    }    if (!_cache.validateTimestamp(timestamp)) {      return ValidationResult(        isValid: false,        reason: 'Invalid timestamp',        code: ValidationErrorCode.invalidTimestamp,      );    }    if (nonce != null && !_cache.validateNonce(nonce)) {      return ValidationResult(        isValid: false,        reason: 'Nonce already used',        code: ValidationErrorCode.nonceReused,      );    }    if (signature != null && !_cache.validateSignature(signature)) {      return ValidationResult(        isValid: false,        reason: 'Signature already used',        code: ValidationErrorCode.signatureReused,      );    }    _cache.recordMessage(messageId, timestamp,        nonce: nonce, signature: signature);    return ValidationResult(      isValid: true,      reason: 'Valid',      code: ValidationErrorCode.none,    );  }  void recordValidMessage(String messageId, DateTime timestamp,      {String? nonce, String? signature}) {    _cache.recordMessage(messageId, timestamp,        nonce: nonce, signature: signature);  }}class ValidationResult {  final bool isValid;  final String reason;  final ValidationErrorCode code;  ValidationResult({    required this.isValid,    required this.reason,    required this.code,  });}enum ValidationErrorCode {  none,  replayDetected,  invalidTimestamp,  nonceReused,  signatureReused,  invalidContent,  invalidSender,  invalidRecipient,}
+import 'dart:collection';
+import 'package:flutter/foundation.dart';
+
+class AntiReplayCache {
+  static const int _maxCacheSize = 1000;
+  static const Duration _timestampWindow = Duration(minutes: 5);
+
+  final _messageCache = LinkedHashMap<String, _CacheEntry>();
+  final _nonceCache = LinkedHashMap<String, DateTime>();
+  final _seenSignatures = LinkedHashMap<String, DateTime>();
+
+  void recordMessage(String messageId, DateTime timestamp,
+      {String? nonce, String? signature}) {
+    final now = DateTime.now();
+
+    _cleanup(now);
+
+    _messageCache[messageId] = _CacheEntry(
+      timestamp: timestamp,
+      nonce: nonce,
+      signature: signature,
+    );
+
+    if (nonce != null) {
+      _nonceCache[nonce] = now;
+    }
+
+    if (signature != null) {
+      _seenSignatures[signature] = now;
+    }
+
+    while (_messageCache.length > _maxCacheSize) {
+      _messageCache.remove(_messageCache.keys.first);
+    }
+  }
+
+  bool isReplay(String messageId, DateTime timestamp,
+      {String? nonce, String? signature}) {
+    final now = DateTime.now();
+
+    _cleanup(now);
+
+    if (_messageCache.containsKey(messageId)) {
+      debugPrint('[AntiReplay] REJECTED: Message ID already seen');
+      return true;
+    }
+
+    if (timestamp.isBefore(now.subtract(_timestampWindow))) {
+      debugPrint('[AntiReplay] REJECTED: Message too old');
+      return true;
+    }
+
+    if (timestamp.isAfter(now.add(_timestampWindow))) {
+      debugPrint('[AntiReplay] REJECTED: Message from future');
+      return true;
+    }
+
+    if (nonce != null && _nonceCache.containsKey(nonce)) {
+      debugPrint('[AntiReplay] REJECTED: Nonce already used');
+      return true;
+    }
+
+    if (signature != null && _seenSignatures.containsKey(signature)) {
+      debugPrint('[AntiReplay] REJECTED: Signature already used');
+      return true;
+    }
+
+    return false;
+  }
+
+  void _cleanup(DateTime now) {
+    final cutoff = now.subtract(_timestampWindow);
+
+    _messageCache.removeWhere((_, entry) => entry.timestamp.isBefore(cutoff));
+    _nonceCache.removeWhere((_, timestamp) => timestamp.isBefore(cutoff));
+    _seenSignatures.removeWhere((_, timestamp) => timestamp.isBefore(cutoff));
+  }
+
+  bool validateTimestamp(DateTime timestamp) {
+    final now = DateTime.now();
+    final diff = now.difference(timestamp).abs();
+    return diff < _timestampWindow;
+  }
+
+  bool validateNonce(String nonce) {
+    return !_nonceCache.containsKey(nonce);
+  }
+
+  bool validateSignature(String signature) {
+    return !_seenSignatures.containsKey(signature);
+  }
+
+  int get cacheSize => _messageCache.length;
+
+  int get nonceCacheSize => _nonceCache.length;
+
+  int get signatureCacheSize => _seenSignatures.length;
+
+  void clear() {
+    _messageCache.clear();
+    _nonceCache.clear();
+    _seenSignatures.clear();
+  }
+
+  Map<String, dynamic> getStats() {
+    return {
+      'messageCacheSize': _messageCache.length,
+      'nonceCacheSize': _nonceCache.length,
+      'signatureCacheSize': _seenSignatures.length,
+      'timestampWindowMinutes': _timestampWindow.inMinutes,
+      'maxCacheSize': _maxCacheSize,
+    };
+  }
+}
+
+class _CacheEntry {
+  final DateTime timestamp;
+  final String? nonce;
+  final String? signature;
+
+  _CacheEntry({
+    required this.timestamp,
+    this.nonce,
+    this.signature,
+  });
+}
+
+class MessageValidator {
+  final AntiReplayCache _cache = AntiReplayCache();
+
+  AntiReplayCache get antiReplayCache => _cache;
+
+  ValidationResult validate({
+    required String messageId,
+    required DateTime timestamp,
+    String? content,
+    String? senderId,
+    String? recipientId,
+    String? nonce,
+    String? signature,
+  }) {
+    if (_cache.isReplay(messageId, timestamp,
+        nonce: nonce, signature: signature)) {
+      return ValidationResult(
+        isValid: false,
+        reason: 'Message is a replay attack',
+        code: ValidationErrorCode.replayDetected,
+      );
+    }
+
+    if (!_cache.validateTimestamp(timestamp)) {
+      return ValidationResult(
+        isValid: false,
+        reason: 'Invalid timestamp',
+        code: ValidationErrorCode.invalidTimestamp,
+      );
+    }
+
+    if (nonce != null && !_cache.validateNonce(nonce)) {
+      return ValidationResult(
+        isValid: false,
+        reason: 'Nonce already used',
+        code: ValidationErrorCode.nonceReused,
+      );
+    }
+
+    if (signature != null && !_cache.validateSignature(signature)) {
+      return ValidationResult(
+        isValid: false,
+        reason: 'Signature already used',
+        code: ValidationErrorCode.signatureReused,
+      );
+    }
+
+    _cache.recordMessage(messageId, timestamp,
+        nonce: nonce, signature: signature);
+
+    return ValidationResult(
+      isValid: true,
+      reason: 'Valid',
+      code: ValidationErrorCode.none,
+    );
+  }
+
+  void recordValidMessage(String messageId, DateTime timestamp,
+      {String? nonce, String? signature}) {
+    _cache.recordMessage(messageId, timestamp,
+        nonce: nonce, signature: signature);
+  }
+}
+
+class ValidationResult {
+  final bool isValid;
+  final String reason;
+  final ValidationErrorCode code;
+
+  ValidationResult({
+    required this.isValid,
+    required this.reason,
+    required this.code,
+  });
+}
+
+enum ValidationErrorCode {
+  none,
+  replayDetected,
+  invalidTimestamp,
+  nonceReused,
+  signatureReused,
+  invalidContent,
+  invalidSender,
+  invalidRecipient,
+}

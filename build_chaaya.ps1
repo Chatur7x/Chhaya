@@ -1,6 +1,6 @@
-﻿<#
+<#
 .SYNOPSIS
-Installs and compiles Catus Chat by generating Flutter Native modules and injecting security permissions.
+Installs and compiles Chaaya by generating Flutter Native modules and injecting security permissions.
 
 .DESCRIPTION
 This script automatically runs `flutter create .`, safely modifies the AndroidManifest.xml and Info.plist with required hardware permissions, and forces a pub get.
@@ -9,7 +9,7 @@ This script automatically runs `flutter create .`, safely modifies the AndroidMa
 $ErrorActionPreference = "Stop"
 
 Write-Host "=============================================" -ForegroundColor Cyan
-Write-Host "🚀 Catus Chat — Automated Native Build Script" -ForegroundColor Cyan
+Write-Host "🚀 Chaaya — Automated Native Build Script" -ForegroundColor Cyan
 Write-Host "=============================================" -ForegroundColor Cyan
 
 # 1. Check if Flutter exists
@@ -80,17 +80,17 @@ if (Test-Path $plistPath) {
     
     $iosPermissions = @"
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Catus Chat needs Bluetooth to route offline messages and discover peers.</string>
+	<string>Chaaya needs Bluetooth to route offline messages and discover peers.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Catus Chat needs location access for SOS and safety maps.</string>
+	<string>Chaaya needs location access for SOS and safety maps.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Catus Chat needs local network access for high-speed WiFi Direct transfers.</string>
+	<string>Chaaya needs local network access for high-speed WiFi Direct transfers.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Catus Chat needs camera access for QR pairing and field reports.</string>
+	<string>Chaaya needs camera access for QR pairing and field reports.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Catus Chat needs microphone access for Walkie-Talkie and voice calls.</string>
+	<string>Chaaya needs microphone access for Walkie-Talkie and voice calls.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Catus Chat needs photo access to save media to the encrypted vault.</string>
+	<string>Chaaya needs photo access to save media to the encrypted vault.</string>
 "@
 
     if (-not $plistContent.Contains("NSBluetoothAlwaysUsageDescription")) {
@@ -109,7 +109,7 @@ Write-Host "`n[4/4] Fetching Dart packages..." -ForegroundColor Yellow
 flutter pub get
 
 Write-Host "`n=============================================" -ForegroundColor Green
-Write-Host "✅ Catus Chat BUILD COMPLETE" -ForegroundColor Green
+Write-Host "✅ CHAAYA BUILD COMPLETE" -ForegroundColor Green
 Write-Host "=============================================" -ForegroundColor Green
 Write-Host "If you have an Android device plugged in, you can now run:" -ForegroundColor White
 Write-Host "  cd frontend ; flutter run --release" -ForegroundColor Cyan

@@ -1,1 +1,219 @@
-﻿import 'dart:async';import 'dart:io';import 'dart:typed_data';import 'package:flutter/foundation.dart';import 'package:record/record.dart';import 'package:path_provider/path_provider.dart';import 'package:audioplayers/audioplayers.dart';/// Voice Message Service (Req 8)./// Records audio with hold-to-record, encodes with record package,/// generates waveform amplitude data, max 120 seconds.class VoiceMessageService {  static const int _maxDurationSeconds = 120; // Req 8.3  final AudioRecorder _recorder = AudioRecorder();  final AudioPlayer _player = AudioPlayer();  bool _isRecording = false;  DateTime? _recordStart;  Timer? _maxDurationTimer;  String? _currentRecordingPath;  bool get isRecording => _isRecording;  // Stream of recording duration updates (in seconds)  final _durationController = StreamController<int>.broadcast();  Stream<int> get durationStream => _durationController.stream;  Timer? _durationTimer;  // Callback when max duration reached  VoidCallback? onMaxDurationReached;  /// Start recording (Req 8.1)  Future<bool> startRecording() async {    if (_isRecording) return false;    try {      final hasPermission = await _recorder.hasPermission();      if (!hasPermission) {        debugPrint('[Voice] No microphone permission');        return false;      }      final dir = await getTemporaryDirectory();      final timestamp = DateTime.now().millisecondsSinceEpoch;      _currentRecordingPath = '${dir.path}/voice_$timestamp.aac';      await _recorder.start(        const RecordConfig(          encoder: AudioEncoder.aacLc,          bitRate: 6000, // ~6 kbps (Req 8.2 — Opus target, aacLc at low bitrate)          sampleRate: 16000,          numChannels: 1,        ),        path: _currentRecordingPath!,      );      _isRecording = true;      _recordStart = DateTime.now();      // Track recording duration      int elapsed = 0;      _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {        elapsed++;        _durationController.add(elapsed);      });      // Auto-stop at 120s (Req 8.3)      _maxDurationTimer = Timer(        const Duration(seconds: _maxDurationSeconds),        () {          debugPrint('[Voice] Max duration reached, stopping');          onMaxDurationReached?.call();          stopRecording();        },      );      debugPrint('[Voice] Recording started: $_currentRecordingPath');      return true;    } catch (e) {      debugPrint('[Voice] Start recording error: $e');      return false;    }  }  /// Stop recording and return the encoded voice data with waveform (Req 8.2, 8.5)  Future<VoiceMessageData?> stopRecording() async {    if (!_isRecording) return null;    _maxDurationTimer?.cancel();    _durationTimer?.cancel();    _isRecording = false;    try {      await _recorder.stop();      final path = _currentRecordingPath;      if (path == null) return null;      final file = File(path);      if (!await file.exists()) return null;      final bytes = await file.readAsBytes();      final durationSeconds = DateTime.now()          .difference(_recordStart ?? DateTime.now())          .inSeconds;      // Generate waveform amplitude data (simplified from file stats)      final waveform = _generateWaveform(bytes, buckets: 40);      debugPrint('[Voice] Recorded ${bytes.length} bytes, ${durationSeconds}s');      // Clean up temp file      await file.delete();      return VoiceMessageData(        audioBytes: bytes,        durationSeconds: durationSeconds,        waveformAmplitudes: waveform,        codec: 'aac',      );    } catch (e) {      debugPrint('[Voice] Stop recording error: $e');      return null;    }  }  /// Cancel recording without saving  Future<void> cancelRecording() async {    if (!_isRecording) return;    _maxDurationTimer?.cancel();    _durationTimer?.cancel();    _isRecording = false;    await _recorder.cancel();    if (_currentRecordingPath != null) {      final f = File(_currentRecordingPath!);      if (await f.exists()) await f.delete();    }  }  /// Play a voice message from bytes  Future<void> playVoiceMessage(Uint8List audioBytes) async {    final dir = await getTemporaryDirectory();    final path = '${dir.path}/play_${DateTime.now().millisecondsSinceEpoch}.aac';    final file = File(path);    await file.writeAsBytes(audioBytes);    await _player.play(DeviceFileSource(path));    _player.onPlayerComplete.listen((_) => file.delete());  }  Future<void> pausePlayback() async => _player.pause();  Future<void> resumePlayback() async => _player.resume();  Future<void> stopPlayback() async => _player.stop();  Stream<Duration> get playbackPosition => _player.onPositionChanged;  Stream<void> get playbackComplete => _player.onPlayerComplete;  /// Generate waveform bucket amplitudes from raw audio bytes (Req 8.5)  List<double> _generateWaveform(Uint8List bytes, {int buckets = 40}) {    if (bytes.isEmpty) return List.filled(buckets, 0.1);    final bucketSize = bytes.length ~/ buckets;    if (bucketSize == 0) return List.filled(buckets, 0.1);    return List.generate(buckets, (i) {      final start = i * bucketSize;      final end = (start + bucketSize).clamp(0, bytes.length);      double sum = 0;      for (var j = start; j < end; j++) {        sum += (bytes[j] - 128).abs();      }      return (sum / (bucketSize * 128)).clamp(0.0, 1.0);    });  }  void dispose() {    _recorder.dispose();    _player.dispose();    _durationController.close();    _maxDurationTimer?.cancel();    _durationTimer?.cancel();  }}/// Complete voice message data returned after recordingclass VoiceMessageData {  final Uint8List audioBytes;  final int durationSeconds;  final List<double> waveformAmplitudes; // 0.0–1.0 per bucket  final String codec;  VoiceMessageData({    required this.audioBytes,    required this.durationSeconds,    required this.waveformAmplitudes,    required this.codec,  });  Map<String, dynamic> toJson() => {        'audioB64': _base64Encode(audioBytes),        'durationSeconds': durationSeconds,        'waveform': waveformAmplitudes,        'codec': codec,      };  static String _base64Encode(Uint8List bytes) {    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';    final result = StringBuffer();    var i = 0;    while (i < bytes.length) {      final b0 = bytes[i++];      final b1 = i < bytes.length ? bytes[i++] : 0;      final b2 = i < bytes.length ? bytes[i++] : 0;      result.write(chars[(b0 >> 2) & 0x3F]);      result.write(chars[((b0 << 4) | (b1 >> 4)) & 0x3F]);      result.write(chars[((b1 << 2) | (b2 >> 6)) & 0x3F]);      result.write(chars[b2 & 0x3F]);    }    return result.toString();  }}
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
+import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:audioplayers/audioplayers.dart';
+
+/// Voice Message Service (Req 8).
+/// Records audio with hold-to-record, encodes with record package,
+/// generates waveform amplitude data, max 120 seconds.
+class VoiceMessageService {
+  static const int _maxDurationSeconds = 120; // Req 8.3
+
+  final AudioRecorder _recorder = AudioRecorder();
+  final AudioPlayer _player = AudioPlayer();
+
+  bool _isRecording = false;
+  DateTime? _recordStart;
+  Timer? _maxDurationTimer;
+  String? _currentRecordingPath;
+
+  bool get isRecording => _isRecording;
+
+  // Stream of recording duration updates (in seconds)
+  final _durationController = StreamController<int>.broadcast();
+  Stream<int> get durationStream => _durationController.stream;
+  Timer? _durationTimer;
+
+  // Callback when max duration reached
+  VoidCallback? onMaxDurationReached;
+
+  /// Start recording (Req 8.1)
+  Future<bool> startRecording() async {
+    if (_isRecording) return false;
+
+    try {
+      final hasPermission = await _recorder.hasPermission();
+      if (!hasPermission) {
+        debugPrint('[Voice] No microphone permission');
+        return false;
+      }
+
+      final dir = await getTemporaryDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      _currentRecordingPath = '${dir.path}/voice_$timestamp.aac';
+
+      await _recorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          bitRate: 6000, // ~6 kbps (Req 8.2 — Opus target, aacLc at low bitrate)
+          sampleRate: 16000,
+          numChannels: 1,
+        ),
+        path: _currentRecordingPath!,
+      );
+
+      _isRecording = true;
+      _recordStart = DateTime.now();
+
+      // Track recording duration
+      int elapsed = 0;
+      _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        elapsed++;
+        _durationController.add(elapsed);
+      });
+
+      // Auto-stop at 120s (Req 8.3)
+      _maxDurationTimer = Timer(
+        const Duration(seconds: _maxDurationSeconds),
+        () {
+          debugPrint('[Voice] Max duration reached, stopping');
+          onMaxDurationReached?.call();
+          stopRecording();
+        },
+      );
+
+      debugPrint('[Voice] Recording started: $_currentRecordingPath');
+      return true;
+    } catch (e) {
+      debugPrint('[Voice] Start recording error: $e');
+      return false;
+    }
+  }
+
+  /// Stop recording and return the encoded voice data with waveform (Req 8.2, 8.5)
+  Future<VoiceMessageData?> stopRecording() async {
+    if (!_isRecording) return null;
+
+    _maxDurationTimer?.cancel();
+    _durationTimer?.cancel();
+    _isRecording = false;
+
+    try {
+      await _recorder.stop();
+      final path = _currentRecordingPath;
+      if (path == null) return null;
+
+      final file = File(path);
+      if (!await file.exists()) return null;
+
+      final bytes = await file.readAsBytes();
+      final durationSeconds = DateTime.now()
+          .difference(_recordStart ?? DateTime.now())
+          .inSeconds;
+
+      // Generate waveform amplitude data (simplified from file stats)
+      final waveform = _generateWaveform(bytes, buckets: 40);
+
+      debugPrint('[Voice] Recorded ${bytes.length} bytes, ${durationSeconds}s');
+
+      // Clean up temp file
+      await file.delete();
+
+      return VoiceMessageData(
+        audioBytes: bytes,
+        durationSeconds: durationSeconds,
+        waveformAmplitudes: waveform,
+        codec: 'aac',
+      );
+    } catch (e) {
+      debugPrint('[Voice] Stop recording error: $e');
+      return null;
+    }
+  }
+
+  /// Cancel recording without saving
+  Future<void> cancelRecording() async {
+    if (!_isRecording) return;
+    _maxDurationTimer?.cancel();
+    _durationTimer?.cancel();
+    _isRecording = false;
+    await _recorder.cancel();
+    if (_currentRecordingPath != null) {
+      final f = File(_currentRecordingPath!);
+      if (await f.exists()) await f.delete();
+    }
+  }
+
+  /// Play a voice message from bytes
+  Future<void> playVoiceMessage(Uint8List audioBytes) async {
+    final dir = await getTemporaryDirectory();
+    final path = '${dir.path}/play_${DateTime.now().millisecondsSinceEpoch}.aac';
+    final file = File(path);
+    await file.writeAsBytes(audioBytes);
+    await _player.play(DeviceFileSource(path));
+    _player.onPlayerComplete.listen((_) => file.delete());
+  }
+
+  Future<void> pausePlayback() async => _player.pause();
+  Future<void> resumePlayback() async => _player.resume();
+  Future<void> stopPlayback() async => _player.stop();
+
+  Stream<Duration> get playbackPosition => _player.onPositionChanged;
+  Stream<void> get playbackComplete => _player.onPlayerComplete;
+
+  /// Generate waveform bucket amplitudes from raw audio bytes (Req 8.5)
+  List<double> _generateWaveform(Uint8List bytes, {int buckets = 40}) {
+    if (bytes.isEmpty) return List.filled(buckets, 0.1);
+    final bucketSize = bytes.length ~/ buckets;
+    if (bucketSize == 0) return List.filled(buckets, 0.1);
+
+    return List.generate(buckets, (i) {
+      final start = i * bucketSize;
+      final end = (start + bucketSize).clamp(0, bytes.length);
+      double sum = 0;
+      for (var j = start; j < end; j++) {
+        sum += (bytes[j] - 128).abs();
+      }
+      return (sum / (bucketSize * 128)).clamp(0.0, 1.0);
+    });
+  }
+
+  void dispose() {
+    _recorder.dispose();
+    _player.dispose();
+    _durationController.close();
+    _maxDurationTimer?.cancel();
+    _durationTimer?.cancel();
+  }
+}
+
+/// Complete voice message data returned after recording
+class VoiceMessageData {
+  final Uint8List audioBytes;
+  final int durationSeconds;
+  final List<double> waveformAmplitudes; // 0.0–1.0 per bucket
+  final String codec;
+
+  VoiceMessageData({
+    required this.audioBytes,
+    required this.durationSeconds,
+    required this.waveformAmplitudes,
+    required this.codec,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'audioB64': _base64Encode(audioBytes),
+        'durationSeconds': durationSeconds,
+        'waveform': waveformAmplitudes,
+        'codec': codec,
+      };
+
+  static String _base64Encode(Uint8List bytes) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    final result = StringBuffer();
+    var i = 0;
+    while (i < bytes.length) {
+      final b0 = bytes[i++];
+      final b1 = i < bytes.length ? bytes[i++] : 0;
+      final b2 = i < bytes.length ? bytes[i++] : 0;
+      result.write(chars[(b0 >> 2) & 0x3F]);
+      result.write(chars[((b0 << 4) | (b1 >> 4)) & 0x3F]);
+      result.write(chars[((b1 << 2) | (b2 >> 6)) & 0x3F]);
+      result.write(chars[b2 & 0x3F]);
+    }
+    return result.toString();
+  }
+}

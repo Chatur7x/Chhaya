@@ -1,1 +1,127 @@
-﻿import 'package:flutter/material.dart';import 'package:hive_flutter/hive_flutter.dart';enum WallpaperType { solid, gradient, image }class WallpaperPreset {  final String id;  final String name;  final WallpaperType type;  final Color? solidColor;  final List<Color>? gradientColors;  final String? imagePath;  WallpaperPreset({    required this.id,    required this.name,    required this.type,    this.solidColor,    this.gradientColors,    this.imagePath,  });}class WallpaperService {  static const String _boxName = 'chat_wallpapers';  static const String _currentWallpaperKey = 'current_wallpaper';  Box? _box;  static final List<WallpaperPreset> presets = [    WallpaperPreset(      id: 'dark_default',      name: 'Catus Dark',      type: WallpaperType.solid,      solidColor: const Color(0xFF0D1117),    ),    WallpaperPreset(      id: 'midnight_blue',      name: 'Midnight Blue',      type: WallpaperType.gradient,      gradientColors: [const Color(0xFF1a1a2e), const Color(0xFF16213e)],    ),    WallpaperPreset(      id: 'purple_haze',      name: 'Purple Haze',      type: WallpaperType.gradient,      gradientColors: [const Color(0xFF1a0033), const Color(0xFF2d1b4e)],    ),    WallpaperPreset(      id: 'ocean_depth',      name: 'Ocean Depth',      type: WallpaperType.gradient,      gradientColors: [const Color(0xFF0c1929), const Color(0xFF1b3a4b)],    ),    WallpaperPreset(      id: 'forest_night',      name: 'Forest Night',      type: WallpaperType.gradient,      gradientColors: [const Color(0xFF0a1f0a), const Color(0xFF1a3a1a)],    ),    WallpaperPreset(      id: 'sunset_glow',      name: 'Sunset Glow',      type: WallpaperType.gradient,      gradientColors: [const Color(0xFF1a0a0a), const Color(0xFF3a1a1a)],    ),    WallpaperPreset(      id: 'oled_black',      name: 'OLED Black',      type: WallpaperType.solid,      solidColor: Colors.black,    ),    WallpaperPreset(      id: 'slate_gray',      name: 'Slate Gray',      type: WallpaperType.solid,      solidColor: const Color(0xFF1F2937),    ),  ];  Future<void> initialize() async {    _box = await Hive.openBox(_boxName);  }  Future<void> setWallpaper(String chatId, WallpaperPreset wallpaper) async {    await _box?.put(chatId, wallpaper.id);  }  String? getWallpaper(String chatId) {    return _box?.get(chatId);  }  WallpaperPreset getWallpaperPreset(String chatId) {    final wallpaperId = getWallpaper(chatId);    return presets.firstWhere(      (p) => p.id == wallpaperId,      orElse: () => presets.first,    );  }  Future<void> clearWallpaper(String chatId) async {    await _box?.delete(chatId);  }  WallpaperPreset getDefaultWallpaper() {    return presets.first;  }  BoxDecoration getWallpaperDecoration(WallpaperPreset wallpaper) {    switch (wallpaper.type) {      case WallpaperType.solid:        return BoxDecoration(color: wallpaper.solidColor ?? Colors.black);      case WallpaperType.gradient:        return BoxDecoration(          gradient: LinearGradient(            begin: Alignment.topLeft,            end: Alignment.bottomRight,            colors: wallpaper.gradientColors ?? [Colors.black, Colors.black],          ),        );      case WallpaperType.image:        return BoxDecoration(          color: Colors.black,        );    }  }}
+import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+
+enum WallpaperType { solid, gradient, image }
+
+class WallpaperPreset {
+  final String id;
+  final String name;
+  final WallpaperType type;
+  final Color? solidColor;
+  final List<Color>? gradientColors;
+  final String? imagePath;
+
+  WallpaperPreset({
+    required this.id,
+    required this.name,
+    required this.type,
+    this.solidColor,
+    this.gradientColors,
+    this.imagePath,
+  });
+}
+
+class WallpaperService {
+  static const String _boxName = 'chat_wallpapers';
+  static const String _currentWallpaperKey = 'current_wallpaper';
+
+  Box? _box;
+
+  static final List<WallpaperPreset> presets = [
+    WallpaperPreset(
+      id: 'dark_default',
+      name: 'Chaaya Dark',
+      type: WallpaperType.solid,
+      solidColor: const Color(0xFF0D1117),
+    ),
+    WallpaperPreset(
+      id: 'midnight_blue',
+      name: 'Midnight Blue',
+      type: WallpaperType.gradient,
+      gradientColors: [const Color(0xFF1a1a2e), const Color(0xFF16213e)],
+    ),
+    WallpaperPreset(
+      id: 'purple_haze',
+      name: 'Purple Haze',
+      type: WallpaperType.gradient,
+      gradientColors: [const Color(0xFF1a0033), const Color(0xFF2d1b4e)],
+    ),
+    WallpaperPreset(
+      id: 'ocean_depth',
+      name: 'Ocean Depth',
+      type: WallpaperType.gradient,
+      gradientColors: [const Color(0xFF0c1929), const Color(0xFF1b3a4b)],
+    ),
+    WallpaperPreset(
+      id: 'forest_night',
+      name: 'Forest Night',
+      type: WallpaperType.gradient,
+      gradientColors: [const Color(0xFF0a1f0a), const Color(0xFF1a3a1a)],
+    ),
+    WallpaperPreset(
+      id: 'sunset_glow',
+      name: 'Sunset Glow',
+      type: WallpaperType.gradient,
+      gradientColors: [const Color(0xFF1a0a0a), const Color(0xFF3a1a1a)],
+    ),
+    WallpaperPreset(
+      id: 'oled_black',
+      name: 'OLED Black',
+      type: WallpaperType.solid,
+      solidColor: Colors.black,
+    ),
+    WallpaperPreset(
+      id: 'slate_gray',
+      name: 'Slate Gray',
+      type: WallpaperType.solid,
+      solidColor: const Color(0xFF1F2937),
+    ),
+  ];
+
+  Future<void> initialize() async {
+    _box = await Hive.openBox(_boxName);
+  }
+
+  Future<void> setWallpaper(String chatId, WallpaperPreset wallpaper) async {
+    await _box?.put(chatId, wallpaper.id);
+  }
+
+  String? getWallpaper(String chatId) {
+    return _box?.get(chatId);
+  }
+
+  WallpaperPreset getWallpaperPreset(String chatId) {
+    final wallpaperId = getWallpaper(chatId);
+    return presets.firstWhere(
+      (p) => p.id == wallpaperId,
+      orElse: () => presets.first,
+    );
+  }
+
+  Future<void> clearWallpaper(String chatId) async {
+    await _box?.delete(chatId);
+  }
+
+  WallpaperPreset getDefaultWallpaper() {
+    return presets.first;
+  }
+
+  BoxDecoration getWallpaperDecoration(WallpaperPreset wallpaper) {
+    switch (wallpaper.type) {
+      case WallpaperType.solid:
+        return BoxDecoration(color: wallpaper.solidColor ?? Colors.black);
+      case WallpaperType.gradient:
+        return BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: wallpaper.gradientColors ?? [Colors.black, Colors.black],
+          ),
+        );
+      case WallpaperType.image:
+        return BoxDecoration(
+          color: Colors.black,
+        );
+    }
+  }
+}

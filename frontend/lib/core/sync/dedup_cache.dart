@@ -1,1 +1,151 @@
-﻿import 'dart:collection';import 'package:flutter/foundation.dart';class DedupCache {  static const int _maxCacheSize = 5000;  static const Duration _defaultTTL = Duration(hours: 24);  final _contentHashes = LinkedHashMap<String, _DedupEntry>();  final _messageIds = LinkedHashMap<String, _DedupEntry>();  final Map<String, dynamic> _customCache = {};  void recordMessage(String messageId, String content) {    _cleanup();    final contentHash = _hashContent(content);    _messageIds[messageId] = _DedupEntry(      timestamp: DateTime.now(),      contentHash: contentHash,    );    _contentHashes[contentHash] = _DedupEntry(      timestamp: DateTime.now(),      messageId: messageId,    );    while (_messageIds.length > _maxCacheSize) {      _messageIds.remove(_messageIds.keys.first);    }    while (_contentHashes.length > _maxCacheSize) {      _contentHashes.remove(_contentHashes.keys.first);    }  }  bool isDuplicate(String messageId) {    return _messageIds.containsKey(messageId);  }  bool isDuplicateContent(String content) {    final hash = _hashContent(content);    return _contentHashes.containsKey(hash);  }  String _hashContent(String content) {    return content.hashCode.toRadixString(16);  }  void _cleanup() {    final now = DateTime.now();    final cutoff = now.subtract(_defaultTTL);    _messageIds.removeWhere((_, entry) => entry.timestamp.isBefore(cutoff));    _contentHashes.removeWhere((_, entry) => entry.timestamp.isBefore(cutoff));  }  int get cacheSize => _messageIds.length + _contentHashes.length;  void clear() {    _messageIds.clear();    _contentHashes.clear();    _customCache.clear();  }  Map<String, dynamic> getStats() => {        'messageIdCacheSize': _messageIds.length,        'contentHashCacheSize': _contentHashes.length,        'totalCacheSize': cacheSize,        'maxCacheSize': _maxCacheSize,        'ttlHours': _defaultTTL.inHours,      };}class _DedupEntry {  final DateTime timestamp;  final String? messageId;  final String? contentHash;  _DedupEntry({    required this.timestamp,    this.messageId,    this.contentHash,  });}class MessageDeduplicator {  final DedupCache _cache = DedupCache();  DedupCache get cache => _cache;  DeduplicationResult checkAndRecord({    required String messageId,    required String content,  }) {    if (_cache.isDuplicate(messageId)) {      return DeduplicationResult(        isDuplicate: true,        reason: DuplicateReason.messageIdExists,        action: DeduplicationAction.drop,      );    }    if (_cache.isDuplicateContent(content)) {      return DeduplicationResult(        isDuplicate: true,        reason: DuplicateReason.contentExists,        action: DeduplicationAction.drop,      );    }    _cache.recordMessage(messageId, content);    return DeduplicationResult(      isDuplicate: false,      reason: null,      action: DeduplicationAction.accept,    );  }  bool isAlreadyProcessed(String messageId) {    return _cache.isDuplicate(messageId);  }  void clear() => _cache.clear();  int get cacheSize => _cache.cacheSize;}class DeduplicationResult {  final bool isDuplicate;  final DuplicateReason? reason;  final DeduplicationAction action;  DeduplicationResult({    required this.isDuplicate,    required this.reason,    required this.action,  });}enum DuplicateReason {  messageIdExists,  contentExists,  hashExists,}enum DeduplicationAction {  accept,  drop,  merge,}
+import 'dart:collection';
+import 'package:flutter/foundation.dart';
+
+class DedupCache {
+  static const int _maxCacheSize = 5000;
+  static const Duration _defaultTTL = Duration(hours: 24);
+
+  final _contentHashes = LinkedHashMap<String, _DedupEntry>();
+  final _messageIds = LinkedHashMap<String, _DedupEntry>();
+  final Map<String, dynamic> _customCache = {};
+
+  void recordMessage(String messageId, String content) {
+    _cleanup();
+
+    final contentHash = _hashContent(content);
+
+    _messageIds[messageId] = _DedupEntry(
+      timestamp: DateTime.now(),
+      contentHash: contentHash,
+    );
+
+    _contentHashes[contentHash] = _DedupEntry(
+      timestamp: DateTime.now(),
+      messageId: messageId,
+    );
+
+    while (_messageIds.length > _maxCacheSize) {
+      _messageIds.remove(_messageIds.keys.first);
+    }
+
+    while (_contentHashes.length > _maxCacheSize) {
+      _contentHashes.remove(_contentHashes.keys.first);
+    }
+  }
+
+  bool isDuplicate(String messageId) {
+    return _messageIds.containsKey(messageId);
+  }
+
+  bool isDuplicateContent(String content) {
+    final hash = _hashContent(content);
+    return _contentHashes.containsKey(hash);
+  }
+
+  String _hashContent(String content) {
+    return content.hashCode.toRadixString(16);
+  }
+
+  void _cleanup() {
+    final now = DateTime.now();
+    final cutoff = now.subtract(_defaultTTL);
+
+    _messageIds.removeWhere((_, entry) => entry.timestamp.isBefore(cutoff));
+    _contentHashes.removeWhere((_, entry) => entry.timestamp.isBefore(cutoff));
+  }
+
+  int get cacheSize => _messageIds.length + _contentHashes.length;
+
+  void clear() {
+    _messageIds.clear();
+    _contentHashes.clear();
+    _customCache.clear();
+  }
+
+  Map<String, dynamic> getStats() => {
+        'messageIdCacheSize': _messageIds.length,
+        'contentHashCacheSize': _contentHashes.length,
+        'totalCacheSize': cacheSize,
+        'maxCacheSize': _maxCacheSize,
+        'ttlHours': _defaultTTL.inHours,
+      };
+}
+
+class _DedupEntry {
+  final DateTime timestamp;
+  final String? messageId;
+  final String? contentHash;
+
+  _DedupEntry({
+    required this.timestamp,
+    this.messageId,
+    this.contentHash,
+  });
+}
+
+class MessageDeduplicator {
+  final DedupCache _cache = DedupCache();
+
+  DedupCache get cache => _cache;
+
+  DeduplicationResult checkAndRecord({
+    required String messageId,
+    required String content,
+  }) {
+    if (_cache.isDuplicate(messageId)) {
+      return DeduplicationResult(
+        isDuplicate: true,
+        reason: DuplicateReason.messageIdExists,
+        action: DeduplicationAction.drop,
+      );
+    }
+
+    if (_cache.isDuplicateContent(content)) {
+      return DeduplicationResult(
+        isDuplicate: true,
+        reason: DuplicateReason.contentExists,
+        action: DeduplicationAction.drop,
+      );
+    }
+
+    _cache.recordMessage(messageId, content);
+
+    return DeduplicationResult(
+      isDuplicate: false,
+      reason: null,
+      action: DeduplicationAction.accept,
+    );
+  }
+
+  bool isAlreadyProcessed(String messageId) {
+    return _cache.isDuplicate(messageId);
+  }
+
+  void clear() => _cache.clear();
+
+  int get cacheSize => _cache.cacheSize;
+}
+
+class DeduplicationResult {
+  final bool isDuplicate;
+  final DuplicateReason? reason;
+  final DeduplicationAction action;
+
+  DeduplicationResult({
+    required this.isDuplicate,
+    required this.reason,
+    required this.action,
+  });
+}
+
+enum DuplicateReason {
+  messageIdExists,
+  contentExists,
+  hashExists,
+}
+
+enum DeduplicationAction {
+  accept,
+  drop,
+  merge,
+}

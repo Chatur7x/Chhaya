@@ -1,7 +1,7 @@
-﻿import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
-import 'package:catus_chat/features/chat/data/reaction_service.dart';
-import 'package:catus_chat/features/chat/domain/models/message_metadata.dart';
+import 'package:chaaya/features/chat/data/reaction_service.dart';
+import 'package:chaaya/features/chat/domain/models/message_metadata.dart';
 
 void main() {
   group('ReactionService', () {

@@ -1,1 +1,53 @@
-﻿import 'dart:convert';import 'package:stomp_dart_client/stomp_dart_client.dart';import 'package:flutter_riverpod/flutter_riverpod.dart';import '../../auth/data/auth_service.dart';final chatServiceProvider = Provider<ChatService>((ref) {  return ChatService(ref.watch(authServiceProvider));});class ChatService {  final AuthService _authService;  StompClient? _stompClient;  ChatService(this._authService);  void connect(Function(dynamic) onMessageReceived) async {    final token = await _authService.getToken();        _stompClient = StompClient(      config: StompConfig(        url: 'ws://localhost:8080/ws-chat',        onConnect: (frame) {          _stompClient?.subscribe(            destination: '/user/queue/messages',            callback: (frame) {              if (frame.body != null) {                onMessageReceived(json.decode(frame.body!));              }            },          );        },        stompConnectHeaders: {'Authorization': 'Bearer $token'},        webSocketConnectHeaders: {'Authorization': 'Bearer $token'},      ),    );    _stompClient?.activate();  }  void sendMessage(String recipient, String encryptedContent) {    _stompClient?.send(      destination: '/app/chat.sendMessage',      body: json.encode({        'recipientUsername': recipient,        'content': encryptedContent,      }),    );  }  void disconnect() {    _stompClient?.deactivate();  }}
+import 'dart:convert';
+import 'package:stomp_dart_client/stomp_dart_client.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../auth/data/auth_service.dart';
+
+final chatServiceProvider = Provider<ChatService>((ref) {
+  return ChatService(ref.watch(authServiceProvider));
+});
+
+class ChatService {
+  final AuthService _authService;
+  StompClient? _stompClient;
+
+  ChatService(this._authService);
+
+  void connect(Function(dynamic) onMessageReceived) async {
+    final token = await _authService.getToken();
+    
+    _stompClient = StompClient(
+      config: StompConfig(
+        url: 'ws://localhost:8080/ws-chat',
+        onConnect: (frame) {
+          _stompClient?.subscribe(
+            destination: '/user/queue/messages',
+            callback: (frame) {
+              if (frame.body != null) {
+                onMessageReceived(json.decode(frame.body!));
+              }
+            },
+          );
+        },
+        stompConnectHeaders: {'Authorization': 'Bearer $token'},
+        webSocketConnectHeaders: {'Authorization': 'Bearer $token'},
+      ),
+    );
+
+    _stompClient?.activate();
+  }
+
+  void sendMessage(String recipient, String encryptedContent) {
+    _stompClient?.send(
+      destination: '/app/chat.sendMessage',
+      body: json.encode({
+        'recipientUsername': recipient,
+        'content': encryptedContent,
+      }),
+    );
+  }
+
+  void disconnect() {
+    _stompClient?.deactivate();
+  }
+}

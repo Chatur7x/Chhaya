@@ -1,1 +1,472 @@
-﻿import 'dart:typed_data';import 'package:flutter/material.dart';import 'package:flutter_riverpod/flutter_riverpod.dart';import 'package:image_picker/image_picker.dart';import 'package:geolocator/geolocator.dart';import '../../../core/theme/catus_theme.dart';import '../data/media_service.dart';final mediaServiceProvider = FutureProvider<MediaService>((ref) async {  return await MediaService.getInstance();});final selectedMediaProvider = StateProvider<List<String>>((ref) => []);class MediaGalleryScreen extends ConsumerStatefulWidget {  const MediaGalleryScreen({super.key});  @override  ConsumerState<MediaGalleryScreen> createState() => _MediaGalleryScreenState();}class _MediaGalleryScreenState extends ConsumerState<MediaGalleryScreen>    with SingleTickerProviderStateMixin {  late TabController _tabController;  final ImagePicker _picker = ImagePicker();  bool _isSelectionMode = false;  @override  void initState() {    super.initState();    _tabController = TabController(length: 3, vsync: this);  }  @override  void dispose() {    _tabController.dispose();    super.dispose();  }  Future<void> _takePhoto() async {    final XFile? photo = await _picker.pickImage(source: ImageSource.camera);    if (photo != null) {      await _saveMedia(await photo.readAsBytes(), MediaType.photo);    }  }  Future<void> _recordVideo() async {    final XFile? video = await _picker.pickVideo(        source: ImageSource.camera, maxDuration: const Duration(seconds: 60));    if (video != null) {      await _saveMedia(await video.readAsBytes(), MediaType.video);    }  }  Future<void> _pickFromGallery() async {    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);    if (image != null) {      await _saveMedia(await image.readAsBytes(), MediaType.photo);    }  }  Future<void> _saveMedia(List<int> bytes, MediaType type) async {    final service = await ref.read(mediaServiceProvider.future);    Position? position;    try {      position = await Geolocator.getCurrentPosition();    } catch (_) {}    if (type == MediaType.photo) {      await service.savePhoto(        bytes: bytes is Uint8List ? bytes : Uint8List.fromList(bytes),        ownerId: 'local',        latitude: position?.latitude,        longitude: position?.longitude,      );    } else {      await service.saveVideo(        bytes: bytes is Uint8List ? bytes : Uint8List.fromList(bytes),        ownerId: 'local',        latitude: position?.latitude,        longitude: position?.longitude,      );    }    setState(() {});  }  void _toggleSelectionMode() {    setState(() {      _isSelectionMode = !_isSelectionMode;      if (!_isSelectionMode) {        ref.read(selectedMediaProvider.notifier).state = [];      }    });  }  void _toggleSelection(String id) {    final current = ref.read(selectedMediaProvider);    if (current.contains(id)) {      ref.read(selectedMediaProvider.notifier).state =          current.where((i) => i != id).toList();    } else {      ref.read(selectedMediaProvider.notifier).state = [...current, id];    }  }  @override  Widget build(BuildContext context) {    final mediaServiceAsync = ref.watch(mediaServiceProvider);    final selectedMedia = ref.watch(selectedMediaProvider);    return Scaffold(      backgroundColor: CatusTheme.background,      appBar: AppBar(        backgroundColor: CatusTheme.surface,        title: Text(          _isSelectionMode              ? '${selectedMedia.length} selected'              : 'Media Gallery',          style: const TextStyle(color: CatusTheme.textPrimary),        ),        actions: [          if (_isSelectionMode) ...[            IconButton(              icon:                  const Icon(Icons.select_all, color: CatusTheme.textPrimary),              onPressed: () {},            ),            IconButton(              icon: const Icon(Icons.share, color: CatusTheme.accent),              onPressed: selectedMedia.isEmpty ? null : () => _shareSelected(),            ),            IconButton(              icon: const Icon(Icons.delete, color: CatusTheme.sosRed),              onPressed: selectedMedia.isEmpty ? null : () => _deleteSelected(),            ),          ],          IconButton(            icon: Icon(              _isSelectionMode ? Icons.close : Icons.checklist,              color: CatusTheme.textPrimary,            ),            onPressed: _toggleSelectionMode,          ),        ],        bottom: TabBar(          controller: _tabController,          indicatorColor: CatusTheme.accent,          labelColor: CatusTheme.accent,          unselectedLabelColor: CatusTheme.textMuted,          tabs: const [            Tab(text: 'All', icon: Icon(Icons.photo_library)),            Tab(text: 'Photos', icon: Icon(Icons.photo)),            Tab(text: 'Videos', icon: Icon(Icons.videocam)),          ],        ),      ),      body: mediaServiceAsync.when(        data: (service) => TabBarView(          controller: _tabController,          children: [            _buildMediaGrid(service, null),            _buildMediaGrid(service, MediaType.photo),            _buildMediaGrid(service, MediaType.video),          ],        ),        loading: () => const Center(child: CircularProgressIndicator()),        error: (e, _) => Center(            child: Text('Error: $e',                style: const TextStyle(color: CatusTheme.sosRed))),      ),      floatingActionButton: Column(        mainAxisAlignment: MainAxisAlignment.end,        children: [          FloatingActionButton.small(            heroTag: 'camera',            backgroundColor: CatusTheme.accent,            onPressed: _takePhoto,            child: const Icon(Icons.camera_alt),          ),          const SizedBox(height: 8),          FloatingActionButton.small(            heroTag: 'video',            backgroundColor: CatusTheme.sosRed,            onPressed: _recordVideo,            child: const Icon(Icons.videocam),          ),          const SizedBox(height: 8),          FloatingActionButton.small(            heroTag: 'gallery',            backgroundColor: CatusTheme.surface,            onPressed: _pickFromGallery,            child: const Icon(Icons.photo_library),          ),        ],      ),    );  }  Widget _buildMediaGrid(MediaService service, MediaType? filterType) {    final media = filterType == null        ? service.getAllMedia()        : service.getAllMedia().where((m) => m.type == filterType).toList();    final selectedMedia = ref.watch(selectedMediaProvider);    if (media.isEmpty) {      return Center(        child: Column(          mainAxisAlignment: MainAxisAlignment.center,          children: [            Icon(              filterType == MediaType.video                  ? Icons.videocam_off                  : Icons.photo_library_outlined,              size: 80,              color: CatusTheme.textMuted,            ),            const SizedBox(height: 16),            Text(              'No ${filterType?.name ?? ''} media yet',              style:                  const TextStyle(color: CatusTheme.textMuted, fontSize: 18),            ),            const SizedBox(height: 8),            const Text(              'Tap camera to capture',              style: TextStyle(color: CatusTheme.textMuted),            ),          ],        ),      );    }    return GridView.builder(      padding: const EdgeInsets.all(8),      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(        crossAxisCount: 3,        crossAxisSpacing: 4,        mainAxisSpacing: 4,      ),      itemCount: media.length,      itemBuilder: (context, index) {        final item = media[index];        final isSelected = selectedMedia.contains(item.id);        return GestureDetector(          onTap: () {            if (_isSelectionMode) {              _toggleSelection(item.id);            } else {              _showMediaDetail(item);            }          },          onLongPress: () {            if (!_isSelectionMode) {              _toggleSelectionMode();            }            _toggleSelection(item.id);          },          child: Stack(            fit: StackFit.expand,            children: [              Container(                decoration: BoxDecoration(                  color: CatusTheme.surface,                  borderRadius: BorderRadius.circular(8),                ),                child: Center(                  child: Icon(                    item.type == MediaType.video ? Icons.videocam : Icons.photo,                    color: CatusTheme.textMuted,                    size: 40,                  ),                ),              ),              if (item.type == MediaType.video)                Positioned(                  bottom: 4,                  right: 4,                  child: Container(                    padding:                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),                    decoration: BoxDecoration(                      color: Colors.black54,                      borderRadius: BorderRadius.circular(4),                    ),                    child: const Icon(Icons.play_arrow,                        color: Colors.white, size: 16),                  ),                ),              if (item.latitude != null)                Positioned(                  top: 4,                  left: 4,                  child: Container(                    padding: const EdgeInsets.all(4),                    decoration: BoxDecoration(                      color: CatusTheme.safeGreen.withOpacity(0.8),                      borderRadius: BorderRadius.circular(4),                    ),                    child: const Icon(Icons.location_on,                        color: Colors.white, size: 12),                  ),                ),              if (_isSelectionMode)                Positioned(                  top: 4,                  right: 4,                  child: Container(                    width: 24,                    height: 24,                    decoration: BoxDecoration(                      color: isSelected ? CatusTheme.accent : Colors.black38,                      shape: BoxShape.circle,                      border: Border.all(color: Colors.white, width: 2),                    ),                    child: isSelected                        ? const Icon(Icons.check, color: Colors.white, size: 16)                        : null,                  ),                ),            ],          ),        );      },    );  }  void _showMediaDetail(MediaItem item) {    showModalBottomSheet(      context: context,      backgroundColor: CatusTheme.surface,      shape: const RoundedRectangleBorder(        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),      ),      builder: (context) => Container(        padding: const EdgeInsets.all(20),        child: Column(          mainAxisSize: MainAxisSize.min,          crossAxisAlignment: CrossAxisAlignment.start,          children: [            Row(              children: [                Icon(                  item.type == MediaType.video ? Icons.videocam : Icons.photo,                  color: CatusTheme.accent,                ),                const SizedBox(width: 12),                Text(                  item.type == MediaType.video ? 'Video' : 'Photo',                  style: const TextStyle(                    color: CatusTheme.textPrimary,                    fontSize: 18,                    fontWeight: FontWeight.bold,                  ),                ),              ],            ),            const SizedBox(height: 16),            _buildInfoRow(Icons.access_time, _formatDate(item.createdAt)),            if (item.latitude != null)              _buildInfoRow(Icons.location_on,                  '${item.latitude!.toStringAsFixed(4)}, ${item.longitude!.toStringAsFixed(4)}'),            if (item.note != null) _buildInfoRow(Icons.note, item.note!),            const SizedBox(height: 24),            Row(              children: [                Expanded(                  child: OutlinedButton.icon(                    onPressed: () {                      Navigator.pop(context);                    },                    icon: const Icon(Icons.share),                    label: const Text('Share'),                    style: OutlinedButton.styleFrom(                      foregroundColor: CatusTheme.accent,                      side: const BorderSide(color: CatusTheme.accent),                    ),                  ),                ),                const SizedBox(width: 12),                Expanded(                  child: ElevatedButton.icon(                    onPressed: () async {                      final service =                          await ref.read(mediaServiceProvider.future);                      await service.deleteMedia(item.id);                      if (mounted) Navigator.pop(context);                      setState(() {});                    },                    icon: const Icon(Icons.delete),                    label: const Text('Delete'),                    style: ElevatedButton.styleFrom(                      backgroundColor: CatusTheme.sosRed,                      foregroundColor: Colors.white,                    ),                  ),                ),              ],            ),          ],        ),      ),    );  }  Widget _buildInfoRow(IconData icon, String text) {    return Padding(      padding: const EdgeInsets.symmetric(vertical: 8),      child: Row(        children: [          Icon(icon, size: 20, color: CatusTheme.textMuted),          const SizedBox(width: 12),          Expanded(            child: Text(              text,              style: const TextStyle(color: CatusTheme.textSecondary),            ),          ),        ],      ),    );  }  String _formatDate(DateTime date) {    return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';  }  void _shareSelected() {    ScaffoldMessenger.of(context).showSnackBar(      SnackBar(        content: Text(            'Sharing ${ref.read(selectedMediaProvider).length} items over mesh'),        backgroundColor: CatusTheme.accent,      ),    );  }  void _deleteSelected() async {    final confirmed = await showDialog<bool>(      context: context,      builder: (context) => AlertDialog(        backgroundColor: CatusTheme.surface,        title: const Text('Delete Selected?',            style: TextStyle(color: CatusTheme.textPrimary)),        content: Text(            'This will delete ${ref.read(selectedMediaProvider).length} items permanently.'),        actions: [          TextButton(            onPressed: () => Navigator.pop(context, false),            child: const Text('Cancel'),          ),          ElevatedButton(            onPressed: () => Navigator.pop(context, true),            style:                ElevatedButton.styleFrom(backgroundColor: CatusTheme.sosRed),            child: const Text('Delete'),          ),        ],      ),    );    if (confirmed == true) {      final service = await ref.read(mediaServiceProvider.future);      for (final id in ref.read(selectedMediaProvider)) {        await service.deleteMedia(id);      }      ref.read(selectedMediaProvider.notifier).state = [];      _toggleSelectionMode();      setState(() {});    }  }}
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:geolocator/geolocator.dart';
+import '../../../core/theme/chaaya_theme.dart';
+import '../data/media_service.dart';
+
+final mediaServiceProvider = FutureProvider<MediaService>((ref) async {
+  return await MediaService.getInstance();
+});
+
+final selectedMediaProvider = StateProvider<List<String>>((ref) => []);
+
+class MediaGalleryScreen extends ConsumerStatefulWidget {
+  const MediaGalleryScreen({super.key});
+
+  @override
+  ConsumerState<MediaGalleryScreen> createState() => _MediaGalleryScreenState();
+}
+
+class _MediaGalleryScreenState extends ConsumerState<MediaGalleryScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final ImagePicker _picker = ImagePicker();
+  bool _isSelectionMode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _takePhoto() async {
+    final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
+    if (photo != null) {
+      await _saveMedia(await photo.readAsBytes(), MediaType.photo);
+    }
+  }
+
+  Future<void> _recordVideo() async {
+    final XFile? video = await _picker.pickVideo(
+        source: ImageSource.camera, maxDuration: const Duration(seconds: 60));
+    if (video != null) {
+      await _saveMedia(await video.readAsBytes(), MediaType.video);
+    }
+  }
+
+  Future<void> _pickFromGallery() async {
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      await _saveMedia(await image.readAsBytes(), MediaType.photo);
+    }
+  }
+
+  Future<void> _saveMedia(List<int> bytes, MediaType type) async {
+    final service = await ref.read(mediaServiceProvider.future);
+    Position? position;
+    try {
+      position = await Geolocator.getCurrentPosition();
+    } catch (_) {}
+
+    if (type == MediaType.photo) {
+      await service.savePhoto(
+        bytes: bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
+        ownerId: 'local',
+        latitude: position?.latitude,
+        longitude: position?.longitude,
+      );
+    } else {
+      await service.saveVideo(
+        bytes: bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
+        ownerId: 'local',
+        latitude: position?.latitude,
+        longitude: position?.longitude,
+      );
+    }
+    setState(() {});
+  }
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _isSelectionMode = !_isSelectionMode;
+      if (!_isSelectionMode) {
+        ref.read(selectedMediaProvider.notifier).state = [];
+      }
+    });
+  }
+
+  void _toggleSelection(String id) {
+    final current = ref.read(selectedMediaProvider);
+    if (current.contains(id)) {
+      ref.read(selectedMediaProvider.notifier).state =
+          current.where((i) => i != id).toList();
+    } else {
+      ref.read(selectedMediaProvider.notifier).state = [...current, id];
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaServiceAsync = ref.watch(mediaServiceProvider);
+    final selectedMedia = ref.watch(selectedMediaProvider);
+
+    return Scaffold(
+      backgroundColor: ChaayaTheme.background,
+      appBar: AppBar(
+        backgroundColor: ChaayaTheme.surface,
+        title: Text(
+          _isSelectionMode
+              ? '${selectedMedia.length} selected'
+              : 'Media Gallery',
+          style: const TextStyle(color: ChaayaTheme.textPrimary),
+        ),
+        actions: [
+          if (_isSelectionMode) ...[
+            IconButton(
+              icon:
+                  const Icon(Icons.select_all, color: ChaayaTheme.textPrimary),
+              onPressed: () {},
+            ),
+            IconButton(
+              icon: const Icon(Icons.share, color: ChaayaTheme.accent),
+              onPressed: selectedMedia.isEmpty ? null : () => _shareSelected(),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete, color: ChaayaTheme.sosRed),
+              onPressed: selectedMedia.isEmpty ? null : () => _deleteSelected(),
+            ),
+          ],
+          IconButton(
+            icon: Icon(
+              _isSelectionMode ? Icons.close : Icons.checklist,
+              color: ChaayaTheme.textPrimary,
+            ),
+            onPressed: _toggleSelectionMode,
+          ),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: ChaayaTheme.accent,
+          labelColor: ChaayaTheme.accent,
+          unselectedLabelColor: ChaayaTheme.textMuted,
+          tabs: const [
+            Tab(text: 'All', icon: Icon(Icons.photo_library)),
+            Tab(text: 'Photos', icon: Icon(Icons.photo)),
+            Tab(text: 'Videos', icon: Icon(Icons.videocam)),
+          ],
+        ),
+      ),
+      body: mediaServiceAsync.when(
+        data: (service) => TabBarView(
+          controller: _tabController,
+          children: [
+            _buildMediaGrid(service, null),
+            _buildMediaGrid(service, MediaType.photo),
+            _buildMediaGrid(service, MediaType.video),
+          ],
+        ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(
+            child: Text('Error: $e',
+                style: const TextStyle(color: ChaayaTheme.sosRed))),
+      ),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'camera',
+            backgroundColor: ChaayaTheme.accent,
+            onPressed: _takePhoto,
+            child: const Icon(Icons.camera_alt),
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton.small(
+            heroTag: 'video',
+            backgroundColor: ChaayaTheme.sosRed,
+            onPressed: _recordVideo,
+            child: const Icon(Icons.videocam),
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton.small(
+            heroTag: 'gallery',
+            backgroundColor: ChaayaTheme.surface,
+            onPressed: _pickFromGallery,
+            child: const Icon(Icons.photo_library),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMediaGrid(MediaService service, MediaType? filterType) {
+    final media = filterType == null
+        ? service.getAllMedia()
+        : service.getAllMedia().where((m) => m.type == filterType).toList();
+    final selectedMedia = ref.watch(selectedMediaProvider);
+
+    if (media.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              filterType == MediaType.video
+                  ? Icons.videocam_off
+                  : Icons.photo_library_outlined,
+              size: 80,
+              color: ChaayaTheme.textMuted,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No ${filterType?.name ?? ''} media yet',
+              style:
+                  const TextStyle(color: ChaayaTheme.textMuted, fontSize: 18),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Tap camera to capture',
+              style: TextStyle(color: ChaayaTheme.textMuted),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(8),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 4,
+        mainAxisSpacing: 4,
+      ),
+      itemCount: media.length,
+      itemBuilder: (context, index) {
+        final item = media[index];
+        final isSelected = selectedMedia.contains(item.id);
+
+        return GestureDetector(
+          onTap: () {
+            if (_isSelectionMode) {
+              _toggleSelection(item.id);
+            } else {
+              _showMediaDetail(item);
+            }
+          },
+          onLongPress: () {
+            if (!_isSelectionMode) {
+              _toggleSelectionMode();
+            }
+            _toggleSelection(item.id);
+          },
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: ChaayaTheme.surface,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: Icon(
+                    item.type == MediaType.video ? Icons.videocam : Icons.photo,
+                    color: ChaayaTheme.textMuted,
+                    size: 40,
+                  ),
+                ),
+              ),
+              if (item.type == MediaType.video)
+                Positioned(
+                  bottom: 4,
+                  right: 4,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Icon(Icons.play_arrow,
+                        color: Colors.white, size: 16),
+                  ),
+                ),
+              if (item.latitude != null)
+                Positioned(
+                  top: 4,
+                  left: 4,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: ChaayaTheme.safeGreen.withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Icon(Icons.location_on,
+                        color: Colors.white, size: 12),
+                  ),
+                ),
+              if (_isSelectionMode)
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: isSelected ? ChaayaTheme.accent : Colors.black38,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: isSelected
+                        ? const Icon(Icons.check, color: Colors.white, size: 16)
+                        : null,
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showMediaDetail(MediaItem item) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: ChaayaTheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  item.type == MediaType.video ? Icons.videocam : Icons.photo,
+                  color: ChaayaTheme.accent,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  item.type == MediaType.video ? 'Video' : 'Photo',
+                  style: const TextStyle(
+                    color: ChaayaTheme.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildInfoRow(Icons.access_time, _formatDate(item.createdAt)),
+            if (item.latitude != null)
+              _buildInfoRow(Icons.location_on,
+                  '${item.latitude!.toStringAsFixed(4)}, ${item.longitude!.toStringAsFixed(4)}'),
+            if (item.note != null) _buildInfoRow(Icons.note, item.note!),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    icon: const Icon(Icons.share),
+                    label: const Text('Share'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: ChaayaTheme.accent,
+                      side: const BorderSide(color: ChaayaTheme.accent),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final service =
+                          await ref.read(mediaServiceProvider.future);
+                      await service.deleteMedia(item.id);
+                      if (mounted) Navigator.pop(context);
+                      setState(() {});
+                    },
+                    icon: const Icon(Icons.delete),
+                    label: const Text('Delete'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ChaayaTheme.sosRed,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: ChaayaTheme.textMuted),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(color: ChaayaTheme.textSecondary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  void _shareSelected() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+            'Sharing ${ref.read(selectedMediaProvider).length} items over mesh'),
+        backgroundColor: ChaayaTheme.accent,
+      ),
+    );
+  }
+
+  void _deleteSelected() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: ChaayaTheme.surface,
+        title: const Text('Delete Selected?',
+            style: TextStyle(color: ChaayaTheme.textPrimary)),
+        content: Text(
+            'This will delete ${ref.read(selectedMediaProvider).length} items permanently.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style:
+                ElevatedButton.styleFrom(backgroundColor: ChaayaTheme.sosRed),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final service = await ref.read(mediaServiceProvider.future);
+      for (final id in ref.read(selectedMediaProvider)) {
+        await service.deleteMedia(id);
+      }
+      ref.read(selectedMediaProvider.notifier).state = [];
+      _toggleSelectionMode();
+      setState(() {});
+    }
+  }
+}

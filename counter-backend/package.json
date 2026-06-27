@@ -1,7 +1,7 @@
-﻿{
-  "name": "catus-chat-counter",
+{
+  "name": "chaaya-counter-backend",
   "version": "1.0.0",
-  "description": "Backend for tracking Catus Chat mesh network stats",
+  "description": "Backend for tracking Chaaya mesh network stats",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

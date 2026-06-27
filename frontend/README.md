@@ -1,4 +1,4 @@
-﻿# catus_chat
+# chaaya
 
 A new Flutter project.
 

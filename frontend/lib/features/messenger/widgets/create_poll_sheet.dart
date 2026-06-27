@@ -1,1 +1,427 @@
-﻿import 'package:flutter/material.dart';import 'package:flutter_riverpod/flutter_riverpod.dart';import '../../../core/theme/catus_theme.dart';import '../data/poll_service.dart';class CreatePollSheet extends ConsumerStatefulWidget {  final String creatorId;  final String conversationId;  final Function(Map<String, dynamic> pollData)? onPollCreated;  const CreatePollSheet({    super.key,    required this.creatorId,    required this.conversationId,    this.onPollCreated,  });  @override  ConsumerState<CreatePollSheet> createState() => _CreatePollSheetState();}class _CreatePollSheetState extends ConsumerState<CreatePollSheet> {  final _questionController = TextEditingController();  final List<TextEditingController> _optionControllers = [    TextEditingController(),    TextEditingController(),  ];  bool _isAnonymous = false;  bool _allowsMultiple = false;  int _expiryHours = 24;  bool _isCreating = false;  @override  void dispose() {    _questionController.dispose();    for (final controller in _optionControllers) {      controller.dispose();    }    super.dispose();  }  void _addOption() {    if (_optionControllers.length < 10) {      setState(() {        _optionControllers.add(TextEditingController());      });    }  }  void _removeOption(int index) {    if (_optionControllers.length > 2) {      setState(() {        _optionControllers[index].dispose();        _optionControllers.removeAt(index);      });    }  }  bool _isValid() {    if (_questionController.text.trim().isEmpty) return false;    final validOptions =        _optionControllers.where((c) => c.text.trim().isNotEmpty).length;    return validOptions >= 2;  }  Future<void> _createPoll() async {    if (!_isValid() || _isCreating) return;    setState(() => _isCreating = true);    try {      final service = ref.read(pollServiceProvider);      final poll = await service.createPoll(        question: _questionController.text.trim(),        optionTexts: _optionControllers            .map((c) => c.text.trim())            .where((t) => t.isNotEmpty)            .toList(),        creatorId: widget.creatorId,        expiresIn: Duration(hours: _expiryHours),        isAnonymous: _isAnonymous,        allowsMultiple: _allowsMultiple,      );      widget.onPollCreated?.call({        'poll': poll,        'conversationId': widget.conversationId,      });      if (mounted) {        Navigator.pop(context, poll);      }    } catch (e) {      if (mounted) {        ScaffoldMessenger.of(context).showSnackBar(          SnackBar(              content: Text('Failed to create poll: $e'),              backgroundColor: CatusTheme.sosRed),        );      }    } finally {      if (mounted) {        setState(() => _isCreating = false);      }    }  }  @override  Widget build(BuildContext context) {    return Container(      decoration: const BoxDecoration(        color: CatusTheme.surface,        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),      ),      child: Column(        mainAxisSize: MainAxisSize.min,        children: [          // Handle          Container(            margin: const EdgeInsets.only(top: 12),            width: 40,            height: 4,            decoration: BoxDecoration(              color: CatusTheme.textMuted.withOpacity(0.5),              borderRadius: BorderRadius.circular(2),            ),          ),          // Header          Padding(            padding: const EdgeInsets.all(20),            child: Row(              children: [                Container(                  padding: const EdgeInsets.all(10),                  decoration: BoxDecoration(                    color: CatusTheme.accent.withOpacity(0.15),                    borderRadius: BorderRadius.circular(12),                  ),                  child: const Icon(Icons.poll,                      color: CatusTheme.accent, size: 24),                ),                const SizedBox(width: 16),                const Expanded(                  child: Column(                    crossAxisAlignment: CrossAxisAlignment.start,                    children: [                      Text('Create Poll', style: CatusTheme.heading3),                      SizedBox(height: 2),                      Text('Ask your group a question',                          style: CatusTheme.bodySmall),                    ],                  ),                ),                IconButton(                  icon: const Icon(Icons.close, color: CatusTheme.textMuted),                  onPressed: () => Navigator.pop(context),                ),              ],            ),          ),          const Divider(height: 1, color: CatusTheme.glassBorder),          // Content          Flexible(            child: SingleChildScrollView(              padding: const EdgeInsets.all(20),              child: Column(                crossAxisAlignment: CrossAxisAlignment.start,                children: [                  // Question field                  const Text('Question', style: CatusTheme.bodyMedium),                  const SizedBox(height: 8),                  TextField(                    controller: _questionController,                    style: const TextStyle(color: CatusTheme.textPrimary),                    maxLength: 200,                    decoration: InputDecoration(                      hintText: 'What would you like to ask?',                      hintStyle: const TextStyle(color: CatusTheme.textMuted),                      filled: true,                      fillColor: CatusTheme.surfaceLight,                      border: OutlineInputBorder(                        borderRadius: BorderRadius.circular(12),                        borderSide:                            const BorderSide(color: CatusTheme.glassBorder),                      ),                      enabledBorder: OutlineInputBorder(                        borderRadius: BorderRadius.circular(12),                        borderSide:                            const BorderSide(color: CatusTheme.glassBorder),                      ),                      focusedBorder: OutlineInputBorder(                        borderRadius: BorderRadius.circular(12),                        borderSide: const BorderSide(                            color: CatusTheme.accent, width: 1.5),                      ),                    ),                    onChanged: (_) => setState(() {}),                  ),                  const SizedBox(height: 20),                  // Options                  Row(                    children: [                      const Text('Options', style: CatusTheme.bodyMedium),                      const Spacer(),                      Text(                        '${_optionControllers.length}/10',                        style: CatusTheme.bodySmall,                      ),                    ],                  ),                  const SizedBox(height: 8),                  ...List.generate(_optionControllers.length, (index) {                    return Padding(                      padding: const EdgeInsets.only(bottom: 12),                      child: Row(                        children: [                          Expanded(                            child: TextField(                              controller: _optionControllers[index],                              style: const TextStyle(                                  color: CatusTheme.textPrimary),                              decoration: InputDecoration(                                hintText: 'Option ${index + 1}',                                hintStyle: const TextStyle(                                    color: CatusTheme.textMuted),                                filled: true,                                fillColor: CatusTheme.surfaceLight,                                border: OutlineInputBorder(                                  borderRadius: BorderRadius.circular(12),                                  borderSide: const BorderSide(                                      color: CatusTheme.glassBorder),                                ),                                enabledBorder: OutlineInputBorder(                                  borderRadius: BorderRadius.circular(12),                                  borderSide: const BorderSide(                                      color: CatusTheme.glassBorder),                                ),                                focusedBorder: OutlineInputBorder(                                  borderRadius: BorderRadius.circular(12),                                  borderSide: const BorderSide(                                      color: CatusTheme.accent, width: 1.5),                                ),                                prefixIcon: Container(                                  margin: const EdgeInsets.all(8),                                  width: 28,                                  height: 28,                                  decoration: BoxDecoration(                                    color: CatusTheme.accent.withOpacity(0.15),                                    borderRadius: BorderRadius.circular(8),                                  ),                                  child: Center(                                    child: Text(                                      '${index + 1}',                                      style: const TextStyle(                                        color: CatusTheme.accent,                                        fontWeight: FontWeight.w600,                                        fontSize: 13,                                      ),                                    ),                                  ),                                ),                              ),                            ),                          ),                          if (_optionControllers.length > 2)                            IconButton(                              icon: const Icon(Icons.remove_circle_outline,                                  color: CatusTheme.sosRed, size: 20),                              onPressed: () => _removeOption(index),                            ),                        ],                      ),                    );                  }),                  if (_optionControllers.length < 10)                    TextButton.icon(                      onPressed: _addOption,                      icon: const Icon(Icons.add, size: 18),                      label: const Text('Add Option'),                      style: TextButton.styleFrom(                        foregroundColor: CatusTheme.accent,                      ),                    ),                  const SizedBox(height: 20),                  // Toggles                  _buildToggle(                    'Anonymous Voting',                    'Voters will remain anonymous',                    _isAnonymous,                    (value) => setState(() => _isAnonymous = value),                  ),                  const SizedBox(height: 12),                  _buildToggle(                    'Allow Multiple Votes',                    'Users can vote for multiple options',                    _allowsMultiple,                    (value) => setState(() => _allowsMultiple = value),                  ),                  const SizedBox(height: 20),                  // Expiry selector                  const Text('Poll Duration', style: CatusTheme.bodyMedium),                  const SizedBox(height: 8),                  Wrap(                    spacing: 8,                    children: [1, 6, 12, 24, 72, 168].map((hours) {                      final isSelected = _expiryHours == hours;                      String label;                      if (hours < 24) {                        label = '${hours}h';                      } else if (hours < 168) {                        label = '${hours ~/ 24}d';                      } else {                        label = '${hours ~/ 168}w';                      }                      return ChoiceChip(                        label: Text(label),                        selected: isSelected,                        onSelected: (_) => setState(() => _expiryHours = hours),                        selectedColor: CatusTheme.accent,                        backgroundColor: CatusTheme.surfaceLight,                        labelStyle: TextStyle(                          color: isSelected                              ? Colors.white                              : CatusTheme.textSecondary,                        ),                        side: BorderSide(                          color: isSelected                              ? CatusTheme.accent                              : CatusTheme.glassBorder,                        ),                      );                    }).toList(),                  ),                ],              ),            ),          ),          // Create button          Container(            padding: EdgeInsets.only(              left: 20,              right: 20,              bottom: MediaQuery.of(context).padding.bottom + 20,              top: 16,            ),            decoration: const BoxDecoration(              border: Border(                  top: BorderSide(color: CatusTheme.glassBorder, width: 0.5)),            ),            child: SizedBox(              width: double.infinity,              height: 50,              child: ElevatedButton(                onPressed: _isValid() && !_isCreating ? _createPoll : null,                style: ElevatedButton.styleFrom(                  backgroundColor: CatusTheme.accent,                  disabledBackgroundColor: CatusTheme.surfaceLight,                  shape: RoundedRectangleBorder(                    borderRadius: BorderRadius.circular(12),                  ),                ),                child: _isCreating                    ? const SizedBox(                        width: 20,                        height: 20,                        child: CircularProgressIndicator(                          strokeWidth: 2,                          valueColor: AlwaysStoppedAnimation(Colors.white),                        ),                      )                    : const Text('Create Poll', style: TextStyle(fontSize: 16)),              ),            ),          ),        ],      ),    );  }  Widget _buildToggle(    String title,    String subtitle,    bool value,    ValueChanged<bool> onChanged,  ) {    return Container(      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),      decoration: BoxDecoration(        color: CatusTheme.surfaceLight,        borderRadius: BorderRadius.circular(12),        border: Border.all(color: CatusTheme.glassBorder),      ),      child: Row(        children: [          Expanded(            child: Column(              crossAxisAlignment: CrossAxisAlignment.start,              children: [                Text(title, style: CatusTheme.bodyLarge),                const SizedBox(height: 2),                Text(subtitle, style: CatusTheme.bodySmall),              ],            ),          ),          Switch(            value: value,            onChanged: onChanged,            activeColor: CatusTheme.accent,          ),        ],      ),    );  }}
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/theme/chaaya_theme.dart';
+import '../data/poll_service.dart';
+
+class CreatePollSheet extends ConsumerStatefulWidget {
+  final String creatorId;
+  final String conversationId;
+  final Function(Map<String, dynamic> pollData)? onPollCreated;
+
+  const CreatePollSheet({
+    super.key,
+    required this.creatorId,
+    required this.conversationId,
+    this.onPollCreated,
+  });
+
+  @override
+  ConsumerState<CreatePollSheet> createState() => _CreatePollSheetState();
+}
+
+class _CreatePollSheetState extends ConsumerState<CreatePollSheet> {
+  final _questionController = TextEditingController();
+  final List<TextEditingController> _optionControllers = [
+    TextEditingController(),
+    TextEditingController(),
+  ];
+
+  bool _isAnonymous = false;
+  bool _allowsMultiple = false;
+  int _expiryHours = 24;
+  bool _isCreating = false;
+
+  @override
+  void dispose() {
+    _questionController.dispose();
+    for (final controller in _optionControllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  void _addOption() {
+    if (_optionControllers.length < 10) {
+      setState(() {
+        _optionControllers.add(TextEditingController());
+      });
+    }
+  }
+
+  void _removeOption(int index) {
+    if (_optionControllers.length > 2) {
+      setState(() {
+        _optionControllers[index].dispose();
+        _optionControllers.removeAt(index);
+      });
+    }
+  }
+
+  bool _isValid() {
+    if (_questionController.text.trim().isEmpty) return false;
+    final validOptions =
+        _optionControllers.where((c) => c.text.trim().isNotEmpty).length;
+    return validOptions >= 2;
+  }
+
+  Future<void> _createPoll() async {
+    if (!_isValid() || _isCreating) return;
+
+    setState(() => _isCreating = true);
+
+    try {
+      final service = ref.read(pollServiceProvider);
+      final poll = await service.createPoll(
+        question: _questionController.text.trim(),
+        optionTexts: _optionControllers
+            .map((c) => c.text.trim())
+            .where((t) => t.isNotEmpty)
+            .toList(),
+        creatorId: widget.creatorId,
+        expiresIn: Duration(hours: _expiryHours),
+        isAnonymous: _isAnonymous,
+        allowsMultiple: _allowsMultiple,
+      );
+
+      widget.onPollCreated?.call({
+        'poll': poll,
+        'conversationId': widget.conversationId,
+      });
+
+      if (mounted) {
+        Navigator.pop(context, poll);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Failed to create poll: $e'),
+              backgroundColor: ChaayaTheme.sosRed),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isCreating = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: ChaayaTheme.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle
+          Container(
+            margin: const EdgeInsets.only(top: 12),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: ChaayaTheme.textMuted.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+
+          // Header
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: ChaayaTheme.accent.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.poll,
+                      color: ChaayaTheme.accent, size: 24),
+                ),
+                const SizedBox(width: 16),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Create Poll', style: ChaayaTheme.heading3),
+                      SizedBox(height: 2),
+                      Text('Ask your group a question',
+                          style: ChaayaTheme.bodySmall),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: ChaayaTheme.textMuted),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          ),
+
+          const Divider(height: 1, color: ChaayaTheme.glassBorder),
+
+          // Content
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Question field
+                  const Text('Question', style: ChaayaTheme.bodyMedium),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _questionController,
+                    style: const TextStyle(color: ChaayaTheme.textPrimary),
+                    maxLength: 200,
+                    decoration: InputDecoration(
+                      hintText: 'What would you like to ask?',
+                      hintStyle: const TextStyle(color: ChaayaTheme.textMuted),
+                      filled: true,
+                      fillColor: ChaayaTheme.surfaceLight,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            const BorderSide(color: ChaayaTheme.glassBorder),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            const BorderSide(color: ChaayaTheme.glassBorder),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                            color: ChaayaTheme.accent, width: 1.5),
+                      ),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Options
+                  Row(
+                    children: [
+                      const Text('Options', style: ChaayaTheme.bodyMedium),
+                      const Spacer(),
+                      Text(
+                        '${_optionControllers.length}/10',
+                        style: ChaayaTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
+                  ...List.generate(_optionControllers.length, (index) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _optionControllers[index],
+                              style: const TextStyle(
+                                  color: ChaayaTheme.textPrimary),
+                              decoration: InputDecoration(
+                                hintText: 'Option ${index + 1}',
+                                hintStyle: const TextStyle(
+                                    color: ChaayaTheme.textMuted),
+                                filled: true,
+                                fillColor: ChaayaTheme.surfaceLight,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(
+                                      color: ChaayaTheme.glassBorder),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(
+                                      color: ChaayaTheme.glassBorder),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(
+                                      color: ChaayaTheme.accent, width: 1.5),
+                                ),
+                                prefixIcon: Container(
+                                  margin: const EdgeInsets.all(8),
+                                  width: 28,
+                                  height: 28,
+                                  decoration: BoxDecoration(
+                                    color: ChaayaTheme.accent.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      '${index + 1}',
+                                      style: const TextStyle(
+                                        color: ChaayaTheme.accent,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (_optionControllers.length > 2)
+                            IconButton(
+                              icon: const Icon(Icons.remove_circle_outline,
+                                  color: ChaayaTheme.sosRed, size: 20),
+                              onPressed: () => _removeOption(index),
+                            ),
+                        ],
+                      ),
+                    );
+                  }),
+
+                  if (_optionControllers.length < 10)
+                    TextButton.icon(
+                      onPressed: _addOption,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Add Option'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: ChaayaTheme.accent,
+                      ),
+                    ),
+
+                  const SizedBox(height: 20),
+
+                  // Toggles
+                  _buildToggle(
+                    'Anonymous Voting',
+                    'Voters will remain anonymous',
+                    _isAnonymous,
+                    (value) => setState(() => _isAnonymous = value),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildToggle(
+                    'Allow Multiple Votes',
+                    'Users can vote for multiple options',
+                    _allowsMultiple,
+                    (value) => setState(() => _allowsMultiple = value),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Expiry selector
+                  const Text('Poll Duration', style: ChaayaTheme.bodyMedium),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: [1, 6, 12, 24, 72, 168].map((hours) {
+                      final isSelected = _expiryHours == hours;
+                      String label;
+                      if (hours < 24) {
+                        label = '${hours}h';
+                      } else if (hours < 168) {
+                        label = '${hours ~/ 24}d';
+                      } else {
+                        label = '${hours ~/ 168}w';
+                      }
+                      return ChoiceChip(
+                        label: Text(label),
+                        selected: isSelected,
+                        onSelected: (_) => setState(() => _expiryHours = hours),
+                        selectedColor: ChaayaTheme.accent,
+                        backgroundColor: ChaayaTheme.surfaceLight,
+                        labelStyle: TextStyle(
+                          color: isSelected
+                              ? Colors.white
+                              : ChaayaTheme.textSecondary,
+                        ),
+                        side: BorderSide(
+                          color: isSelected
+                              ? ChaayaTheme.accent
+                              : ChaayaTheme.glassBorder,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Create button
+          Container(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              bottom: MediaQuery.of(context).padding.bottom + 20,
+              top: 16,
+            ),
+            decoration: const BoxDecoration(
+              border: Border(
+                  top: BorderSide(color: ChaayaTheme.glassBorder, width: 0.5)),
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _isValid() && !_isCreating ? _createPoll : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ChaayaTheme.accent,
+                  disabledBackgroundColor: ChaayaTheme.surfaceLight,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: _isCreating
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation(Colors.white),
+                        ),
+                      )
+                    : const Text('Create Poll', style: TextStyle(fontSize: 16)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggle(
+    String title,
+    String subtitle,
+    bool value,
+    ValueChanged<bool> onChanged,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: ChaayaTheme.surfaceLight,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: ChaayaTheme.glassBorder),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: ChaayaTheme.bodyLarge),
+                const SizedBox(height: 2),
+                Text(subtitle, style: ChaayaTheme.bodySmall),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeColor: ChaayaTheme.accent,
+          ),
+        ],
+      ),
+    );
+  }
+}

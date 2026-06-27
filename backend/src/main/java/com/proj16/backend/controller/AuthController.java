@@ -90,7 +90,7 @@ public class AuthController {
             username = "user_" + dto.getPhoneNumber().replaceAll("[^0-9]", "");
             user = new User();
             user.setUsername(username);
-            user.setEmail(username + "@catus.mesh");
+            user.setEmail(username + "@chaaya.mesh");
             user.setPassword(encoder.encode(dto.getPin() != null ? dto.getPin() : "default"));
             user.setPhoneNumber(dto.getPhoneNumber());
             user.setVerified(true);

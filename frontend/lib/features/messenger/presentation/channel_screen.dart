@@ -1,1 +1,249 @@
-﻿import 'package:flutter/material.dart';import 'package:flutter_riverpod/flutter_riverpod.dart';import '../../../core/theme/catus_theme.dart';import '../../../core/providers/app_providers.dart' hide groupChannelServiceProvider;import '../../../features/messenger/data/group_channel_service.dart';import 'dart:math';/// IRC-style Public Channel Screen (Req 7)class ChannelScreen extends ConsumerStatefulWidget {  final MeshChannel channel;  const ChannelScreen({super.key, required this.channel});  @override  ConsumerState<ChannelScreen> createState() => _ChannelScreenState();}class _ChannelScreenState extends ConsumerState<ChannelScreen> {  final _scrollController = ScrollController();  final _textController = TextEditingController();  final _messages = <_ChannelMessage>[];  @override  void dispose() {    _scrollController.dispose();    _textController.dispose();    super.dispose();  }  void _sendMessage() {    final text = _textController.text.trim();    if (text.isEmpty) return;    final identity = ref.read(currentIdentityProvider);    if (identity == null) return;    setState(() {      _messages.add(_ChannelMessage(        senderId: identity.deviceId,        senderName: identity.username,        text: text,        timestamp: DateTime.now(),        isMine: true,      ));    });    // In full implementation: encrypt with channel key and broadcast via mesh    ref.read(groupChannelServiceProvider).sendChannelMessage(      widget.channel.id,      text,      identity.deviceId,    );    _textController.clear();    Future.delayed(const Duration(milliseconds: 100), () {      if (_scrollController.hasClients) {        _scrollController.animateTo(          _scrollController.position.maxScrollExtent,          duration: const Duration(milliseconds: 300),          curve: Curves.easeOut,        );      }    });  }  @override  Widget build(BuildContext context) {    return Scaffold(      backgroundColor: CatusTheme.background,      appBar: AppBar(        backgroundColor: CatusTheme.surface,        title: Column(          crossAxisAlignment: CrossAxisAlignment.start,          children: [            Text(widget.channel.name,                style: const TextStyle(color: CatusTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),            Text('${widget.channel.members.length} members',                style: const TextStyle(color: CatusTheme.textMuted, fontSize: 12)),          ],        ),        leading: const BackButton(color: CatusTheme.accent),        actions: [          IconButton(            icon: const Icon(Icons.info_outline, color: CatusTheme.textMuted),            onPressed: () => _showChannelInfo(context),          ),        ],      ),      body: Column(        children: [          Expanded(            child: _messages.isEmpty                ? _buildEmptyState()                : ListView.builder(                    controller: _scrollController,                    padding: const EdgeInsets.all(12),                    itemCount: _messages.length,                    itemBuilder: (_, i) => _MessageBubble(msg: _messages[i]),                  ),          ),          _buildInputBar(),        ],      ),    );  }  Widget _buildEmptyState() => Center(    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [      Container(        padding: const EdgeInsets.all(24),        decoration: BoxDecoration(          color: CatusTheme.accent.withOpacity(0.1),          shape: BoxShape.circle,        ),        child: const Icon(Icons.public, size: 48, color: CatusTheme.accent),      ),      const SizedBox(height: 16),      Text(widget.channel.name, style: CatusTheme.heading3),      const SizedBox(height: 8),      const Text('Be the first to message!', style: TextStyle(color: CatusTheme.textMuted)),    ]),  );  Widget _buildInputBar() => Container(    padding: EdgeInsets.only(      left: 12, right: 12,      bottom: MediaQuery.of(context).viewInsets.bottom + 12,      top: 8,    ),    decoration: const BoxDecoration(      color: CatusTheme.surface,      border: Border(top: BorderSide(color: CatusTheme.glassBorder, width: 0.5)),    ),    child: Row(      children: [        Expanded(          child: TextField(            controller: _textController,            style: const TextStyle(color: CatusTheme.textPrimary),            decoration: InputDecoration(              hintText: 'Message ${widget.channel.name}',              hintStyle: const TextStyle(color: CatusTheme.textMuted),              filled: true,              fillColor: CatusTheme.glass,              border: OutlineInputBorder(                borderRadius: BorderRadius.circular(24),                borderSide: BorderSide.none,              ),              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),            ),            onSubmitted: (_) => _sendMessage(),          ),        ),        const SizedBox(width: 8),        GestureDetector(          onTap: _sendMessage,          child: Container(            width: 44,            height: 44,            decoration: BoxDecoration(              gradient: const LinearGradient(colors: [CatusTheme.accent, CatusTheme.bleColor]),              borderRadius: BorderRadius.circular(22),            ),            child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),          ),        ),      ],    ),  );  void _showChannelInfo(BuildContext context) {    showBottomSheet(      context: context,      builder: (_) => Container(        padding: const EdgeInsets.all(24),        color: CatusTheme.surface,        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [          Text(widget.channel.name, style: CatusTheme.heading2),          const SizedBox(height: 8),          Text('${widget.channel.members.length} members', style: const TextStyle(color: CatusTheme.textMuted)),          if (widget.channel.hasPassword) ...[            const SizedBox(height: 4),            const Row(children: [              Icon(Icons.lock, size: 14, color: CatusTheme.warningYellow),              SizedBox(width: 4),              Text('Password protected', style: TextStyle(color: CatusTheme.warningYellow, fontSize: 12)),            ]),          ],        ]),      ),    );  }}class _ChannelMessage {  final String senderId;  final String senderName;  final String text;  final DateTime timestamp;  final bool isMine;  _ChannelMessage({required this.senderId, required this.senderName, required this.text, required this.timestamp, required this.isMine});}class _MessageBubble extends StatelessWidget {  final _ChannelMessage msg;  const _MessageBubble({required this.msg});  @override  Widget build(BuildContext context) {    return GestureDetector(      onLongPress: () {/* block user */},      child: Align(        alignment: msg.isMine ? Alignment.centerRight : Alignment.centerLeft,        child: Container(          margin: const EdgeInsets.symmetric(vertical: 4),          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),          decoration: BoxDecoration(            color: msg.isMine ? CatusTheme.accent.withOpacity(0.85) : CatusTheme.glass,            borderRadius: BorderRadius.only(              topLeft: const Radius.circular(18),              topRight: const Radius.circular(18),              bottomLeft: Radius.circular(msg.isMine ? 18 : 4),              bottomRight: Radius.circular(msg.isMine ? 4 : 18),            ),          ),          child: Column(            crossAxisAlignment: msg.isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,            children: [              if (!msg.isMine)                Text(msg.senderName, style: TextStyle(color: CatusTheme.accent, fontSize: 11, fontWeight: FontWeight.w600)),              Text(msg.text, style: const TextStyle(color: CatusTheme.textPrimary, fontSize: 14)),              const SizedBox(height: 2),              Text(                _formatTime(msg.timestamp),                style: TextStyle(color: CatusTheme.textMuted.withOpacity(0.7), fontSize: 10),              ),            ],          ),        ),      ),    );  }  String _formatTime(DateTime t) {    final h = t.hour.toString().padLeft(2, '0');    final m = t.minute.toString().padLeft(2, '0');    return '$h:$m';  }}
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/theme/chaaya_theme.dart';
+import '../../../core/providers/app_providers.dart' hide groupChannelServiceProvider;
+import '../../../features/messenger/data/group_channel_service.dart';
+import 'dart:math';
+
+/// IRC-style Public Channel Screen (Req 7)
+class ChannelScreen extends ConsumerStatefulWidget {
+  final MeshChannel channel;
+  const ChannelScreen({super.key, required this.channel});
+
+  @override
+  ConsumerState<ChannelScreen> createState() => _ChannelScreenState();
+}
+
+class _ChannelScreenState extends ConsumerState<ChannelScreen> {
+  final _scrollController = ScrollController();
+  final _textController = TextEditingController();
+  final _messages = <_ChannelMessage>[];
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _textController.dispose();
+    super.dispose();
+  }
+
+  void _sendMessage() {
+    final text = _textController.text.trim();
+    if (text.isEmpty) return;
+
+    final identity = ref.read(currentIdentityProvider);
+    if (identity == null) return;
+
+    setState(() {
+      _messages.add(_ChannelMessage(
+        senderId: identity.deviceId,
+        senderName: identity.username,
+        text: text,
+        timestamp: DateTime.now(),
+        isMine: true,
+      ));
+    });
+
+    // In full implementation: encrypt with channel key and broadcast via mesh
+    ref.read(groupChannelServiceProvider).sendChannelMessage(
+      widget.channel.id,
+      text,
+      identity.deviceId,
+    );
+
+    _textController.clear();
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: ChaayaTheme.background,
+      appBar: AppBar(
+        backgroundColor: ChaayaTheme.surface,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.channel.name,
+                style: const TextStyle(color: ChaayaTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
+            Text('${widget.channel.members.length} members',
+                style: const TextStyle(color: ChaayaTheme.textMuted, fontSize: 12)),
+          ],
+        ),
+        leading: const BackButton(color: ChaayaTheme.accent),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.info_outline, color: ChaayaTheme.textMuted),
+            onPressed: () => _showChannelInfo(context),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: _messages.isEmpty
+                ? _buildEmptyState()
+                : ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(12),
+                    itemCount: _messages.length,
+                    itemBuilder: (_, i) => _MessageBubble(msg: _messages[i]),
+                  ),
+          ),
+          _buildInputBar(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() => Center(
+    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: ChaayaTheme.accent.withOpacity(0.1),
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.public, size: 48, color: ChaayaTheme.accent),
+      ),
+      const SizedBox(height: 16),
+      Text(widget.channel.name, style: ChaayaTheme.heading3),
+      const SizedBox(height: 8),
+      const Text('Be the first to message!', style: TextStyle(color: ChaayaTheme.textMuted)),
+    ]),
+  );
+
+  Widget _buildInputBar() => Container(
+    padding: EdgeInsets.only(
+      left: 12, right: 12,
+      bottom: MediaQuery.of(context).viewInsets.bottom + 12,
+      top: 8,
+    ),
+    decoration: const BoxDecoration(
+      color: ChaayaTheme.surface,
+      border: Border(top: BorderSide(color: ChaayaTheme.glassBorder, width: 0.5)),
+    ),
+    child: Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _textController,
+            style: const TextStyle(color: ChaayaTheme.textPrimary),
+            decoration: InputDecoration(
+              hintText: 'Message ${widget.channel.name}',
+              hintStyle: const TextStyle(color: ChaayaTheme.textMuted),
+              filled: true,
+              fillColor: ChaayaTheme.glass,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(24),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            ),
+            onSubmitted: (_) => _sendMessage(),
+          ),
+        ),
+        const SizedBox(width: 8),
+        GestureDetector(
+          onTap: _sendMessage,
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [ChaayaTheme.accent, ChaayaTheme.bleColor]),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  void _showChannelInfo(BuildContext context) {
+    showBottomSheet(
+      context: context,
+      builder: (_) => Container(
+        padding: const EdgeInsets.all(24),
+        color: ChaayaTheme.surface,
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(widget.channel.name, style: ChaayaTheme.heading2),
+          const SizedBox(height: 8),
+          Text('${widget.channel.members.length} members', style: const TextStyle(color: ChaayaTheme.textMuted)),
+          if (widget.channel.hasPassword) ...[
+            const SizedBox(height: 4),
+            const Row(children: [
+              Icon(Icons.lock, size: 14, color: ChaayaTheme.warningYellow),
+              SizedBox(width: 4),
+              Text('Password protected', style: TextStyle(color: ChaayaTheme.warningYellow, fontSize: 12)),
+            ]),
+          ],
+        ]),
+      ),
+    );
+  }
+}
+
+class _ChannelMessage {
+  final String senderId;
+  final String senderName;
+  final String text;
+  final DateTime timestamp;
+  final bool isMine;
+  _ChannelMessage({required this.senderId, required this.senderName, required this.text, required this.timestamp, required this.isMine});
+}
+
+class _MessageBubble extends StatelessWidget {
+  final _ChannelMessage msg;
+  const _MessageBubble({required this.msg});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onLongPress: () {/* block user */},
+      child: Align(
+        alignment: msg.isMine ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+          decoration: BoxDecoration(
+            color: msg.isMine ? ChaayaTheme.accent.withOpacity(0.85) : ChaayaTheme.glass,
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(18),
+              topRight: const Radius.circular(18),
+              bottomLeft: Radius.circular(msg.isMine ? 18 : 4),
+              bottomRight: Radius.circular(msg.isMine ? 4 : 18),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: msg.isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            children: [
+              if (!msg.isMine)
+                Text(msg.senderName, style: TextStyle(color: ChaayaTheme.accent, fontSize: 11, fontWeight: FontWeight.w600)),
+              Text(msg.text, style: const TextStyle(color: ChaayaTheme.textPrimary, fontSize: 14)),
+              const SizedBox(height: 2),
+              Text(
+                _formatTime(msg.timestamp),
+                style: TextStyle(color: ChaayaTheme.textMuted.withOpacity(0.7), fontSize: 10),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatTime(DateTime t) {
+    final h = t.hour.toString().padLeft(2, '0');
+    final m = t.minute.toString().padLeft(2, '0');
+    return '$h:$m';
+  }
+}

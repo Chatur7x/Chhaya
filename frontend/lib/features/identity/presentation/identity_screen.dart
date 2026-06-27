@@ -1,1 +1,235 @@
-﻿import 'package:flutter/material.dart';import 'package:flutter_riverpod/flutter_riverpod.dart';import '../../../core/theme/catus_theme.dart';import '../../../core/identity/identity_service.dart';import '../../../core/providers/app_providers.dart';/// Identity Setup Screen — shown on first launch./// User picks a username, generates Ed25519 keypair. No account needed.class IdentityScreen extends ConsumerStatefulWidget {  const IdentityScreen({super.key});  @override  ConsumerState<IdentityScreen> createState() => _IdentityScreenState();}class _IdentityScreenState extends ConsumerState<IdentityScreen>    with SingleTickerProviderStateMixin {  final _usernameController = TextEditingController();  bool _isCreating = false;  late AnimationController _animController;  late Animation<double> _fadeIn;  @override  void initState() {    super.initState();    _animController = AnimationController(      vsync: this,      duration: const Duration(milliseconds: 1200),    );    _fadeIn = CurvedAnimation(parent: _animController, curve: Curves.easeOut);    _animController.forward();  }  @override  void dispose() {    _usernameController.dispose();    _animController.dispose();    super.dispose();  }  Future<void> _createIdentity() async {    final username = _usernameController.text.trim();    if (username.isEmpty || username.length < 2) {      ScaffoldMessenger.of(context).showSnackBar(        const SnackBar(content: Text('Username must be at least 2 characters')),      );      return;    }    setState(() => _isCreating = true);    try {      final identityService = ref.read(identityServiceProvider);      final identity = await identityService.createIdentity(username);            ref.read(currentIdentityProvider.notifier).state = identity;      ref.read(identityReadyProvider.notifier).state = true;    } catch (e) {      if (mounted) {        ScaffoldMessenger.of(context).showSnackBar(          SnackBar(content: Text('Error: $e')),        );      }    } finally {      if (mounted) setState(() => _isCreating = false);    }  }  @override  Widget build(BuildContext context) {    return Scaffold(      backgroundColor: CatusTheme.background,      body: SafeArea(        child: FadeTransition(          opacity: _fadeIn,          child: Padding(            padding: const EdgeInsets.symmetric(horizontal: 32),            child: Column(              mainAxisAlignment: MainAxisAlignment.center,              children: [                // Logo area                Container(                  width: 100,                  height: 100,                  decoration: BoxDecoration(                    gradient: const LinearGradient(                      colors: [CatusTheme.accent, CatusTheme.bleColor],                      begin: Alignment.topLeft,                      end: Alignment.bottomRight,                    ),                    borderRadius: BorderRadius.circular(28),                    boxShadow: [                      BoxShadow(                        color: CatusTheme.accent.withOpacity(0.4),                        blurRadius: 30,                        spreadRadius: 2,                      ),                    ],                  ),                  child: const Icon(                    Icons.cell_tower_rounded,                    size: 48,                    color: Colors.white,                  ),                ),                const SizedBox(height: 32),                // Title                const Text(                  'catus',                  style: TextStyle(                    fontSize: 36,                    fontWeight: FontWeight.w800,                    color: CatusTheme.textPrimary,                    letterSpacing: -1,                  ),                ),                const SizedBox(height: 8),                const Text(                  'Zero internet. Zero accounts.\nJust you and the mesh.',                  textAlign: TextAlign.center,                  style: TextStyle(                    fontSize: 15,                    color: CatusTheme.textSecondary,                    height: 1.5,                  ),                ),                const SizedBox(height: 48),                // Username input                Container(                  decoration: CatusTheme.glassDecoration(borderRadius: 14),                  child: TextField(                    controller: _usernameController,                    style: const TextStyle(                      color: CatusTheme.textPrimary,                      fontSize: 16,                    ),                    decoration: InputDecoration(                      hintText: 'Choose a username',                      prefixIcon: const Icon(Icons.person_outline, color: CatusTheme.accent),                      border: OutlineInputBorder(                        borderRadius: BorderRadius.circular(14),                        borderSide: BorderSide.none,                      ),                      filled: true,                      fillColor: Colors.transparent,                    ),                  ),                ),                const SizedBox(height: 12),                // Info text                Row(                  children: [                    Icon(Icons.lock_outline, size: 14, color: CatusTheme.safeGreen),                    const SizedBox(width: 6),                    Text(                      'Ed25519 keypair generated on-device',                      style: TextStyle(                        fontSize: 12,                        color: CatusTheme.safeGreen,                      ),                    ),                  ],                ),                const SizedBox(height: 32),                // Create button                SizedBox(                  width: double.infinity,                  height: 52,                  child: ElevatedButton(                    onPressed: _isCreating ? null : _createIdentity,                    style: ElevatedButton.styleFrom(                      backgroundColor: CatusTheme.accent,                      shape: RoundedRectangleBorder(                        borderRadius: BorderRadius.circular(14),                      ),                    ),                    child: _isCreating                        ? const SizedBox(                            width: 24,                            height: 24,                            child: CircularProgressIndicator(                              strokeWidth: 2.5,                              color: Colors.white,                            ),                          )                        : const Text(                            'Create Identity',                            style: TextStyle(                              fontSize: 16,                              fontWeight: FontWeight.w600,                            ),                          ),                  ),                ),                const SizedBox(height: 24),                // No account needed badge                Container(                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),                  decoration: BoxDecoration(                    color: CatusTheme.accent.withOpacity(0.1),                    borderRadius: BorderRadius.circular(10),                    border: Border.all(                      color: CatusTheme.accent.withOpacity(0.2),                    ),                  ),                  child: const Row(                    mainAxisSize: MainAxisSize.min,                    children: [                      Icon(Icons.verified_user, size: 16, color: CatusTheme.accent),                      SizedBox(width: 8),                      Text(                        'No email • No phone • No cloud',                        style: TextStyle(                          fontSize: 12,                          color: CatusTheme.accent,                          fontWeight: FontWeight.w500,                        ),                      ),                    ],                  ),                ),              ],            ),          ),        ),      ),    );  }}
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/theme/chaaya_theme.dart';
+import '../../../core/identity/identity_service.dart';
+import '../../../core/providers/app_providers.dart';
+
+/// Identity Setup Screen — shown on first launch.
+/// User picks a username, generates Ed25519 keypair. No account needed.
+class IdentityScreen extends ConsumerStatefulWidget {
+  const IdentityScreen({super.key});
+
+  @override
+  ConsumerState<IdentityScreen> createState() => _IdentityScreenState();
+}
+
+class _IdentityScreenState extends ConsumerState<IdentityScreen>
+    with SingleTickerProviderStateMixin {
+  final _usernameController = TextEditingController();
+  bool _isCreating = false;
+  late AnimationController _animController;
+  late Animation<double> _fadeIn;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _fadeIn = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
+    _animController.forward();
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _animController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _createIdentity() async {
+    final username = _usernameController.text.trim();
+    if (username.isEmpty || username.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Username must be at least 2 characters')),
+      );
+      return;
+    }
+
+    setState(() => _isCreating = true);
+
+    try {
+      final identityService = ref.read(identityServiceProvider);
+      final identity = await identityService.createIdentity(username);
+      
+      ref.read(currentIdentityProvider.notifier).state = identity;
+      ref.read(identityReadyProvider.notifier).state = true;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isCreating = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: ChaayaTheme.background,
+      body: SafeArea(
+        child: FadeTransition(
+          opacity: _fadeIn,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Logo area
+                Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [ChaayaTheme.accent, ChaayaTheme.bleColor],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: [
+                      BoxShadow(
+                        color: ChaayaTheme.accent.withOpacity(0.4),
+                        blurRadius: 30,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.cell_tower_rounded,
+                    size: 48,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                // Title
+                const Text(
+                  'Chaaya',
+                  style: TextStyle(
+                    fontSize: 36,
+                    fontWeight: FontWeight.w800,
+                    color: ChaayaTheme.textPrimary,
+                    letterSpacing: -1,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Zero internet. Zero accounts.\nJust you and the mesh.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: ChaayaTheme.textSecondary,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 48),
+
+                // Username input
+                Container(
+                  decoration: ChaayaTheme.glassDecoration(borderRadius: 14),
+                  child: TextField(
+                    controller: _usernameController,
+                    style: const TextStyle(
+                      color: ChaayaTheme.textPrimary,
+                      fontSize: 16,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Choose a username',
+                      prefixIcon: const Icon(Icons.person_outline, color: ChaayaTheme.accent),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: Colors.transparent,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Info text
+                Row(
+                  children: [
+                    Icon(Icons.lock_outline, size: 14, color: ChaayaTheme.safeGreen),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Ed25519 keypair generated on-device',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: ChaayaTheme.safeGreen,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 32),
+
+                // Create button
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: _isCreating ? null : _createIdentity,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ChaayaTheme.accent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: _isCreating
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Create Identity',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // No account needed badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: ChaayaTheme.accent.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: ChaayaTheme.accent.withOpacity(0.2),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.verified_user, size: 16, color: ChaayaTheme.accent),
+                      SizedBox(width: 8),
+                      Text(
+                        'No email • No phone • No cloud',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: ChaayaTheme.accent,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+

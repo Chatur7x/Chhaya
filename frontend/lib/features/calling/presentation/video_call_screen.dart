@@ -1,1 +1,394 @@
-﻿import 'dart:async';import 'package:flutter/material.dart';import 'package:flutter_riverpod/flutter_riverpod.dart';import '../../contacts/domain/models/contact.dart';import '../../../core/theme/catus_theme.dart';import '../../../core/providers/app_providers.dart';class VideoCallScreen extends ConsumerStatefulWidget {  final Contact peer;  final bool isIncoming;  const VideoCallScreen({    super.key,    required this.peer,    this.isIncoming = false,  });  @override  ConsumerState<VideoCallScreen> createState() => _VideoCallScreenState();}class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {  bool _isMuted = false;  bool _isVideoOff = true;  bool _isSpeakerOn = true;  bool _isCallActive = false;  int _callDuration = 0;  Timer? _timer;  @override  void initState() {    super.initState();    if (!widget.isIncoming) {      _startVideoCall();    } else {      setState(() => _isCallActive = true);      _startTimer();    }  }  Future<void> _startVideoCall() async {    try {      final callService = ref.read(callServiceProvider);      await callService.startCall(widget.peer.deviceId);      setState(() => _isCallActive = true);      _startTimer();      debugPrint('[VideoCall] Call started to ${widget.peer.name}');    } catch (e) {      debugPrint('[VideoCall] Call failed: $e');      if (mounted) {        ScaffoldMessenger.of(context).showSnackBar(          SnackBar(            content: Text('Call failed: $e'),            backgroundColor: CatusTheme.sosRed,          ),        );        Navigator.pop(context);      }    }  }  void _startTimer() {    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {      if (mounted) {        setState(() => _callDuration++);      }    });  }  void _endCall() async {    _timer?.cancel();    final callService = ref.read(callServiceProvider);    await callService.endCall();    if (mounted) {      Navigator.pop(context);    }  }  void _toggleMute() {    setState(() => _isMuted = !_isMuted);    ref.read(callServiceProvider).setMute(_isMuted);  }  void _toggleVideo() {    setState(() => _isVideoOff = !_isVideoOff);  }  void _toggleSpeaker() {    setState(() => _isSpeakerOn = !_isSpeakerOn);    ref.read(callServiceProvider).setSpeakerphoneOn(_isSpeakerOn);  }  void _switchCamera() {    debugPrint('[VideoCall] Camera switched');  }  String _formatDuration(int seconds) {    final m = seconds ~/ 60;    final s = seconds % 60;    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';  }  @override  void dispose() {    _timer?.cancel();    super.dispose();  }  @override  Widget build(BuildContext context) {    return Scaffold(      backgroundColor: CatusTheme.background,      body: SafeArea(        child: Stack(          children: [            Positioned.fill(              child: _isVideoOff                  ? Container(                      decoration: BoxDecoration(                        gradient: LinearGradient(                          begin: Alignment.topLeft,                          end: Alignment.bottomRight,                          colors: [                            CatusTheme.surface,                            CatusTheme.background,                          ],                        ),                      ),                      child: Center(                        child: Column(                          mainAxisAlignment: MainAxisAlignment.center,                          children: [                            CircleAvatar(                              radius: 80,                              backgroundColor: CatusTheme.surfaceLight,                              child: Text(                                widget.peer.name[0].toUpperCase(),                                style: const TextStyle(                                  fontSize: 64,                                  color: CatusTheme.accent,                                ),                              ),                            ),                            const SizedBox(height: 24),                            Text(                              widget.peer.name,                              style: const TextStyle(                                color: CatusTheme.textPrimary,                                fontSize: 28,                                fontWeight: FontWeight.bold,                              ),                            ),                          ],                        ),                      ),                    )                  : Container(                      color: CatusTheme.surface,                      child: const Center(                        child: Column(                          mainAxisAlignment: MainAxisAlignment.center,                          children: [                            Icon(Icons.videocam,                                size: 80, color: CatusTheme.textMuted),                            SizedBox(height: 16),                            Text('Video Preview',                                style: TextStyle(color: CatusTheme.textMuted)),                            SizedBox(height: 8),                            Text('(WebRTC coming soon)',                                style: TextStyle(                                    color: CatusTheme.textMuted,                                    fontSize: 12)),                          ],                        ),                      ),                    ),            ),            Positioned(              top: MediaQuery.of(context).padding.top + 16,              right: 16,              child: GestureDetector(                onTap: _switchCamera,                child: Container(                  width: 120,                  height: 160,                  decoration: BoxDecoration(                    color: CatusTheme.surface,                    borderRadius: BorderRadius.circular(16),                    border:                        Border.all(color: CatusTheme.glassBorder, width: 2),                  ),                  child: const Center(                    child: Column(                      mainAxisAlignment: MainAxisAlignment.center,                      children: [                        Icon(Icons.person, size: 40, color: CatusTheme.accent),                        SizedBox(height: 4),                        Text('You',                            style: TextStyle(                                color: CatusTheme.textMuted, fontSize: 10)),                      ],                    ),                  ),                ),              ),            ),            Positioned(              top: 0,              left: 0,              right: 0,              child: Container(                padding: EdgeInsets.only(                  top: MediaQuery.of(context).padding.top + 16,                  left: 16,                  right: 16,                  bottom: 16,                ),                decoration: BoxDecoration(                  gradient: LinearGradient(                    begin: Alignment.topCenter,                    end: Alignment.bottomCenter,                    colors: [                      CatusTheme.background.withOpacity(0.9),                      Colors.transparent,                    ],                  ),                ),                child: Row(                  children: [                    IconButton(                      icon: const Icon(Icons.arrow_back,                          color: CatusTheme.textPrimary),                      onPressed: _endCall,                    ),                    const Spacer(),                    Container(                      padding: const EdgeInsets.symmetric(                          horizontal: 12, vertical: 6),                      decoration: BoxDecoration(                        color: CatusTheme.glassWhite,                        borderRadius: BorderRadius.circular(20),                        border: Border.all(color: CatusTheme.glassBorder),                      ),                      child: Row(                        children: [                          Icon(                            _isCallActive ? Icons.wifi : Icons.wifi_find,                            size: 16,                            color: _isCallActive                                ? CatusTheme.wifiColor                                : CatusTheme.warningYellow,                          ),                          const SizedBox(width: 6),                          Text(                            _isCallActive                                ? _formatDuration(_callDuration)                                : 'Connecting...',                            style: TextStyle(                              color: _isCallActive                                  ? CatusTheme.safeGreen                                  : CatusTheme.warningYellow,                              fontSize: 14,                              fontWeight: FontWeight.w500,                            ),                          ),                        ],                      ),                    ),                  ],                ),              ),            ),            Positioned(              bottom: 0,              left: 0,              right: 0,              child: Container(                padding:                    const EdgeInsets.symmetric(horizontal: 24, vertical: 32),                decoration: BoxDecoration(                  gradient: LinearGradient(                    begin: Alignment.bottomCenter,                    end: Alignment.topCenter,                    colors: [                      CatusTheme.background.withOpacity(0.95),                      Colors.transparent,                    ],                  ),                ),                child: Row(                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,                  children: [                    _buildControlButton(                      icon: _isMuted ? Icons.mic_off : Icons.mic,                      label: _isMuted ? 'Unmute' : 'Mute',                      isActive: !_isMuted,                      onTap: _toggleMute,                    ),                    _buildControlButton(                      icon: _isVideoOff ? Icons.videocam_off : Icons.videocam,                      label: _isVideoOff ? 'Video On' : 'Video Off',                      isActive: !_isVideoOff,                      onTap: _toggleVideo,                    ),                    _buildControlButton(                      icon: _isSpeakerOn ? Icons.volume_up : Icons.volume_down,                      label: _isSpeakerOn ? 'Speaker' : 'Earpiece',                      isActive: _isSpeakerOn,                      onTap: _toggleSpeaker,                    ),                    _buildEndCallButton(),                  ],                ),              ),            ),          ],        ),      ),    );  }  Widget _buildControlButton({    required IconData icon,    required String label,    required bool isActive,    required VoidCallback onTap,  }) {    return GestureDetector(      onTap: onTap,      child: Column(        mainAxisSize: MainAxisSize.min,        children: [          Container(            width: 56,            height: 56,            decoration: BoxDecoration(              color: isActive                  ? CatusTheme.surfaceLight                  : CatusTheme.warningYellow.withOpacity(0.2),              shape: BoxShape.circle,              border: Border.all(                color: isActive                    ? CatusTheme.glassBorder                    : CatusTheme.warningYellow,              ),            ),            child: Icon(              icon,              color: isActive                  ? CatusTheme.textPrimary                  : CatusTheme.warningYellow,              size: 28,            ),          ),          const SizedBox(height: 8),          Text(            label,            style: TextStyle(              color: isActive                  ? CatusTheme.textSecondary                  : CatusTheme.warningYellow,              fontSize: 11,            ),          ),        ],      ),    );  }  Widget _buildEndCallButton() {    return GestureDetector(      onTap: _endCall,      child: Column(        mainAxisSize: MainAxisSize.min,        children: [          Container(            width: 64,            height: 64,            decoration: const BoxDecoration(              color: CatusTheme.sosRed,              shape: BoxShape.circle,            ),            child: const Icon(Icons.call_end, color: Colors.white, size: 32),          ),          const SizedBox(height: 8),          const Text(            'End',            style: TextStyle(color: CatusTheme.sosRed, fontSize: 11),          ),        ],      ),    );  }}
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../contacts/domain/models/contact.dart';
+import '../../../core/theme/chaaya_theme.dart';
+import '../../../core/providers/app_providers.dart';
+
+class VideoCallScreen extends ConsumerStatefulWidget {
+  final Contact peer;
+  final bool isIncoming;
+
+  const VideoCallScreen({
+    super.key,
+    required this.peer,
+    this.isIncoming = false,
+  });
+
+  @override
+  ConsumerState<VideoCallScreen> createState() => _VideoCallScreenState();
+}
+
+class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
+  bool _isMuted = false;
+  bool _isVideoOff = true;
+  bool _isSpeakerOn = true;
+  bool _isCallActive = false;
+  int _callDuration = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.isIncoming) {
+      _startVideoCall();
+    } else {
+      setState(() => _isCallActive = true);
+      _startTimer();
+    }
+  }
+
+  Future<void> _startVideoCall() async {
+    try {
+      final callService = ref.read(callServiceProvider);
+      await callService.startCall(widget.peer.deviceId);
+      setState(() => _isCallActive = true);
+      _startTimer();
+      debugPrint('[VideoCall] Call started to ${widget.peer.name}');
+    } catch (e) {
+      debugPrint('[VideoCall] Call failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Call failed: $e'),
+            backgroundColor: ChaayaTheme.sosRed,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    }
+  }
+
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() => _callDuration++);
+      }
+    });
+  }
+
+  void _endCall() async {
+    _timer?.cancel();
+    final callService = ref.read(callServiceProvider);
+    await callService.endCall();
+    if (mounted) {
+      Navigator.pop(context);
+    }
+  }
+
+  void _toggleMute() {
+    setState(() => _isMuted = !_isMuted);
+    ref.read(callServiceProvider).setMute(_isMuted);
+  }
+
+  void _toggleVideo() {
+    setState(() => _isVideoOff = !_isVideoOff);
+  }
+
+  void _toggleSpeaker() {
+    setState(() => _isSpeakerOn = !_isSpeakerOn);
+    ref.read(callServiceProvider).setSpeakerphoneOn(_isSpeakerOn);
+  }
+
+  void _switchCamera() {
+    debugPrint('[VideoCall] Camera switched');
+  }
+
+  String _formatDuration(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: ChaayaTheme.background,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: _isVideoOff
+                  ? Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            ChaayaTheme.surface,
+                            ChaayaTheme.background,
+                          ],
+                        ),
+                      ),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircleAvatar(
+                              radius: 80,
+                              backgroundColor: ChaayaTheme.surfaceLight,
+                              child: Text(
+                                widget.peer.name[0].toUpperCase(),
+                                style: const TextStyle(
+                                  fontSize: 64,
+                                  color: ChaayaTheme.accent,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            Text(
+                              widget.peer.name,
+                              style: const TextStyle(
+                                color: ChaayaTheme.textPrimary,
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : Container(
+                      color: ChaayaTheme.surface,
+                      child: const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.videocam,
+                                size: 80, color: ChaayaTheme.textMuted),
+                            SizedBox(height: 16),
+                            Text('Video Preview',
+                                style: TextStyle(color: ChaayaTheme.textMuted)),
+                            SizedBox(height: 8),
+                            Text('(WebRTC coming soon)',
+                                style: TextStyle(
+                                    color: ChaayaTheme.textMuted,
+                                    fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                    ),
+            ),
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 16,
+              right: 16,
+              child: GestureDetector(
+                onTap: _switchCamera,
+                child: Container(
+                  width: 120,
+                  height: 160,
+                  decoration: BoxDecoration(
+                    color: ChaayaTheme.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border:
+                        Border.all(color: ChaayaTheme.glassBorder, width: 2),
+                  ),
+                  child: const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.person, size: 40, color: ChaayaTheme.accent),
+                        SizedBox(height: 4),
+                        Text('You',
+                            style: TextStyle(
+                                color: ChaayaTheme.textMuted, fontSize: 10)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: EdgeInsets.only(
+                  top: MediaQuery.of(context).padding.top + 16,
+                  left: 16,
+                  right: 16,
+                  bottom: 16,
+                ),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      ChaayaTheme.background.withOpacity(0.9),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back,
+                          color: ChaayaTheme.textPrimary),
+                      onPressed: _endCall,
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: ChaayaTheme.glassWhite,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: ChaayaTheme.glassBorder),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _isCallActive ? Icons.wifi : Icons.wifi_find,
+                            size: 16,
+                            color: _isCallActive
+                                ? ChaayaTheme.wifiColor
+                                : ChaayaTheme.warningYellow,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _isCallActive
+                                ? _formatDuration(_callDuration)
+                                : 'Connecting...',
+                            style: TextStyle(
+                              color: _isCallActive
+                                  ? ChaayaTheme.safeGreen
+                                  : ChaayaTheme.warningYellow,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      ChaayaTheme.background.withOpacity(0.95),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildControlButton(
+                      icon: _isMuted ? Icons.mic_off : Icons.mic,
+                      label: _isMuted ? 'Unmute' : 'Mute',
+                      isActive: !_isMuted,
+                      onTap: _toggleMute,
+                    ),
+                    _buildControlButton(
+                      icon: _isVideoOff ? Icons.videocam_off : Icons.videocam,
+                      label: _isVideoOff ? 'Video On' : 'Video Off',
+                      isActive: !_isVideoOff,
+                      onTap: _toggleVideo,
+                    ),
+                    _buildControlButton(
+                      icon: _isSpeakerOn ? Icons.volume_up : Icons.volume_down,
+                      label: _isSpeakerOn ? 'Speaker' : 'Earpiece',
+                      isActive: _isSpeakerOn,
+                      onTap: _toggleSpeaker,
+                    ),
+                    _buildEndCallButton(),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildControlButton({
+    required IconData icon,
+    required String label,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: isActive
+                  ? ChaayaTheme.surfaceLight
+                  : ChaayaTheme.warningYellow.withOpacity(0.2),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isActive
+                    ? ChaayaTheme.glassBorder
+                    : ChaayaTheme.warningYellow,
+              ),
+            ),
+            child: Icon(
+              icon,
+              color: isActive
+                  ? ChaayaTheme.textPrimary
+                  : ChaayaTheme.warningYellow,
+              size: 28,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(
+              color: isActive
+                  ? ChaayaTheme.textSecondary
+                  : ChaayaTheme.warningYellow,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEndCallButton() {
+    return GestureDetector(
+      onTap: _endCall,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: const BoxDecoration(
+              color: ChaayaTheme.sosRed,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.call_end, color: Colors.white, size: 32),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'End',
+            style: TextStyle(color: ChaayaTheme.sosRed, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+}

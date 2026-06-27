@@ -1,1 +1,52 @@
-﻿import 'package:flutter/material.dart';class SettingsScreen extends StatelessWidget {  const SettingsScreen({super.key});  @override  Widget build(BuildContext context) {    return Scaffold(      backgroundColor: Colors.black,      appBar: AppBar(        title: const Text('Settings', style: TextStyle(fontWeight: FontWeight.bold)),        backgroundColor: const Color(0xFF0D47A1),      ),      body: ListView(        padding: const EdgeInsets.all(16),        children: [          const Center(            child: Column(              children: [                CircleAvatar(                  radius: 50,                  backgroundColor: Colors.blueAccent,                  child: Icon(Icons.person, size: 50, color: Colors.white),                ),                SizedBox(height: 16),                Text('John Doe', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),                Text('@johndoe', style: TextStyle(color: Colors.white54, fontSize: 16)),              ],            ),          ),          const SizedBox(height: 32),          _buildSettingTile(Icons.security, 'Privacy & Security', 'Encryption keys, sharing settings'),          _buildSettingTile(Icons.notifications_active, 'Notifications', 'Sound, vibration, background alerts'),          _buildSettingTile(Icons.storage, 'Data & Storage', 'Cache management, backup frequency'),          _buildSettingTile(Icons.help_outline, 'Help & Support', 'FAQs, contact us'),          const Divider(color: Colors.white12, height: 40),          _buildSettingTile(Icons.logout, 'Logout', 'Sign out of all devices', color: Colors.redAccent),        ],      ),    );  }  Widget _buildSettingTile(IconData icon, String title, String subtitle, {Color color = Colors.white70}) {    return ListTile(      leading: Icon(icon, color: color),      title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),      subtitle: Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 12)),      trailing: const Icon(Icons.chevron_right, color: Colors.white24),      onTap: () {},    );  }}
+import 'package:flutter/material.dart';
+
+class SettingsScreen extends StatelessWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: const Text('Settings', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: const Color(0xFF0D47A1),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const Center(
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 50,
+                  backgroundColor: Colors.blueAccent,
+                  child: Icon(Icons.person, size: 50, color: Colors.white),
+                ),
+                SizedBox(height: 16),
+                Text('John Doe', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                Text('@johndoe', style: TextStyle(color: Colors.white54, fontSize: 16)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
+          _buildSettingTile(Icons.security, 'Privacy & Security', 'Encryption keys, sharing settings'),
+          _buildSettingTile(Icons.notifications_active, 'Notifications', 'Sound, vibration, background alerts'),
+          _buildSettingTile(Icons.storage, 'Data & Storage', 'Cache management, backup frequency'),
+          _buildSettingTile(Icons.help_outline, 'Help & Support', 'FAQs, contact us'),
+          const Divider(color: Colors.white12, height: 40),
+          _buildSettingTile(Icons.logout, 'Logout', 'Sign out of all devices', color: Colors.redAccent),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingTile(IconData icon, String title, String subtitle, {Color color = Colors.white70}) {
+    return ListTile(
+      leading: Icon(icon, color: color),
+      title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+      subtitle: Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+      trailing: const Icon(Icons.chevron_right, color: Colors.white24),
+      onTap: () {},
+    );
+  }
+}

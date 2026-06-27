@@ -1,1 +1,148 @@
-﻿import 'package:flutter/material.dart';enum AppThemeMode { catus, midnight, ocean, forest, sunset }class ThemePreset {  final String id;  final String name;  final Color primary;  final Color secondary;  final Color accent;  final Color background;  final Color surface;  final Color textPrimary;  final Color textSecondary;  ThemePreset({    required this.id,    required this.name,    required this.primary,    required this.secondary,    required this.accent,    required this.background,    required this.surface,    required this.textPrimary,    required this.textSecondary,  });}class ThemeService {  static final Map<AppThemeMode, ThemePreset> themes = {    AppThemeMode.catus: ThemePreset(      id: 'catus',      name: 'Catus Dark',      primary: const Color(0xFF6366F1),      secondary: const Color(0xFF8B5CF6),      accent: const Color(0xFF06B6D4),      background: const Color(0xFF0D1117),      surface: const Color(0xFF161B22),      textPrimary: const Color(0xFFE6EDF3),      textSecondary: const Color(0xFF8B949E),    ),    AppThemeMode.midnight: ThemePreset(      id: 'midnight',      name: 'Midnight',      primary: const Color(0xFF3B82F6),      secondary: const Color(0xFF60A5FA),      accent: const Color(0xFF22D3EE),      background: const Color(0xFF0F172A),      surface: const Color(0xFF1E293B),      textPrimary: const Color(0xFFF1F5F9),      textSecondary: const Color(0xFF94A3B8),    ),    AppThemeMode.ocean: ThemePreset(      id: 'ocean',      name: 'Ocean',      primary: const Color(0xFF06B6D4),      secondary: const Color(0xFF22D3EE),      accent: const Color(0xFFF472B6),      background: const Color(0xFF0C1929),      surface: const Color(0xFF1B3A4B),      textPrimary: const Color(0xFFE0F2FE),      textSecondary: const Color(0xFF7DD3FC),    ),    AppThemeMode.forest: ThemePreset(      id: 'forest',      name: 'Forest',      primary: const Color(0xFF10B981),      secondary: const Color(0xFF34D399),      accent: const Color(0xFFFBBF24),      background: const Color(0xFF0A1F0A),      surface: const Color(0xFF1A3A1A),      textPrimary: const Color(0xFFDCFCE7),      textSecondary: const Color(0xFF86EFAC),    ),    AppThemeMode.sunset: ThemePreset(      id: 'sunset',      name: 'Sunset',      primary: const Color(0xFFF97316),      secondary: const Color(0xFFFB923C),      accent: const Color(0xFFFACC15),      background: const Color(0xFF1A0A0A),      surface: const Color(0xFF3A1A1A),      textPrimary: const Color(0xFFFEF2F2),      textSecondary: const Color(0xFFFCA5A5),    ),  };  static ThemePreset getTheme(AppThemeMode mode) {    return themes[mode] ?? themes[AppThemeMode.catus]!;  }  static List<ThemePreset> getAllThemes() {    return themes.values.toList();  }  static ThemeData buildTheme(ThemePreset preset) {    return ThemeData(      useMaterial3: true,      brightness: Brightness.dark,      primaryColor: preset.primary,      scaffoldBackgroundColor: preset.background,      colorScheme: ColorScheme.dark(        primary: preset.primary,        secondary: preset.secondary,        tertiary: preset.accent,        surface: preset.surface,      ),      appBarTheme: AppBarTheme(        backgroundColor: preset.surface,        foregroundColor: preset.textPrimary,        elevation: 0,      ),      cardTheme: CardThemeData(        color: preset.surface,        elevation: 0,        shape: RoundedRectangleBorder(          borderRadius: BorderRadius.circular(12),          side: BorderSide(color: preset.textSecondary.withOpacity(0.1)),        ),      ),      textTheme: TextTheme(        bodyLarge: TextStyle(color: preset.textPrimary),        bodyMedium: TextStyle(color: preset.textPrimary),        bodySmall: TextStyle(color: preset.textSecondary),        titleLarge: TextStyle(color: preset.textPrimary),        titleMedium: TextStyle(color: preset.textPrimary),        titleSmall: TextStyle(color: preset.textSecondary),      ),      inputDecorationTheme: InputDecorationTheme(        filled: true,        fillColor: preset.surface,        border: OutlineInputBorder(          borderRadius: BorderRadius.circular(12),          borderSide: BorderSide.none,        ),      ),      floatingActionButtonTheme: FloatingActionButtonThemeData(        backgroundColor: preset.primary,        foregroundColor: Colors.white,      ),      bottomNavigationBarTheme: BottomNavigationBarThemeData(        backgroundColor: preset.surface,        selectedItemColor: preset.primary,        unselectedItemColor: preset.textSecondary,      ),    );  }}
+import 'package:flutter/material.dart';
+
+enum AppThemeMode { chaaya, midnight, ocean, forest, sunset }
+
+class ThemePreset {
+  final String id;
+  final String name;
+  final Color primary;
+  final Color secondary;
+  final Color accent;
+  final Color background;
+  final Color surface;
+  final Color textPrimary;
+  final Color textSecondary;
+
+  ThemePreset({
+    required this.id,
+    required this.name,
+    required this.primary,
+    required this.secondary,
+    required this.accent,
+    required this.background,
+    required this.surface,
+    required this.textPrimary,
+    required this.textSecondary,
+  });
+}
+
+class ThemeService {
+  static final Map<AppThemeMode, ThemePreset> themes = {
+    AppThemeMode.chaaya: ThemePreset(
+      id: 'chaaya',
+      name: 'Chaaya Dark',
+      primary: const Color(0xFF6366F1),
+      secondary: const Color(0xFF8B5CF6),
+      accent: const Color(0xFF06B6D4),
+      background: const Color(0xFF0D1117),
+      surface: const Color(0xFF161B22),
+      textPrimary: const Color(0xFFE6EDF3),
+      textSecondary: const Color(0xFF8B949E),
+    ),
+    AppThemeMode.midnight: ThemePreset(
+      id: 'midnight',
+      name: 'Midnight',
+      primary: const Color(0xFF3B82F6),
+      secondary: const Color(0xFF60A5FA),
+      accent: const Color(0xFF22D3EE),
+      background: const Color(0xFF0F172A),
+      surface: const Color(0xFF1E293B),
+      textPrimary: const Color(0xFFF1F5F9),
+      textSecondary: const Color(0xFF94A3B8),
+    ),
+    AppThemeMode.ocean: ThemePreset(
+      id: 'ocean',
+      name: 'Ocean',
+      primary: const Color(0xFF06B6D4),
+      secondary: const Color(0xFF22D3EE),
+      accent: const Color(0xFFF472B6),
+      background: const Color(0xFF0C1929),
+      surface: const Color(0xFF1B3A4B),
+      textPrimary: const Color(0xFFE0F2FE),
+      textSecondary: const Color(0xFF7DD3FC),
+    ),
+    AppThemeMode.forest: ThemePreset(
+      id: 'forest',
+      name: 'Forest',
+      primary: const Color(0xFF10B981),
+      secondary: const Color(0xFF34D399),
+      accent: const Color(0xFFFBBF24),
+      background: const Color(0xFF0A1F0A),
+      surface: const Color(0xFF1A3A1A),
+      textPrimary: const Color(0xFFDCFCE7),
+      textSecondary: const Color(0xFF86EFAC),
+    ),
+    AppThemeMode.sunset: ThemePreset(
+      id: 'sunset',
+      name: 'Sunset',
+      primary: const Color(0xFFF97316),
+      secondary: const Color(0xFFFB923C),
+      accent: const Color(0xFFFACC15),
+      background: const Color(0xFF1A0A0A),
+      surface: const Color(0xFF3A1A1A),
+      textPrimary: const Color(0xFFFEF2F2),
+      textSecondary: const Color(0xFFFCA5A5),
+    ),
+  };
+
+  static ThemePreset getTheme(AppThemeMode mode) {
+    return themes[mode] ?? themes[AppThemeMode.chaaya]!;
+  }
+
+  static List<ThemePreset> getAllThemes() {
+    return themes.values.toList();
+  }
+
+  static ThemeData buildTheme(ThemePreset preset) {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      primaryColor: preset.primary,
+      scaffoldBackgroundColor: preset.background,
+      colorScheme: ColorScheme.dark(
+        primary: preset.primary,
+        secondary: preset.secondary,
+        tertiary: preset.accent,
+        surface: preset.surface,
+      ),
+      appBarTheme: AppBarTheme(
+        backgroundColor: preset.surface,
+        foregroundColor: preset.textPrimary,
+        elevation: 0,
+      ),
+      cardTheme: CardThemeData(
+        color: preset.surface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: preset.textSecondary.withOpacity(0.1)),
+        ),
+      ),
+      textTheme: TextTheme(
+        bodyLarge: TextStyle(color: preset.textPrimary),
+        bodyMedium: TextStyle(color: preset.textPrimary),
+        bodySmall: TextStyle(color: preset.textSecondary),
+        titleLarge: TextStyle(color: preset.textPrimary),
+        titleMedium: TextStyle(color: preset.textPrimary),
+        titleSmall: TextStyle(color: preset.textSecondary),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: preset.surface,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: preset.primary,
+        foregroundColor: Colors.white,
+      ),
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: preset.surface,
+        selectedItemColor: preset.primary,
+        unselectedItemColor: preset.textSecondary,
+      ),
+    );
+  }
+}

@@ -1,1 +1,324 @@
-﻿import 'dart:async';import 'dart:convert';import 'package:flutter/foundation.dart';import 'package:geolocator/geolocator.dart';import 'package:hive/hive.dart';class MissionTask {  final String id;  final String title;  final String description;  final double? targetLatitude;  final double? targetLongitude;  final double radius;  String status;  String? assignedTo;  final DateTime createdAt;  DateTime? completedAt;  MissionTask({    required this.id,    required this.title,    required this.description,    this.targetLatitude,    this.targetLongitude,    this.radius = 100,    this.status = 'pending',    this.assignedTo,    required this.createdAt,    this.completedAt,  });  bool get isComplete => status == 'completed';  MissionTask copyWith(      {String? status, String? assignedTo, DateTime? completedAt}) {    return MissionTask(      id: id,      title: title,      description: description,      targetLatitude: targetLatitude,      targetLongitude: targetLongitude,      radius: radius,      status: status ?? this.status,      assignedTo: assignedTo ?? this.assignedTo,      createdAt: createdAt,      completedAt: completedAt ?? this.completedAt,    );  }  Map<String, dynamic> toJson() => {        'id': id,        'title': title,        'description': description,        'targetLatitude': targetLatitude,        'targetLongitude': targetLongitude,        'radius': radius,        'status': status,        'assignedTo': assignedTo,        'createdAt': createdAt.toIso8601String(),        'completedAt': completedAt?.toIso8601String(),      };  factory MissionTask.fromJson(Map<String, dynamic> json) => MissionTask(        id: json['id'] ?? '',        title: json['title'] ?? '',        description: json['description'] ?? '',        targetLatitude: json['targetLatitude']?.toDouble(),        targetLongitude: json['targetLongitude']?.toDouble(),        radius: json['radius']?.toDouble() ?? 100,        status: json['status'] ?? 'pending',        assignedTo: json['assignedTo'],        createdAt: DateTime.parse(json['createdAt']),        completedAt: json['completedAt'] != null            ? DateTime.parse(json['completedAt'])            : null,      );}class Mission {  final String id;  final String name;  final String description;  String status;  List<MissionTask> tasks;  final List<String> assignedMembers;  final String leaderId;  final double? rallyLatitude;  final double? rallyLongitude;  final DateTime createdAt;  DateTime? completedAt;  Mission({    required this.id,    required this.name,    required this.description,    this.status = 'planning',    List<MissionTask>? tasks,    required this.assignedMembers,    required this.leaderId,    this.rallyLatitude,    this.rallyLongitude,    required this.createdAt,    this.completedAt,  }) : tasks = tasks ?? [];  bool get isActive => status == 'active';  int get completedTasks => tasks.where((t) => t.isComplete).length;  double get completionPercentage =>      tasks.isEmpty ? 0 : completedTasks / tasks.length;  Map<String, dynamic> toJson() => {        'id': id,        'name': name,        'description': description,        'status': status,        'tasks': tasks.map((t) => t.toJson()).toList(),        'assignedMembers': assignedMembers,        'leaderId': leaderId,        'rallyLatitude': rallyLatitude,        'rallyLongitude': rallyLongitude,        'createdAt': createdAt.toIso8601String(),        'completedAt': completedAt?.toIso8601String(),        'completionPercentage': completionPercentage,      };  factory Mission.fromJson(Map<String, dynamic> json) => Mission(        id: json['id'] ?? '',        name: json['name'] ?? '',        description: json['description'] ?? '',        status: json['status'] ?? 'planning',        tasks: (json['tasks'] as List?)            ?.map((t) => MissionTask.fromJson(t))            .toList(),        assignedMembers: List<String>.from(json['assignedMembers'] ?? []),        leaderId: json['leaderId'] ?? '',        rallyLatitude: json['rallyLatitude']?.toDouble(),        rallyLongitude: json['rallyLongitude']?.toDouble(),        createdAt: DateTime.parse(json['createdAt']),        completedAt: json['completedAt'] != null            ? DateTime.parse(json['completedAt'])            : null,      );}enum MissionRole { leader, member, scout, medic, relay }class MissionPlanner {  final Map<String, Mission> _missions = {};  final Map<String, MissionRole> _userRoles = {};  static const String _boxName = 'catus_missions';  Box<String>? _box;  final _missionController = StreamController<Mission>.broadcast();  Stream<Mission> get missionStream => _missionController.stream;  final _taskController = StreamController<MissionTask>.broadcast();  Stream<MissionTask> get taskStream => _taskController.stream;  Future<void> initialize() async {    _box = await Hive.openBox<String>(_boxName);    _loadFromHive();  }  void _loadFromHive() {    if (_box == null) return;    for (final key in _box!.keys) {      final json = _box!.get(key);      if (json != null) {        try {          final mission = Mission.fromJson(jsonDecode(json));          _missions[mission.id] = mission;          _userRoles[mission.leaderId] = MissionRole.leader;        } catch (e) {          debugPrint('[MissionPlanner] Error parsing mission: $e');        }      }    }  }  void _saveMission(Mission mission) {    _box?.put(mission.id, jsonEncode(mission.toJson()));  }  String createMission({    required String name,    required String description,    required String leaderId,    required List<String> members,    double? rallyLatitude,    double? rallyLongitude,  }) {    final id = 'MISSION_${DateTime.now().millisecondsSinceEpoch}';    final mission = Mission(      id: id,      name: name,      description: description,      leaderId: leaderId,      assignedMembers: [leaderId, ...members],      rallyLatitude: rallyLatitude,      rallyLongitude: rallyLongitude,      createdAt: DateTime.now(),    );    _missions[id] = mission;    _userRoles[leaderId] = MissionRole.leader;    _saveMission(mission);    _missionController.add(mission);    debugPrint('Mission created: $name');    return id;  }  void addTask(String missionId, MissionTask task) {    final mission = _missions[missionId];    if (mission == null) return;    mission.tasks.add(task);    _saveMission(mission);    _missionController.add(mission);  }  void assignTask(String missionId, String taskId, String userId) {    final mission = _missions[missionId];    if (mission == null) return;    final taskIndex = mission.tasks.indexWhere((t) => t.id == taskId);    if (taskIndex < 0) return;    mission.tasks[taskIndex] =        mission.tasks[taskIndex].copyWith(assignedTo: userId);    _saveMission(mission);    _taskController.add(mission.tasks[taskIndex]);    _missionController.add(mission);  }  void completeTask(String missionId, String taskId) {    final mission = _missions[missionId];    if (mission == null) return;    final taskIndex = mission.tasks.indexWhere((t) => t.id == taskId);    if (taskIndex < 0) return;    mission.tasks[taskIndex] = mission.tasks[taskIndex].copyWith(      status: 'completed',      completedAt: DateTime.now(),    );    _saveMission(mission);    _taskController.add(mission.tasks[taskIndex]);    _missionController.add(mission);    _checkMissionCompletion(missionId);  }  void _checkMissionCompletion(String missionId) {    final mission = _missions[missionId];    if (mission == null) return;    if (mission.tasks.every((t) => t.isComplete)) {      mission.status = 'completed';      mission.completedAt = DateTime.now();      _saveMission(mission);      _missionController.add(mission);    }  }  void activateMission(String missionId) {    final mission = _missions[missionId];    if (mission == null) return;    mission.status = 'active';    _saveMission(mission);    _missionController.add(mission);  }  void pauseMission(String missionId) {    final mission = _missions[missionId];    if (mission == null) return;    mission.status = 'paused';    _saveMission(mission);    _missionController.add(mission);  }  void archiveMission(String missionId) {    final mission = _missions[missionId];    if (mission == null) return;    mission.status = 'archived';    _saveMission(mission);    _missionController.add(mission);  }  Mission? getMission(String missionId) => _missions[missionId];  List<Mission> getActiveMissions() {    return _missions.values.where((m) => m.isActive).toList();  }  List<Mission> getUserMissions(String userId) {    return _missions.values        .where((m) => m.assignedMembers.contains(userId))        .toList()      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));  }  MissionRole? getUserRole(String userId) => _userRoles[userId];  Map<String, dynamic> getStatistics() {    return {      'totalMissions': _missions.length,      'activeMissions':          _missions.values.where((m) => m.status == 'active').length,      'completedMissions':          _missions.values.where((m) => m.status == 'completed').length,    };  }  void dispose() {    _missionController.close();    _taskController.close();  }}
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:hive/hive.dart';
+
+class MissionTask {
+  final String id;
+  final String title;
+  final String description;
+  final double? targetLatitude;
+  final double? targetLongitude;
+  final double radius;
+  String status;
+  String? assignedTo;
+  final DateTime createdAt;
+  DateTime? completedAt;
+
+  MissionTask({
+    required this.id,
+    required this.title,
+    required this.description,
+    this.targetLatitude,
+    this.targetLongitude,
+    this.radius = 100,
+    this.status = 'pending',
+    this.assignedTo,
+    required this.createdAt,
+    this.completedAt,
+  });
+
+  bool get isComplete => status == 'completed';
+
+  MissionTask copyWith(
+      {String? status, String? assignedTo, DateTime? completedAt}) {
+    return MissionTask(
+      id: id,
+      title: title,
+      description: description,
+      targetLatitude: targetLatitude,
+      targetLongitude: targetLongitude,
+      radius: radius,
+      status: status ?? this.status,
+      assignedTo: assignedTo ?? this.assignedTo,
+      createdAt: createdAt,
+      completedAt: completedAt ?? this.completedAt,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'description': description,
+        'targetLatitude': targetLatitude,
+        'targetLongitude': targetLongitude,
+        'radius': radius,
+        'status': status,
+        'assignedTo': assignedTo,
+        'createdAt': createdAt.toIso8601String(),
+        'completedAt': completedAt?.toIso8601String(),
+      };
+
+  factory MissionTask.fromJson(Map<String, dynamic> json) => MissionTask(
+        id: json['id'] ?? '',
+        title: json['title'] ?? '',
+        description: json['description'] ?? '',
+        targetLatitude: json['targetLatitude']?.toDouble(),
+        targetLongitude: json['targetLongitude']?.toDouble(),
+        radius: json['radius']?.toDouble() ?? 100,
+        status: json['status'] ?? 'pending',
+        assignedTo: json['assignedTo'],
+        createdAt: DateTime.parse(json['createdAt']),
+        completedAt: json['completedAt'] != null
+            ? DateTime.parse(json['completedAt'])
+            : null,
+      );
+}
+
+class Mission {
+  final String id;
+  final String name;
+  final String description;
+  String status;
+  List<MissionTask> tasks;
+  final List<String> assignedMembers;
+  final String leaderId;
+  final double? rallyLatitude;
+  final double? rallyLongitude;
+  final DateTime createdAt;
+  DateTime? completedAt;
+
+  Mission({
+    required this.id,
+    required this.name,
+    required this.description,
+    this.status = 'planning',
+    List<MissionTask>? tasks,
+    required this.assignedMembers,
+    required this.leaderId,
+    this.rallyLatitude,
+    this.rallyLongitude,
+    required this.createdAt,
+    this.completedAt,
+  }) : tasks = tasks ?? [];
+
+  bool get isActive => status == 'active';
+  int get completedTasks => tasks.where((t) => t.isComplete).length;
+  double get completionPercentage =>
+      tasks.isEmpty ? 0 : completedTasks / tasks.length;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'description': description,
+        'status': status,
+        'tasks': tasks.map((t) => t.toJson()).toList(),
+        'assignedMembers': assignedMembers,
+        'leaderId': leaderId,
+        'rallyLatitude': rallyLatitude,
+        'rallyLongitude': rallyLongitude,
+        'createdAt': createdAt.toIso8601String(),
+        'completedAt': completedAt?.toIso8601String(),
+        'completionPercentage': completionPercentage,
+      };
+
+  factory Mission.fromJson(Map<String, dynamic> json) => Mission(
+        id: json['id'] ?? '',
+        name: json['name'] ?? '',
+        description: json['description'] ?? '',
+        status: json['status'] ?? 'planning',
+        tasks: (json['tasks'] as List?)
+            ?.map((t) => MissionTask.fromJson(t))
+            .toList(),
+        assignedMembers: List<String>.from(json['assignedMembers'] ?? []),
+        leaderId: json['leaderId'] ?? '',
+        rallyLatitude: json['rallyLatitude']?.toDouble(),
+        rallyLongitude: json['rallyLongitude']?.toDouble(),
+        createdAt: DateTime.parse(json['createdAt']),
+        completedAt: json['completedAt'] != null
+            ? DateTime.parse(json['completedAt'])
+            : null,
+      );
+}
+
+enum MissionRole { leader, member, scout, medic, relay }
+
+class MissionPlanner {
+  final Map<String, Mission> _missions = {};
+  final Map<String, MissionRole> _userRoles = {};
+
+  static const String _boxName = 'chaaya_missions';
+  Box<String>? _box;
+
+  final _missionController = StreamController<Mission>.broadcast();
+  Stream<Mission> get missionStream => _missionController.stream;
+
+  final _taskController = StreamController<MissionTask>.broadcast();
+  Stream<MissionTask> get taskStream => _taskController.stream;
+
+  Future<void> initialize() async {
+    _box = await Hive.openBox<String>(_boxName);
+    _loadFromHive();
+  }
+
+  void _loadFromHive() {
+    if (_box == null) return;
+    for (final key in _box!.keys) {
+      final json = _box!.get(key);
+      if (json != null) {
+        try {
+          final mission = Mission.fromJson(jsonDecode(json));
+          _missions[mission.id] = mission;
+          _userRoles[mission.leaderId] = MissionRole.leader;
+        } catch (e) {
+          debugPrint('[MissionPlanner] Error parsing mission: $e');
+        }
+      }
+    }
+  }
+
+  void _saveMission(Mission mission) {
+    _box?.put(mission.id, jsonEncode(mission.toJson()));
+  }
+
+  String createMission({
+    required String name,
+    required String description,
+    required String leaderId,
+    required List<String> members,
+    double? rallyLatitude,
+    double? rallyLongitude,
+  }) {
+    final id = 'MISSION_${DateTime.now().millisecondsSinceEpoch}';
+
+    final mission = Mission(
+      id: id,
+      name: name,
+      description: description,
+      leaderId: leaderId,
+      assignedMembers: [leaderId, ...members],
+      rallyLatitude: rallyLatitude,
+      rallyLongitude: rallyLongitude,
+      createdAt: DateTime.now(),
+    );
+
+    _missions[id] = mission;
+    _userRoles[leaderId] = MissionRole.leader;
+    _saveMission(mission);
+
+    _missionController.add(mission);
+    debugPrint('Mission created: $name');
+    return id;
+  }
+
+  void addTask(String missionId, MissionTask task) {
+    final mission = _missions[missionId];
+    if (mission == null) return;
+
+    mission.tasks.add(task);
+    _saveMission(mission);
+    _missionController.add(mission);
+  }
+
+  void assignTask(String missionId, String taskId, String userId) {
+    final mission = _missions[missionId];
+    if (mission == null) return;
+
+    final taskIndex = mission.tasks.indexWhere((t) => t.id == taskId);
+    if (taskIndex < 0) return;
+
+    mission.tasks[taskIndex] =
+        mission.tasks[taskIndex].copyWith(assignedTo: userId);
+    _saveMission(mission);
+    _taskController.add(mission.tasks[taskIndex]);
+    _missionController.add(mission);
+  }
+
+  void completeTask(String missionId, String taskId) {
+    final mission = _missions[missionId];
+    if (mission == null) return;
+
+    final taskIndex = mission.tasks.indexWhere((t) => t.id == taskId);
+    if (taskIndex < 0) return;
+
+    mission.tasks[taskIndex] = mission.tasks[taskIndex].copyWith(
+      status: 'completed',
+      completedAt: DateTime.now(),
+    );
+    _saveMission(mission);
+    _taskController.add(mission.tasks[taskIndex]);
+    _missionController.add(mission);
+
+    _checkMissionCompletion(missionId);
+  }
+
+  void _checkMissionCompletion(String missionId) {
+    final mission = _missions[missionId];
+    if (mission == null) return;
+
+    if (mission.tasks.every((t) => t.isComplete)) {
+      mission.status = 'completed';
+      mission.completedAt = DateTime.now();
+      _saveMission(mission);
+      _missionController.add(mission);
+    }
+  }
+
+  void activateMission(String missionId) {
+    final mission = _missions[missionId];
+    if (mission == null) return;
+
+    mission.status = 'active';
+    _saveMission(mission);
+    _missionController.add(mission);
+  }
+
+  void pauseMission(String missionId) {
+    final mission = _missions[missionId];
+    if (mission == null) return;
+
+    mission.status = 'paused';
+    _saveMission(mission);
+    _missionController.add(mission);
+  }
+
+  void archiveMission(String missionId) {
+    final mission = _missions[missionId];
+    if (mission == null) return;
+
+    mission.status = 'archived';
+    _saveMission(mission);
+    _missionController.add(mission);
+  }
+
+  Mission? getMission(String missionId) => _missions[missionId];
+
+  List<Mission> getActiveMissions() {
+    return _missions.values.where((m) => m.isActive).toList();
+  }
+
+  List<Mission> getUserMissions(String userId) {
+    return _missions.values
+        .where((m) => m.assignedMembers.contains(userId))
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  MissionRole? getUserRole(String userId) => _userRoles[userId];
+
+  Map<String, dynamic> getStatistics() {
+    return {
+      'totalMissions': _missions.length,
+      'activeMissions':
+          _missions.values.where((m) => m.status == 'active').length,
+      'completedMissions':
+          _missions.values.where((m) => m.status == 'completed').length,
+    };
+  }
+
+  void dispose() {
+    _missionController.close();
+    _taskController.close();
+  }
+}

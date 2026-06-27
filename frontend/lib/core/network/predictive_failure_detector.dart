@@ -1,1 +1,364 @@
-﻿import 'dart:async';import 'dart:math';import 'package:flutter/foundation.dart';class SignalSample {  final double rssi;  final DateTime timestamp;  final double txPower;  SignalSample({    required this.rssi,    required this.timestamp,    required this.txPower,  });  double get estimatedDistance {    if (rssi == 0) return -1.0;    const double pathLossExponent = 2.0;    return pow(10, (txPower - rssi) / (10 * pathLossExponent)).toDouble();  }}class FailurePrediction {  final String nodeId;  final double probability;  final Duration estimatedTimeToFailure;  final DateTime predictedAt;  final String reason;  FailurePrediction({    required this.nodeId,    required this.probability,    required this.estimatedTimeToFailure,    required this.predictedAt,    required this.reason,  });  bool get isImminent =>      probability > 0.7 && estimatedTimeToFailure.inSeconds < 60;  bool get isWarning =>      probability > 0.5 && estimatedTimeToFailure.inMinutes < 5;}class PredictiveFailureDetector {  final Map<String, List<SignalSample>> _signalHistory = {};  final Map<String, List<double>> _batteryHistory = {};  final Map<String, DateTime> _lastSeen = {};  final Map<String, double> _batteryDrainRate = {};  static const int _signalWindowSize = 10;  static const int _batteryWindowSize = 20;  static const Duration _staleThreshold = Duration(minutes: 5);  Timer? _monitoringTimer;  bool _isMonitoring = false;  final _failureController = StreamController<FailurePrediction>.broadcast();  Stream<FailurePrediction> get failureStream => _failureController.stream;  final _warningController = StreamController<Map<String, dynamic>>.broadcast();  Stream<Map<String, dynamic>> get warningStream => _warningController.stream;  void startMonitoring({Duration interval = const Duration(seconds: 30)}) {    if (_isMonitoring) return;    _isMonitoring = true;    _monitoringTimer = Timer.periodic(interval, (_) => _checkForFailures());    debugPrint('PredictiveFailureDetector started');  }  void stopMonitoring() {    _isMonitoring = false;    _monitoringTimer?.cancel();    _monitoringTimer = null;    debugPrint('PredictiveFailureDetector stopped');  }  void recordSignal(String nodeId, double rssi, {double txPower = -59}) {    _signalHistory[nodeId] ??= [];    _signalHistory[nodeId]!.add(SignalSample(      rssi: rssi,      timestamp: DateTime.now(),      txPower: txPower,    ));    if (_signalHistory[nodeId]!.length > _signalWindowSize) {      _signalHistory[nodeId]!.removeAt(0);    }    _lastSeen[nodeId] = DateTime.now();  }  void recordBatteryLevel(String nodeId, double level) {    _batteryHistory[nodeId] ??= [];    _batteryHistory[nodeId]!.add(level);    if (_batteryHistory[nodeId]!.length > _batteryWindowSize) {      _batteryHistory[nodeId]!.removeAt(0);    }    _calculateBatteryDrainRate(nodeId);    _lastSeen[nodeId] = DateTime.now();  }  void _calculateBatteryDrainRate(String nodeId) {    final history = _batteryHistory[nodeId];    if (history == null || history.length < 2) return;    final oldest = history.first;    final newest = history.last;    final timeDiff = history.length * 30;    if (timeDiff > 0 && oldest > newest) {      _batteryDrainRate[nodeId] = (oldest - newest) / timeDiff;    }  }  void _checkForFailures() {    final now = DateTime.now();    for (final nodeId in _lastSeen.keys) {      if (now.difference(_lastSeen[nodeId]!) > _staleThreshold) {        _emitFailurePrediction(FailurePrediction(          nodeId: nodeId,          probability: 1.0,          estimatedTimeToFailure: Duration.zero,          predictedAt: now,          reason:              'Node is stale - last seen ${now.difference(_lastSeen[nodeId]!).inMinutes} minutes ago',        ));        continue;      }      final signalPrediction = _predictSignalFailure(nodeId);      if (signalPrediction != null) {        _emitFailurePrediction(signalPrediction);      }      final batteryPrediction = _predictBatteryFailure(nodeId);      if (batteryPrediction != null) {        _emitFailurePrediction(batteryPrediction);      }    }    _emitWarnings();  }  FailurePrediction? _predictSignalFailure(String nodeId) {    final history = _signalHistory[nodeId];    if (history == null || history.length < 3) return null;    final samples = history;    final recentAvg = samples            .skip(samples.length - 3)            .map((s) => s.rssi)            .reduce((a, b) => a + b) /        3;    final overallAvg =        samples.map((s) => s.rssi).reduce((a, b) => a + b) / samples.length;    final declineRate = (overallAvg - recentAvg).abs();    final lastSample = samples.last;    double probability = 0.0;    String reason = '';    if (lastSample.rssi < -80) {      probability += 0.3;      reason += 'Very weak signal (${lastSample.rssi} dBm). ';    }    if (declineRate > 5) {      probability += 0.3;      reason +=          'Rapid signal decline (${declineRate.toStringAsFixed(1)} dBm). ';    }    if (lastSample.estimatedDistance > 50) {      probability += 0.2;      reason += 'Estimated distance > 50m. ';    }    if (probability < 0.3) return null;    final estimatedTime = Duration(seconds: (30 / probability).round());    return FailurePrediction(      nodeId: nodeId,      probability: probability.clamp(0.0, 1.0),      estimatedTimeToFailure: estimatedTime,      predictedAt: DateTime.now(),      reason: reason.isEmpty ? 'Signal degradation detected' : reason,    );  }  FailurePrediction? _predictBatteryFailure(String nodeId) {    final history = _batteryHistory[nodeId];    final drainRate = _batteryDrainRate[nodeId];    if (history == null || history.isEmpty) return null;    final currentLevel = history.last;    if (currentLevel < 0.1) {      return FailurePrediction(        nodeId: nodeId,        probability: 0.9,        estimatedTimeToFailure: Duration.zero,        predictedAt: DateTime.now(),        reason: 'Critical battery level (${(currentLevel * 100).round()}%)',      );    }    if (currentLevel < 0.2) {      return FailurePrediction(        nodeId: nodeId,        probability: 0.6,        estimatedTimeToFailure: Duration(minutes: 30),        predictedAt: DateTime.now(),        reason: 'Low battery (${(currentLevel * 100).round()}%)',      );    }    if (drainRate != null && drainRate > 0.001) {      final hoursUntilDead = (currentLevel / drainRate) / 3600;      if (hoursUntilDead < 2) {        return FailurePrediction(          nodeId: nodeId,          probability: 0.5,          estimatedTimeToFailure:              Duration(minutes: (hoursUntilDead * 60).round()),          predictedAt: DateTime.now(),          reason:              'High drain rate - estimated ${hoursUntilDead.toStringAsFixed(1)} hours remaining',        );      }    }    return null;  }  void _emitFailurePrediction(FailurePrediction prediction) {    _failureController.add(prediction);    debugPrint(        'Failure predicted for ${prediction.nodeId}: ${prediction.probability} - ${prediction.reason}');  }  void _emitWarnings() {    final warnings = <String, dynamic>{      'timestamp': DateTime.now().toIso8601String(),      'warnings': <Map<String, dynamic>>[],    };    for (final nodeId in _signalHistory.keys) {      final history = _signalHistory[nodeId]!;      if (history.length >= 3) {        final recentAvg = history                .skip(history.length - 3)                .map((s) => s.rssi)                .reduce((a, b) => a + b) /            3;        if (recentAvg < -70) {          warnings['warnings'].add({            'nodeId': nodeId,            'type': 'signal',            'severity': recentAvg < -80 ? 'high' : 'medium',            'rssi': recentAvg,          });        }      }    }    for (final nodeId in _batteryHistory.keys) {      final level = _batteryHistory[nodeId]!.last;      if (level < 0.2) {        warnings['warnings'].add({          'nodeId': nodeId,          'type': 'battery',          'severity': level < 0.1 ? 'high' : 'medium',          'level': level,        });      }    }    if ((warnings['warnings'] as List).isNotEmpty) {      _warningController.add(warnings);    }  }  FailurePrediction? getPrediction(String nodeId) {    final signalPrediction = _predictSignalFailure(nodeId);    final batteryPrediction = _predictBatteryFailure(nodeId);    if (signalPrediction == null) return batteryPrediction;    if (batteryPrediction == null) return signalPrediction;    if (signalPrediction.probability >= batteryPrediction.probability) {      return signalPrediction;    }    return batteryPrediction;  }  List<String> getAtRiskNodes({double threshold = 0.5}) {    final atRisk = <String>[];    for (final nodeId in _lastSeen.keys) {      final prediction = getPrediction(nodeId);      if (prediction != null && prediction.probability >= threshold) {        atRisk.add(nodeId);      }    }    return atRisk;  }  Map<String, dynamic> getNetworkReliability() {    final predictions = <FailurePrediction>[];    for (final nodeId in _lastSeen.keys) {      final pred = getPrediction(nodeId);      if (pred != null) predictions.add(pred);    }    if (predictions.isEmpty) {      return {        'overallReliability': 1.0,        'atRiskCount': 0,        'criticalCount': 0,        'healthy': true,      };    }    final avgProbability =        predictions.map((p) => p.probability).reduce((a, b) => a + b) /            predictions.length;    final criticalCount = predictions.where((p) => p.probability > 0.7).length;    return {      'overallReliability': 1.0 - avgProbability,      'atRiskCount': predictions.length,      'criticalCount': criticalCount,      'healthy': avgProbability < 0.3,      'predictions': predictions.map((p) => p.nodeId).toList(),    };  }  void clearHistory(String nodeId) {    _signalHistory.remove(nodeId);    _batteryHistory.remove(nodeId);    _batteryDrainRate.remove(nodeId);    _lastSeen.remove(nodeId);  }  void clearAllHistory() {    _signalHistory.clear();    _batteryHistory.clear();    _batteryDrainRate.clear();    _lastSeen.clear();  }  void dispose() {    stopMonitoring();    _failureController.close();    _warningController.close();  }}
+import 'dart:async';
+import 'dart:math';
+import 'package:flutter/foundation.dart';
+
+class SignalSample {
+  final double rssi;
+  final DateTime timestamp;
+  final double txPower;
+
+  SignalSample({
+    required this.rssi,
+    required this.timestamp,
+    required this.txPower,
+  });
+
+  double get estimatedDistance {
+    if (rssi == 0) return -1.0;
+    const double pathLossExponent = 2.0;
+    return pow(10, (txPower - rssi) / (10 * pathLossExponent)).toDouble();
+  }
+}
+
+class FailurePrediction {
+  final String nodeId;
+  final double probability;
+  final Duration estimatedTimeToFailure;
+  final DateTime predictedAt;
+  final String reason;
+
+  FailurePrediction({
+    required this.nodeId,
+    required this.probability,
+    required this.estimatedTimeToFailure,
+    required this.predictedAt,
+    required this.reason,
+  });
+
+  bool get isImminent =>
+      probability > 0.7 && estimatedTimeToFailure.inSeconds < 60;
+  bool get isWarning =>
+      probability > 0.5 && estimatedTimeToFailure.inMinutes < 5;
+}
+
+class PredictiveFailureDetector {
+  final Map<String, List<SignalSample>> _signalHistory = {};
+  final Map<String, List<double>> _batteryHistory = {};
+  final Map<String, DateTime> _lastSeen = {};
+  final Map<String, double> _batteryDrainRate = {};
+
+  static const int _signalWindowSize = 10;
+  static const int _batteryWindowSize = 20;
+  static const Duration _staleThreshold = Duration(minutes: 5);
+
+  Timer? _monitoringTimer;
+  bool _isMonitoring = false;
+
+  final _failureController = StreamController<FailurePrediction>.broadcast();
+  Stream<FailurePrediction> get failureStream => _failureController.stream;
+
+  final _warningController = StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get warningStream => _warningController.stream;
+
+  void startMonitoring({Duration interval = const Duration(seconds: 30)}) {
+    if (_isMonitoring) return;
+    _isMonitoring = true;
+    _monitoringTimer = Timer.periodic(interval, (_) => _checkForFailures());
+    debugPrint('PredictiveFailureDetector started');
+  }
+
+  void stopMonitoring() {
+    _isMonitoring = false;
+    _monitoringTimer?.cancel();
+    _monitoringTimer = null;
+    debugPrint('PredictiveFailureDetector stopped');
+  }
+
+  void recordSignal(String nodeId, double rssi, {double txPower = -59}) {
+    _signalHistory[nodeId] ??= [];
+    _signalHistory[nodeId]!.add(SignalSample(
+      rssi: rssi,
+      timestamp: DateTime.now(),
+      txPower: txPower,
+    ));
+
+    if (_signalHistory[nodeId]!.length > _signalWindowSize) {
+      _signalHistory[nodeId]!.removeAt(0);
+    }
+
+    _lastSeen[nodeId] = DateTime.now();
+  }
+
+  void recordBatteryLevel(String nodeId, double level) {
+    _batteryHistory[nodeId] ??= [];
+    _batteryHistory[nodeId]!.add(level);
+
+    if (_batteryHistory[nodeId]!.length > _batteryWindowSize) {
+      _batteryHistory[nodeId]!.removeAt(0);
+    }
+
+    _calculateBatteryDrainRate(nodeId);
+    _lastSeen[nodeId] = DateTime.now();
+  }
+
+  void _calculateBatteryDrainRate(String nodeId) {
+    final history = _batteryHistory[nodeId];
+    if (history == null || history.length < 2) return;
+
+    final oldest = history.first;
+    final newest = history.last;
+    final timeDiff = history.length * 30;
+
+    if (timeDiff > 0 && oldest > newest) {
+      _batteryDrainRate[nodeId] = (oldest - newest) / timeDiff;
+    }
+  }
+
+  void _checkForFailures() {
+    final now = DateTime.now();
+
+    for (final nodeId in _lastSeen.keys) {
+      if (now.difference(_lastSeen[nodeId]!) > _staleThreshold) {
+        _emitFailurePrediction(FailurePrediction(
+          nodeId: nodeId,
+          probability: 1.0,
+          estimatedTimeToFailure: Duration.zero,
+          predictedAt: now,
+          reason:
+              'Node is stale - last seen ${now.difference(_lastSeen[nodeId]!).inMinutes} minutes ago',
+        ));
+        continue;
+      }
+
+      final signalPrediction = _predictSignalFailure(nodeId);
+      if (signalPrediction != null) {
+        _emitFailurePrediction(signalPrediction);
+      }
+
+      final batteryPrediction = _predictBatteryFailure(nodeId);
+      if (batteryPrediction != null) {
+        _emitFailurePrediction(batteryPrediction);
+      }
+    }
+
+    _emitWarnings();
+  }
+
+  FailurePrediction? _predictSignalFailure(String nodeId) {
+    final history = _signalHistory[nodeId];
+    if (history == null || history.length < 3) return null;
+
+    final samples = history;
+    final recentAvg = samples
+            .skip(samples.length - 3)
+            .map((s) => s.rssi)
+            .reduce((a, b) => a + b) /
+        3;
+    final overallAvg =
+        samples.map((s) => s.rssi).reduce((a, b) => a + b) / samples.length;
+
+    final declineRate = (overallAvg - recentAvg).abs();
+    final lastSample = samples.last;
+
+    double probability = 0.0;
+    String reason = '';
+
+    if (lastSample.rssi < -80) {
+      probability += 0.3;
+      reason += 'Very weak signal (${lastSample.rssi} dBm). ';
+    }
+
+    if (declineRate > 5) {
+      probability += 0.3;
+      reason +=
+          'Rapid signal decline (${declineRate.toStringAsFixed(1)} dBm). ';
+    }
+
+    if (lastSample.estimatedDistance > 50) {
+      probability += 0.2;
+      reason += 'Estimated distance > 50m. ';
+    }
+
+    if (probability < 0.3) return null;
+
+    final estimatedTime = Duration(seconds: (30 / probability).round());
+
+    return FailurePrediction(
+      nodeId: nodeId,
+      probability: probability.clamp(0.0, 1.0),
+      estimatedTimeToFailure: estimatedTime,
+      predictedAt: DateTime.now(),
+      reason: reason.isEmpty ? 'Signal degradation detected' : reason,
+    );
+  }
+
+  FailurePrediction? _predictBatteryFailure(String nodeId) {
+    final history = _batteryHistory[nodeId];
+    final drainRate = _batteryDrainRate[nodeId];
+
+    if (history == null || history.isEmpty) return null;
+
+    final currentLevel = history.last;
+
+    if (currentLevel < 0.1) {
+      return FailurePrediction(
+        nodeId: nodeId,
+        probability: 0.9,
+        estimatedTimeToFailure: Duration.zero,
+        predictedAt: DateTime.now(),
+        reason: 'Critical battery level (${(currentLevel * 100).round()}%)',
+      );
+    }
+
+    if (currentLevel < 0.2) {
+      return FailurePrediction(
+        nodeId: nodeId,
+        probability: 0.6,
+        estimatedTimeToFailure: Duration(minutes: 30),
+        predictedAt: DateTime.now(),
+        reason: 'Low battery (${(currentLevel * 100).round()}%)',
+      );
+    }
+
+    if (drainRate != null && drainRate > 0.001) {
+      final hoursUntilDead = (currentLevel / drainRate) / 3600;
+      if (hoursUntilDead < 2) {
+        return FailurePrediction(
+          nodeId: nodeId,
+          probability: 0.5,
+          estimatedTimeToFailure:
+              Duration(minutes: (hoursUntilDead * 60).round()),
+          predictedAt: DateTime.now(),
+          reason:
+              'High drain rate - estimated ${hoursUntilDead.toStringAsFixed(1)} hours remaining',
+        );
+      }
+    }
+
+    return null;
+  }
+
+  void _emitFailurePrediction(FailurePrediction prediction) {
+    _failureController.add(prediction);
+    debugPrint(
+        'Failure predicted for ${prediction.nodeId}: ${prediction.probability} - ${prediction.reason}');
+  }
+
+  void _emitWarnings() {
+    final warnings = <String, dynamic>{
+      'timestamp': DateTime.now().toIso8601String(),
+      'warnings': <Map<String, dynamic>>[],
+    };
+
+    for (final nodeId in _signalHistory.keys) {
+      final history = _signalHistory[nodeId]!;
+      if (history.length >= 3) {
+        final recentAvg = history
+                .skip(history.length - 3)
+                .map((s) => s.rssi)
+                .reduce((a, b) => a + b) /
+            3;
+        if (recentAvg < -70) {
+          warnings['warnings'].add({
+            'nodeId': nodeId,
+            'type': 'signal',
+            'severity': recentAvg < -80 ? 'high' : 'medium',
+            'rssi': recentAvg,
+          });
+        }
+      }
+    }
+
+    for (final nodeId in _batteryHistory.keys) {
+      final level = _batteryHistory[nodeId]!.last;
+      if (level < 0.2) {
+        warnings['warnings'].add({
+          'nodeId': nodeId,
+          'type': 'battery',
+          'severity': level < 0.1 ? 'high' : 'medium',
+          'level': level,
+        });
+      }
+    }
+
+    if ((warnings['warnings'] as List).isNotEmpty) {
+      _warningController.add(warnings);
+    }
+  }
+
+  FailurePrediction? getPrediction(String nodeId) {
+    final signalPrediction = _predictSignalFailure(nodeId);
+    final batteryPrediction = _predictBatteryFailure(nodeId);
+
+    if (signalPrediction == null) return batteryPrediction;
+    if (batteryPrediction == null) return signalPrediction;
+
+    if (signalPrediction.probability >= batteryPrediction.probability) {
+      return signalPrediction;
+    }
+    return batteryPrediction;
+  }
+
+  List<String> getAtRiskNodes({double threshold = 0.5}) {
+    final atRisk = <String>[];
+
+    for (final nodeId in _lastSeen.keys) {
+      final prediction = getPrediction(nodeId);
+      if (prediction != null && prediction.probability >= threshold) {
+        atRisk.add(nodeId);
+      }
+    }
+
+    return atRisk;
+  }
+
+  Map<String, dynamic> getNetworkReliability() {
+    final predictions = <FailurePrediction>[];
+    for (final nodeId in _lastSeen.keys) {
+      final pred = getPrediction(nodeId);
+      if (pred != null) predictions.add(pred);
+    }
+
+    if (predictions.isEmpty) {
+      return {
+        'overallReliability': 1.0,
+        'atRiskCount': 0,
+        'criticalCount': 0,
+        'healthy': true,
+      };
+    }
+
+    final avgProbability =
+        predictions.map((p) => p.probability).reduce((a, b) => a + b) /
+            predictions.length;
+    final criticalCount = predictions.where((p) => p.probability > 0.7).length;
+
+    return {
+      'overallReliability': 1.0 - avgProbability,
+      'atRiskCount': predictions.length,
+      'criticalCount': criticalCount,
+      'healthy': avgProbability < 0.3,
+      'predictions': predictions.map((p) => p.nodeId).toList(),
+    };
+  }
+
+  void clearHistory(String nodeId) {
+    _signalHistory.remove(nodeId);
+    _batteryHistory.remove(nodeId);
+    _batteryDrainRate.remove(nodeId);
+    _lastSeen.remove(nodeId);
+  }
+
+  void clearAllHistory() {
+    _signalHistory.clear();
+    _batteryHistory.clear();
+    _batteryDrainRate.clear();
+    _lastSeen.clear();
+  }
+
+  void dispose() {
+    stopMonitoring();
+    _failureController.close();
+    _warningController.close();
+  }
+}

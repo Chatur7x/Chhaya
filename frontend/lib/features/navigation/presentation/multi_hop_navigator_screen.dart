@@ -1,1 +1,356 @@
-﻿import 'package:flutter/material.dart';import 'package:flutter_riverpod/flutter_riverpod.dart';import '../../../core/theme/catus_theme.dart';import '../multi_hop_navigator.dart';final multiHopProvider = Provider<MultiHopNavigator>((ref) {  return MultiHopNavigator();});class MultiHopNavigatorScreen extends ConsumerStatefulWidget {  const MultiHopNavigatorScreen({super.key});  @override  ConsumerState<MultiHopNavigatorScreen> createState() =>      _MultiHopNavigatorScreenState();}class _MultiHopNavigatorScreenState    extends ConsumerState<MultiHopNavigatorScreen> {  String? _selectedDestination;  @override  Widget build(BuildContext context) {    final navigator = ref.watch(multiHopProvider);    return Scaffold(      backgroundColor: CatusTheme.background,      appBar: AppBar(        title: const Text('Mesh Navigator'),        backgroundColor: CatusTheme.background,        elevation: 0,      ),      body: ListView(        padding: const EdgeInsets.all(16),        children: [          _buildHeader(),          const SizedBox(height: 24),          _buildDestinationsList(navigator),          const SizedBox(height: 24),          _buildRoutePreview(),          const SizedBox(height: 24),          _buildNearbyNodes(navigator),        ],      ),      floatingActionButton: FloatingActionButton.extended(        onPressed: () => _showAddDestinationDialog(navigator),        backgroundColor: CatusTheme.accent,        icon: const Icon(Icons.add_location),        label: const Text('Add Waypoint'),      ),    );  }  Widget _buildHeader() {    return Container(      padding: const EdgeInsets.all(20),      decoration: CatusTheme.glassDecoration(borderRadius: 16),      child: Column(        children: [          const Icon(Icons.navigation, size: 48, color: CatusTheme.accent),          const SizedBox(height: 12),          Text('Multi-Hop Navigation', style: CatusTheme.heading2),          const SizedBox(height: 8),          const Text('Navigate through mesh nodes for offline routing',              style: TextStyle(color: CatusTheme.textMuted),              textAlign: TextAlign.center),        ],      ),    );  }  Widget _buildDestinationsList(MultiHopNavigator navigator) {    final onlineNodes = navigator.getOnlineNodes();    return Column(      crossAxisAlignment: CrossAxisAlignment.start,      children: [        Text('Destinations', style: CatusTheme.heading3),        const SizedBox(height: 12),        if (onlineNodes.isEmpty)          Container(            padding: const EdgeInsets.all(20),            decoration: CatusTheme.glassDecoration(borderRadius: 12),            child: const Center(                child: Text('No nodes nearby',                    style: TextStyle(color: CatusTheme.textMuted))),          )        else          ...onlineNodes.map((nodeId) => Container(                margin: const EdgeInsets.only(bottom: 8),                decoration: CatusTheme.glassDecoration(borderRadius: 12),                child: ListTile(                  leading: Container(                    width: 40,                    height: 40,                    decoration: BoxDecoration(                        color: CatusTheme.accent.withValues(alpha: 0.2),                        borderRadius: BorderRadius.circular(8)),                    child: const Icon(Icons.place, color: CatusTheme.accent),                  ),                  title: Text('Node: $nodeId'),                  subtitle: const Text('Available for routing'),                  trailing: const Icon(Icons.chevron_right,                      color: CatusTheme.textMuted),                  onTap: () {                    setState(() => _selectedDestination = nodeId);                    navigator.findRouteToNode(nodeId, 'Node: $nodeId');                  },                ),              )),      ],    );  }  Widget _buildRoutePreview() {    if (_selectedDestination == null) {      return Container(        padding: const EdgeInsets.all(40),        decoration: CatusTheme.glassDecoration(borderRadius: 16),        child: const Center(          child: Column(            children: [              Icon(Icons.route, size: 48, color: CatusTheme.textMuted),              SizedBox(height: 12),              Text('Select a destination',                  style: TextStyle(color: CatusTheme.textMuted)),            ],          ),        ),      );    }    return Container(      padding: const EdgeInsets.all(20),      decoration: CatusTheme.glassDecoration(borderRadius: 16),      child: Column(        crossAxisAlignment: CrossAxisAlignment.start,        children: [          Row(            children: [              const Icon(Icons.route, color: CatusTheme.safeGreen),              const SizedBox(width: 8),              Text('Route to $_selectedDestination',                  style: CatusTheme.heading3),            ],          ),          const SizedBox(height: 16),          Container(            padding: const EdgeInsets.all(16),            decoration: BoxDecoration(              color: CatusTheme.surface,              borderRadius: BorderRadius.circular(12),              border: Border.all(color: CatusTheme.glassBorder),            ),            child: const Column(              children: [                Row(children: [                  Icon(Icons.radio_button_checked,                      color: CatusTheme.safeGreen),                  SizedBox(width: 8),                  Text('Your Location')                ]),                SizedBox(height: 8),                Padding(                    padding: EdgeInsets.only(left: 10), child: DashedLine()),                SizedBox(height: 8),                Row(children: [                  Icon(Icons.cell_tower, color: CatusTheme.accent),                  SizedBox(width: 8),                  Text('Relay Node')                ]),                SizedBox(height: 8),                Padding(                    padding: EdgeInsets.only(left: 10), child: DashedLine()),                SizedBox(height: 8),                Row(children: [                  Icon(Icons.place, color: CatusTheme.warningYellow),                  SizedBox(width: 8),                  Text('Destination')                ]),              ],            ),          ),          SizedBox(height: 16),          Row(            mainAxisAlignment: MainAxisAlignment.spaceAround,            children: [              _buildStat(Icons.straighten, '~500m', 'Distance'),              _buildStat(Icons.timer, '~2 min', 'ETA'),              _buildStat(Icons.hub, '2 hops', 'Hops'),            ],          ),        ],      ),    );  }  Widget _buildStat(IconData icon, String value, String label) {    return Column(      children: [        Icon(icon, color: CatusTheme.accent),        const SizedBox(height: 4),        Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),        Text(label,            style: const TextStyle(fontSize: 12, color: CatusTheme.textMuted)),      ],    );  }  Widget _buildNearbyNodes(MultiHopNavigator navigator) {    final nodes = navigator.getOnlineNodes();    return Column(      crossAxisAlignment: CrossAxisAlignment.start,      children: [        Text('Nearby Nodes', style: CatusTheme.heading3),        const SizedBox(height: 12),        if (nodes.isEmpty)          Container(            padding: const EdgeInsets.all(20),            decoration: CatusTheme.glassDecoration(borderRadius: 12),            child: const Center(                child: Text('No nodes nearby',                    style: TextStyle(color: CatusTheme.textMuted))),          )        else          Container(            padding: const EdgeInsets.all(16),            decoration: CatusTheme.glassDecoration(borderRadius: 12),            child: Column(              children: nodes                  .map((node) => Padding(                        padding: const EdgeInsets.symmetric(vertical: 4),                        child: Row(                          children: [                            Container(                                width: 12,                                height: 12,                                decoration: const BoxDecoration(                                    shape: BoxShape.circle,                                    color: CatusTheme.safeGreen)),                            const SizedBox(width: 12),                            Expanded(child: Text('Node: $node')),                            const Text('Online',                                style: TextStyle(                                    fontSize: 12,                                    color: CatusTheme.safeGreen)),                          ],                        ),                      ))                  .toList(),            ),          ),      ],    );  }  void _showAddDestinationDialog(MultiHopNavigator navigator) {    final nameController = TextEditingController();    final latController = TextEditingController();    final lngController = TextEditingController();    showModalBottomSheet(      context: context,      isScrollControlled: true,      backgroundColor: CatusTheme.surface,      shape: const RoundedRectangleBorder(          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),      builder: (context) => Padding(        padding: EdgeInsets.only(            left: 24,            right: 24,            top: 24,            bottom: MediaQuery.of(context).viewInsets.bottom + 24),        child: Column(          mainAxisSize: MainAxisSize.min,          crossAxisAlignment: CrossAxisAlignment.start,          children: [            Text('Add Destination', style: CatusTheme.heading2),            const SizedBox(height: 24),            TextField(                controller: nameController,                decoration: InputDecoration(                    labelText: 'Name',                    border: OutlineInputBorder(                        borderRadius: BorderRadius.circular(12)))),            const SizedBox(height: 16),            Row(              children: [                Expanded(                    child: TextField(                        controller: latController,                        keyboardType: TextInputType.number,                        decoration: InputDecoration(                            labelText: 'Latitude',                            border: OutlineInputBorder(                                borderRadius: BorderRadius.circular(12))))),                const SizedBox(width: 16),                Expanded(                    child: TextField(                        controller: lngController,                        keyboardType: TextInputType.number,                        decoration: InputDecoration(                            labelText: 'Longitude',                            border: OutlineInputBorder(                                borderRadius: BorderRadius.circular(12))))),              ],            ),            const SizedBox(height: 24),            SizedBox(              width: double.infinity,              child: ElevatedButton(                onPressed: () {                  if (nameController.text.isNotEmpty) {                    final lat = double.tryParse(latController.text) ?? 0;                    final lng = double.tryParse(lngController.text) ?? 0;                    navigator.updateNodeLocation(                        'dest_${DateTime.now().millisecondsSinceEpoch}',                        lat,                        lng,                        true);                    Navigator.pop(context);                    setState(() {});                  }                },                style: ElevatedButton.styleFrom(                    backgroundColor: CatusTheme.accent,                    padding: const EdgeInsets.symmetric(vertical: 16)),                child: const Text('Add Destination'),              ),            ),          ],        ),      ),    );  }}class DashedLine extends StatelessWidget {  const DashedLine({super.key});  @override  Widget build(BuildContext context) {    return Row(      children: List.generate(          6,          (_) => Container(                width: 2,                height: 2,                margin: const EdgeInsets.symmetric(horizontal: 2),                decoration: const BoxDecoration(                    shape: BoxShape.circle, color: CatusTheme.textMuted),              )),    );  }}
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/theme/chaaya_theme.dart';
+import '../multi_hop_navigator.dart';
+
+final multiHopProvider = Provider<MultiHopNavigator>((ref) {
+  return MultiHopNavigator();
+});
+
+class MultiHopNavigatorScreen extends ConsumerStatefulWidget {
+  const MultiHopNavigatorScreen({super.key});
+
+  @override
+  ConsumerState<MultiHopNavigatorScreen> createState() =>
+      _MultiHopNavigatorScreenState();
+}
+
+class _MultiHopNavigatorScreenState
+    extends ConsumerState<MultiHopNavigatorScreen> {
+  String? _selectedDestination;
+
+  @override
+  Widget build(BuildContext context) {
+    final navigator = ref.watch(multiHopProvider);
+
+    return Scaffold(
+      backgroundColor: ChaayaTheme.background,
+      appBar: AppBar(
+        title: const Text('Mesh Navigator'),
+        backgroundColor: ChaayaTheme.background,
+        elevation: 0,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _buildHeader(),
+          const SizedBox(height: 24),
+          _buildDestinationsList(navigator),
+          const SizedBox(height: 24),
+          _buildRoutePreview(),
+          const SizedBox(height: 24),
+          _buildNearbyNodes(navigator),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddDestinationDialog(navigator),
+        backgroundColor: ChaayaTheme.accent,
+        icon: const Icon(Icons.add_location),
+        label: const Text('Add Waypoint'),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: ChaayaTheme.glassDecoration(borderRadius: 16),
+      child: Column(
+        children: [
+          const Icon(Icons.navigation, size: 48, color: ChaayaTheme.accent),
+          const SizedBox(height: 12),
+          Text('Multi-Hop Navigation', style: ChaayaTheme.heading2),
+          const SizedBox(height: 8),
+          const Text('Navigate through mesh nodes for offline routing',
+              style: TextStyle(color: ChaayaTheme.textMuted),
+              textAlign: TextAlign.center),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDestinationsList(MultiHopNavigator navigator) {
+    final onlineNodes = navigator.getOnlineNodes();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Destinations', style: ChaayaTheme.heading3),
+        const SizedBox(height: 12),
+        if (onlineNodes.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: ChaayaTheme.glassDecoration(borderRadius: 12),
+            child: const Center(
+                child: Text('No nodes nearby',
+                    style: TextStyle(color: ChaayaTheme.textMuted))),
+          )
+        else
+          ...onlineNodes.map((nodeId) => Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: ChaayaTheme.glassDecoration(borderRadius: 12),
+                child: ListTile(
+                  leading: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                        color: ChaayaTheme.accent.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(8)),
+                    child: const Icon(Icons.place, color: ChaayaTheme.accent),
+                  ),
+                  title: Text('Node: $nodeId'),
+                  subtitle: const Text('Available for routing'),
+                  trailing: const Icon(Icons.chevron_right,
+                      color: ChaayaTheme.textMuted),
+                  onTap: () {
+                    setState(() => _selectedDestination = nodeId);
+                    navigator.findRouteToNode(nodeId, 'Node: $nodeId');
+                  },
+                ),
+              )),
+      ],
+    );
+  }
+
+  Widget _buildRoutePreview() {
+    if (_selectedDestination == null) {
+      return Container(
+        padding: const EdgeInsets.all(40),
+        decoration: ChaayaTheme.glassDecoration(borderRadius: 16),
+        child: const Center(
+          child: Column(
+            children: [
+              Icon(Icons.route, size: 48, color: ChaayaTheme.textMuted),
+              SizedBox(height: 12),
+              Text('Select a destination',
+                  style: TextStyle(color: ChaayaTheme.textMuted)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: ChaayaTheme.glassDecoration(borderRadius: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.route, color: ChaayaTheme.safeGreen),
+              const SizedBox(width: 8),
+              Text('Route to $_selectedDestination',
+                  style: ChaayaTheme.heading3),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: ChaayaTheme.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: ChaayaTheme.glassBorder),
+            ),
+            child: const Column(
+              children: [
+                Row(children: [
+                  Icon(Icons.radio_button_checked,
+                      color: ChaayaTheme.safeGreen),
+                  SizedBox(width: 8),
+                  Text('Your Location')
+                ]),
+                SizedBox(height: 8),
+                Padding(
+                    padding: EdgeInsets.only(left: 10), child: DashedLine()),
+                SizedBox(height: 8),
+                Row(children: [
+                  Icon(Icons.cell_tower, color: ChaayaTheme.accent),
+                  SizedBox(width: 8),
+                  Text('Relay Node')
+                ]),
+                SizedBox(height: 8),
+                Padding(
+                    padding: EdgeInsets.only(left: 10), child: DashedLine()),
+                SizedBox(height: 8),
+                Row(children: [
+                  Icon(Icons.place, color: ChaayaTheme.warningYellow),
+                  SizedBox(width: 8),
+                  Text('Destination')
+                ]),
+              ],
+            ),
+          ),
+          SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildStat(Icons.straighten, '~500m', 'Distance'),
+              _buildStat(Icons.timer, '~2 min', 'ETA'),
+              _buildStat(Icons.hub, '2 hops', 'Hops'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStat(IconData icon, String value, String label) {
+    return Column(
+      children: [
+        Icon(icon, color: ChaayaTheme.accent),
+        const SizedBox(height: 4),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text(label,
+            style: const TextStyle(fontSize: 12, color: ChaayaTheme.textMuted)),
+      ],
+    );
+  }
+
+  Widget _buildNearbyNodes(MultiHopNavigator navigator) {
+    final nodes = navigator.getOnlineNodes();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Nearby Nodes', style: ChaayaTheme.heading3),
+        const SizedBox(height: 12),
+        if (nodes.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: ChaayaTheme.glassDecoration(borderRadius: 12),
+            child: const Center(
+                child: Text('No nodes nearby',
+                    style: TextStyle(color: ChaayaTheme.textMuted))),
+          )
+        else
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: ChaayaTheme.glassDecoration(borderRadius: 12),
+            child: Column(
+              children: nodes
+                  .map((node) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          children: [
+                            Container(
+                                width: 12,
+                                height: 12,
+                                decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: ChaayaTheme.safeGreen)),
+                            const SizedBox(width: 12),
+                            Expanded(child: Text('Node: $node')),
+                            const Text('Online',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: ChaayaTheme.safeGreen)),
+                          ],
+                        ),
+                      ))
+                  .toList(),
+            ),
+          ),
+      ],
+    );
+  }
+
+  void _showAddDestinationDialog(MultiHopNavigator navigator) {
+    final nameController = TextEditingController();
+    final latController = TextEditingController();
+    final lngController = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: ChaayaTheme.surface,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 24,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Add Destination', style: ChaayaTheme.heading2),
+            const SizedBox(height: 24),
+            TextField(
+                controller: nameController,
+                decoration: InputDecoration(
+                    labelText: 'Name',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)))),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                    child: TextField(
+                        controller: latController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                            labelText: 'Latitude',
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12))))),
+                const SizedBox(width: 16),
+                Expanded(
+                    child: TextField(
+                        controller: lngController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                            labelText: 'Longitude',
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12))))),
+              ],
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  if (nameController.text.isNotEmpty) {
+                    final lat = double.tryParse(latController.text) ?? 0;
+                    final lng = double.tryParse(lngController.text) ?? 0;
+                    navigator.updateNodeLocation(
+                        'dest_${DateTime.now().millisecondsSinceEpoch}',
+                        lat,
+                        lng,
+                        true);
+                    Navigator.pop(context);
+                    setState(() {});
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: ChaayaTheme.accent,
+                    padding: const EdgeInsets.symmetric(vertical: 16)),
+                child: const Text('Add Destination'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class DashedLine extends StatelessWidget {
+  const DashedLine({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: List.generate(
+          6,
+          (_) => Container(
+                width: 2,
+                height: 2,
+                margin: const EdgeInsets.symmetric(horizontal: 2),
+                decoration: const BoxDecoration(
+                    shape: BoxShape.circle, color: ChaayaTheme.textMuted),
+              )),
+    );
+  }
+}

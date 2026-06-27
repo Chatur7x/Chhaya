@@ -1,5 +1,5 @@
-﻿import 'package:flutter_test/flutter_test.dart';
-import 'package:catus_chat/features/chat/domain/models/message_metadata.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:chaaya/features/chat/domain/models/message_metadata.dart';
 
 void main() {
   group('MessageMetadata', () {

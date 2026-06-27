@@ -1,4 +1,4 @@
-﻿package com.proj16.backend.config;
+package com.proj16.backend.config;
 
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -14,10 +14,10 @@ import java.util.List;
 public class OpenApiConfig {
 
     @Bean
-    public OpenAPI Catus ChatOpenAPI() {
+    public OpenAPI chaayaOpenAPI() {
         return OpenAPI.builder()
                 .info(new Info()
-                        .title("Catus Chat API")
+                        .title("Chaaya MeshLink API")
                         .description("Secure Offline Communication Platform API")
                         .version("1.0.0"))
                 .servers(List.of(

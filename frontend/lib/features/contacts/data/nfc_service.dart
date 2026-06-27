@@ -1,1 +1,16 @@
-﻿import 'package:flutter/foundation.dart';import 'contact_service.dart';class NfcService {  final ContactService _contactService;  NfcService(this._contactService);  void initialize() {    debugPrint('[NfcService] NFC disabled (native module not available)');  }  Future<bool> isNfcAvailable() async {    return false;  }}
+import 'package:flutter/foundation.dart';
+import 'contact_service.dart';
+
+class NfcService {
+  final ContactService _contactService;
+
+  NfcService(this._contactService);
+
+  void initialize() {
+    debugPrint('[NfcService] NFC disabled (native module not available)');
+  }
+
+  Future<bool> isNfcAvailable() async {
+    return false;
+  }
+}
