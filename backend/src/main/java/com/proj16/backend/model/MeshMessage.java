@@ -55,6 +55,12 @@ public class MeshMessage {
     @Column(name = "is_sos")
     private boolean sos = false;
 
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
+
+    @Column(name = "is_compressed")
+    private Boolean isCompressed = false;
+
     public enum MessageType {
         TEXT, IMAGE, VIDEO, AUDIO, FILE, LOCATION, RECEIPT, SOS, BROADCAST, PTT, CONTACT, SYSTEM
     }

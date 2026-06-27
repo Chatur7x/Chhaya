@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 
 enum LLMModel { tinyLlama, phi2, custom }
@@ -112,6 +111,10 @@ class ConversationContext {
   }
 }
 
+/// Offline LLM Service — comprehensive survival intelligence engine.
+///
+/// Provides heuristic-based response generation for offline scenarios,
+/// with rich knowledge across medical, survival, navigation, and emergency domains.
 class OfflineLLMService {
   LLMConfig _config;
   final Map<String, ConversationContext> _conversations = {};
@@ -130,7 +133,6 @@ class OfflineLLMService {
   Stream<String> get statusUpdates => _statusController.stream;
 
   static const int _maxConversationHistory = 50;
-  static const int _defaultMaxTokens = 512;
 
   OfflineLLMService({LLMConfig? config}) : _config = config ?? LLMConfig();
 
@@ -138,6 +140,185 @@ class OfflineLLMService {
   bool get isLoading => _isLoading;
   int get totalTokensUsed => _totalTokensUsed;
   int get totalRequests => _totalRequests;
+
+  // ─── Extended Survival Knowledge Base ───
+  static const Map<String, _KBEntry> _survivalKB = {
+    // Medical
+    'cpr': _KBEntry(
+      'medical',
+      'CPR (Cardiopulmonary Resuscitation):\n\n'
+          '1. CHECK — Tap shoulders, shout "Are you OK?"\n'
+          '2. CALL — Have someone call emergency services\n'
+          '3. AIRWAY — Head tilt, chin lift to open airway\n'
+          '4. BREATHING — Look, listen, feel for 10 seconds\n'
+          '5. COMPRESS — 30 compressions at 2" deep, 100-120/min\n'
+          '6. BREATHE — 2 rescue breaths, watch chest rise\n'
+          '7. REPEAT — Continue 30:2 cycles\n\n'
+          '⚠️ For infants: Use 2 fingers, compress 1.5 inches\n'
+          '⚠️ Hands-only CPR is acceptable if not trained in rescue breaths',
+    ),
+    'bleeding': _KBEntry(
+      'medical',
+      'Severe Bleeding Control:\n\n'
+          '1. DIRECT PRESSURE — Apply firm pressure with clean cloth\n'
+          '2. ELEVATE — Raise injured area above the heart\n'
+          '3. BANDAGE — Wrap firmly but don\'t cut off circulation\n'
+          '4. TOURNIQUET — If limb bleeding won\'t stop:\n'
+          '   • Apply 2-3 inches above wound\n'
+          '   • Tighten until bleeding stops\n'
+          '   • Note the time applied\n'
+          '   • Do NOT remove once placed\n'
+          '5. SHOCK PREVENTION — Keep patient warm, legs elevated\n\n'
+          '⚠️ Do NOT remove initial bandages — add layers on top\n'
+          '⚠️ Internal bleeding signs: bruising, rigid abdomen, confusion',
+    ),
+    'fracture': _KBEntry(
+      'medical',
+      'Fracture Management:\n\n'
+          '1. ASSESS — Check for deformity, swelling, crepitus\n'
+          '2. IMMOBILIZE — Splint joint above AND below break\n'
+          '   • Use rigid materials: sticks, trekking poles, rolled magazines\n'
+          '   • Pad between splint and skin\n'
+          '3. CIRCULATION — Check pulse, sensation, movement below injury\n'
+          '4. ICE — 20 minutes on, 20 minutes off (if available)\n'
+          '5. ELEVATE — Above heart level to reduce swelling\n\n'
+          '⚠️ Open fracture: Cover wound, do NOT push bone back in\n'
+          '⚠️ Spine injury: Do NOT move unless life-threatening danger\n'
+          '⚠️ Monitor for compartment syndrome: extreme pain, numbness',
+    ),
+    'snakebite': _KBEntry(
+      'medical',
+      'Snakebite Emergency:\n\n'
+          '1. MOVE AWAY from the snake (at least 6 feet)\n'
+          '2. STAY CALM — Minimize movement to slow venom spread\n'
+          '3. REMOVE — Take off jewelry, watches near bite\n'
+          '4. POSITION — Keep bitten limb at or below heart level\n'
+          '5. CLEAN — Gently wash with soap and water\n'
+          '6. MARK — Draw circle around swelling edge + write time\n'
+          '7. EVACUATE — Get to hospital for antivenom\n\n'
+          '❌ Do NOT: cut the wound, suck venom, apply tourniquet\n'
+          '❌ Do NOT: apply ice or immerse in cold water\n'
+          '📸 Photograph the snake if safely possible (aids treatment)',
+    ),
+    'hypothermia': _KBEntry(
+      'medical',
+      'Hypothermia Treatment:\n\n'
+          'MILD (Shivering, conscious):\n'
+          '• Move to warm shelter\n'
+          '• Remove wet clothing, replace with dry layers\n'
+          '• Warm sweet drinks (NO alcohol or caffeine)\n'
+          '• Body movement to generate heat\n\n'
+          'SEVERE (No shivering, confused, drowsy):\n'
+          '• Handle VERY gently — rough movement can cause cardiac arrest\n'
+          '• Warm CORE first: hot water bottles at armpits, groin, neck\n'
+          '• Body-to-body contact inside sleeping bag\n'
+          '• Warm humid air near mouth if possible\n\n'
+          '❌ Do NOT: rub extremities, use direct heat, give alcohol\n'
+          '❌ Do NOT: put in hot bath (can cause cardiac arrest)',
+    ),
+
+    // Survival
+    'water': _KBEntry(
+      'survival',
+      'Water Purification Methods:\n\n'
+          '🔥 BOILING (most reliable):\n'
+          '• Rolling boil for 1 minute (3 min above 6,500 ft)\n'
+          '• Let cool naturally\n\n'
+          '💧 CHEMICAL:\n'
+          '• Bleach: 2 drops per quart, wait 30 min\n'
+          '• Iodine tablets: Follow package directions\n\n'
+          '🏗️ DIY FILTER:\n'
+          '• Layer in container: gravel → sand → charcoal → cloth\n'
+          '• Pour water through slowly, still needs boiling\n\n'
+          '☀️ SOLAR (SODIS):\n'
+          '• Clear PET bottle in direct sunlight 6+ hours\n'
+          '• 2 days if cloudy\n\n'
+          '⚠️ NEVER drink seawater, antifreeze, or radiator fluid\n'
+          '⚠️ Signs of dehydration: dark urine, headache, dizziness',
+    ),
+    'fire': _KBEntry(
+      'survival',
+      'Fire Starting Techniques:\n\n'
+          '📋 PREPARATION:\n'
+          '• Tinder: dry leaves, bark shavings, cotton, dryer lint\n'
+          '• Kindling: pencil-thick dry twigs\n'
+          '• Fuel: wrist-thick branches, then logs\n\n'
+          '🔥 METHODS:\n'
+          '• Flint & Steel: Strike at 30° angle into tinder\n'
+          '• Bow Drill: Friction method — spindle, fireboard, bow\n'
+          '• Battery + Steel Wool: Touch terminals to wool\n'
+          '• Magnifying Lens: Focus sunlight on dark tinder\n'
+          '• Hand Drill: Roll spindle between palms on fireboard\n\n'
+          '🏗️ FIRE LAYS:\n'
+          '• Teepee: Best for starting — tinder in center\n'
+          '• Log Cabin: Good for cooking — stable platform\n'
+          '• Star Fire: Long-burning — push logs inward\n\n'
+          '⚠️ Keep fire sheltered from wind, never leave unattended',
+    ),
+    'shelter': _KBEntry(
+      'survival',
+      'Emergency Shelter Building:\n\n'
+          '📍 LOCATION:\n'
+          '• High ground (avoid flooding)\n'
+          '• Near water source but not in floodplain\n'
+          '• Natural windbreak (cliff, dense trees)\n'
+          '• Avoid dead trees, rockfall areas\n\n'
+          '🏗️ TYPES:\n'
+          '• Lean-To: Quickest — ridge pole against tree, branches at 45°\n'
+          '• Debris Hut: Best insulation — body-sized, thick debris covering\n'
+          '• Snow Cave: Dig into snowbank, entrance below sleeping level\n'
+          '• Tarp Shelter: If you have a tarp — A-frame or lean-to\n\n'
+          '🛏️ INSULATION:\n'
+          '• Ground pad: 4"+ of leaves, grass, pine needles\n'
+          '• Walls: Layer branches, then leaves/debris\n'
+          '• Size: Small = warm, just enough to sit/lie down\n\n'
+          '⚠️ Entrance should face away from prevailing wind\n'
+          '⚠️ Build before dark — shelter is priority #1 in survival',
+    ),
+    'navigation': _KBEntry(
+      'survival',
+      'Navigation Without GPS:\n\n'
+          '☀️ SUN METHOD:\n'
+          '• Rises in East, sets in West\n'
+          '• Shadow Stick: Plant stick, mark tip, wait 15 min,\n'
+          '  mark again — line between marks = East-West\n'
+          '• Watch method: Point hour hand at sun,\n'
+          '  halfway between hour hand and 12 = South\n\n'
+          '⭐ STAR METHOD:\n'
+          '• Northern: Find Big Dipper → pointer stars → Polaris (North)\n'
+          '• Southern: Southern Cross → extend long axis 4.5x = South\n\n'
+          '🌿 NATURAL SIGNS (less reliable):\n'
+          '• Moss: Tends to grow on North side (Northern hemisphere)\n'
+          '• Ant hills: Often on South side of trees\n'
+          '• Spider webs: Often face South\n'
+          '• Snow melts faster on South-facing slopes\n\n'
+          '🧭 TRAVEL TIPS:\n'
+          '• Follow water downstream to civilization\n'
+          '• Use landmarks, count paces for distance\n'
+          '• Leave trail markers for rescuers',
+    ),
+    'signaling': _KBEntry(
+      'survival',
+      'Rescue Signaling:\n\n'
+          '🪞 VISUAL:\n'
+          '• Signal mirror: Flash at aircraft or horizon\n'
+          '• Three fires in triangle (international distress)\n'
+          '• Bright clothing or gear on open ground\n'
+          '• Ground signals: X = need help, V = need assistance\n\n'
+          '📢 AUDIO:\n'
+          '• Whistle: 3 blasts = distress (repeat every minute)\n'
+          '• Banging rocks or pots\n'
+          '• Yelling in open terrain\n\n'
+          '📡 ELECTRONIC:\n'
+          '• Phone: Even without signal, try 112/911\n'
+          '• Personal locator beacon (PLB)\n'
+          '• Chaaya mesh SOS broadcast\n\n'
+          '🔦 MORSE SOS:\n'
+          '• ··· ——— ··· (3 short, 3 long, 3 short)\n'
+          '• Use flashlight, mirror, or sound\n\n'
+          '⚠️ Stay in one place if possible — easier to be found',
+    ),
+  };
 
   Future<void> initialize() async {
     if (_isInitialized) return;
@@ -301,77 +482,88 @@ class OfflineLLMService {
 
   Future<String> _generateLocalResponse(
       String prompt, int maxTokens, double temperature) async {
-    await Future.delayed(Duration(milliseconds: 100 + _random.nextInt(200)));
+    // Simulate model processing time
+    await Future.delayed(Duration(milliseconds: 80 + _random.nextInt(150)));
 
-    if (prompt.toLowerCase().contains('hello') ||
-        prompt.toLowerCase().contains('hi')) {
-      return 'Hello! I\'m your offline AI assistant. How can I help you today?';
+    final lowerPrompt = prompt.toLowerCase();
+
+    // Search extended knowledge base
+    for (final entry in _survivalKB.entries) {
+      if (lowerPrompt.contains(entry.key)) {
+        return entry.value.content;
+      }
     }
 
-    if (prompt.toLowerCase().contains('sos') ||
-        prompt.toLowerCase().contains('emergency')) {
-      return 'EMERGENCY MODE ACTIVATED\n\n'
-          '• Check your surroundings for safety\n'
-          '• Contact emergency services if needed\n'
-          '• Use the SOS button in the app\n'
-          '• Share your location with trusted contacts\n'
-          '• Stay calm and wait for help';
+    // Broader keyword mapping
+    final keywordMap = <String, String>{
+      'hurt': 'bleeding', 'wound': 'bleeding', 'cut': 'bleeding',
+      'broken': 'fracture', 'bone': 'fracture', 'sprain': 'fracture',
+      'cold': 'hypothermia', 'freeze': 'hypothermia', 'shiver': 'hypothermia',
+      'drink': 'water', 'thirsty': 'water', 'dehydrat': 'water', 'purif': 'water',
+      'lost': 'navigation', 'direction': 'navigation', 'compass': 'navigation', 'map': 'navigation',
+      'help': 'signaling', 'rescue': 'signaling', 'signal': 'signaling', 'sos': 'signaling',
+      'snake': 'snakebite', 'bite': 'snakebite', 'venom': 'snakebite',
+      'warm': 'fire', 'cook': 'fire', 'flame': 'fire', 'heat': 'fire',
+      'sleep': 'shelter', 'rain': 'shelter', 'camp': 'shelter', 'tent': 'shelter',
+      'breath': 'cpr', 'heart': 'cpr', 'unconscious': 'cpr', 'chest': 'cpr',
+    };
+
+    for (final entry in keywordMap.entries) {
+      if (lowerPrompt.contains(entry.key) && _survivalKB.containsKey(entry.value)) {
+        return _survivalKB[entry.value]!.content;
+      }
     }
 
-    if (prompt.toLowerCase().contains('help')) {
-      return 'I can help you with:\n\n'
-          '• Answering questions about mesh networking\n'
-          '• Explaining app features\n'
-          '• Providing safety tips\n'
-          '• Emergency guidance\n'
-          '• General knowledge questions\n\n'
-          'What would you like to know?';
+    // Greeting handler
+    if (lowerPrompt.contains('hello') || lowerPrompt.contains('hi') || lowerPrompt.contains('hey')) {
+      return 'Hello! I\'m your offline survival AI assistant.\n\n'
+          'I can help with first aid, water purification, fire starting, '
+          'shelter building, navigation, and emergency protocols.\n\n'
+          'What survival topic can I help you with?';
     }
 
-    if (prompt.toLowerCase().contains('mesh') ||
-        prompt.toLowerCase().contains('network')) {
-      return 'Chaaya MeshLink uses a decentralized mesh network architecture:\n\n'
-          '• Direct peer-to-peer communication\n'
-          '• BLE and WiFi Direct support\n'
-          '• Multi-hop routing through relays\n'
-          '• End-to-end encryption\n'
-          '• Works completely offline\n\n'
-          'The network automatically finds the best path to deliver messages.';
+    // Emergency handler
+    if (lowerPrompt.contains('emergency') || lowerPrompt.contains('sos')) {
+      return '🚨 EMERGENCY PROTOCOL ACTIVATED\n\n'
+          '1. CHECK — Ensure your own safety first\n'
+          '2. CALL — Contact emergency services if possible\n'
+          '3. SOS — Use the SOS button in the app\n'
+          '4. SHARE — Broadcast location via mesh network\n'
+          '5. SIGNAL — Use visual/audio signals for rescuers\n'
+          '6. SHELTER — Find or build shelter\n'
+          '7. STAY PUT — Easier to be found in one location\n\n'
+          'Use the Triage button above for medical assessment.';
     }
 
-    return _generateGenericResponse(prompt, maxTokens);
-  }
+    // Mesh network / app features
+    if (lowerPrompt.contains('mesh') || lowerPrompt.contains('network') || lowerPrompt.contains('chaaya')) {
+      return 'Chaaya MeshLink Architecture:\n\n'
+          '📡 COMMUNICATION:\n'
+          '• Peer-to-peer via BLE and WiFi Direct\n'
+          '• Multi-hop routing through relay nodes\n'
+          '• End-to-end encryption (AES-256)\n\n'
+          '🔒 SECURITY:\n'
+          '• Zero-knowledge proof authentication\n'
+          '• Ephemeral message keys\n'
+          '• Decentralized — no central server\n\n'
+          '📱 FEATURES:\n'
+          '• Offline messaging and file sharing\n'
+          '• SOS broadcasting with GPS coordinates\n'
+          '• Voice and video calls over mesh\n'
+          '• AI survival assistant (this!)';
+    }
 
-  String _generateGenericResponse(String prompt, int maxTokens) {
-    final wordCount = 20 + _random.nextInt(30);
-    final responses = [
-      'I understand your question. Let me provide some guidance on this topic.',
-      'Based on the information available, here are some thoughts.',
-      'That\'s an interesting question. Let me help you think through this.',
-      'I can help you with that. Here\'s what I recommend.',
-      'Thank you for asking. Let me share some insights.',
-    ];
-
-    final base = responses[_random.nextInt(responses.length)];
-    final details = _generateSupportingText(wordCount);
-
-    return '$base\n\n$details';
-  }
-
-  String _generateSupportingText(int words) {
-    final phrases = [
-      'Consider the context of your situation.',
-      'This approach has proven effective in similar cases.',
-      'Safety should always be your top priority.',
-      'Communication is key in these situations.',
-      'Be sure to stay connected with your network.',
-      'Trust your instincts and act accordingly.',
-      'Documentation helps maintain clarity.',
-      'Coordination improves outcomes significantly.',
-    ];
-
-    final count = (words / 5).ceil().clamp(1, phrases.length);
-    return phrases.take(count).join(' ');
+    // Default fallback
+    return 'I don\'t have a specific answer for that in my offline knowledge base.\n\n'
+        'Available topics:\n'
+        '🏥 First Aid — CPR, bleeding, fractures, snakebites\n'
+        '💧 Water — purification methods\n'
+        '🔥 Fire — starting techniques\n'
+        '🏕️ Shelter — emergency building\n'
+        '🧭 Navigation — without GPS\n'
+        '📡 Signaling — rescue protocols\n'
+        '🌡️ Hypothermia — cold treatment\n\n'
+        'Try asking about one of these topics!';
   }
 
   Future<String> _generateRemoteResponse(String prompt) async {
@@ -476,4 +668,11 @@ class OfflineLLMService {
     _statusController.close();
     _conversations.clear();
   }
+}
+
+/// Internal knowledge base entry with category metadata.
+class _KBEntry {
+  final String category;
+  final String content;
+  const _KBEntry(this.category, this.content);
 }

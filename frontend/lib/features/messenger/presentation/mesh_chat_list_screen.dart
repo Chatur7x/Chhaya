@@ -63,30 +63,36 @@ class MeshChatListScreen extends ConsumerWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 80,
-            height: 80,
+            width: 100,
+            height: 100,
             decoration: BoxDecoration(
+              shape: BoxShape.circle,
               gradient: LinearGradient(
                 colors: [
-                  ChaayaTheme.accent.withOpacity(0.15),
-                  ChaayaTheme.bleColor.withOpacity(0.1),
+                  ChaayaTheme.accent.withValues(alpha: 0.15),
+                  ChaayaTheme.bleColor.withValues(alpha: 0.05),
                 ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: ChaayaTheme.accent.withValues(alpha: 0.1),
+                  blurRadius: 40,
+                  spreadRadius: 10,
+                ),
+              ],
+              border: Border.all(color: ChaayaTheme.accent.withValues(alpha: 0.2), width: 1.5),
             ),
-            child: const Icon(
-              Icons.chat_outlined,
-              size: 40,
-              color: ChaayaTheme.accent,
-            ),
+            child: const Icon(Icons.forum_rounded, size: 48, color: ChaayaTheme.accent),
           ),
-          const SizedBox(height: 20),
-          const Text('No conversations', style: ChaayaTheme.heading3),
+          const SizedBox(height: 24),
+          const Text('No Active Nodes', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: ChaayaTheme.textPrimary, letterSpacing: -0.5)),
           const SizedBox(height: 8),
           const Text(
-            'Pair with a contact and start\nmessaging over the mesh',
+            'Pair via QR or discover nearby\nnodes over the BLE mesh network.',
             textAlign: TextAlign.center,
-            style: ChaayaTheme.bodyMedium,
+            style: TextStyle(fontSize: 14, color: ChaayaTheme.textMuted, height: 1.4),
           ),
         ],
       ),
@@ -94,85 +100,132 @@ class MeshChatListScreen extends ConsumerWidget {
   }
 }
 
-class _ConversationTile extends StatelessWidget {
+class _ConversationTile extends StatefulWidget {
   final ConversationPreview conversation;
   final VoidCallback onTap;
   
   const _ConversationTile({required this.conversation, required this.onTap});
 
   @override
+  State<_ConversationTile> createState() => _ConversationTileState();
+}
+
+class _ConversationTileState extends State<_ConversationTile> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      decoration: ChaayaTheme.glassDecoration(borderRadius: 14),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        onTap: onTap,
-        leading: CircleAvatar(
-          radius: 26,
-          backgroundColor: ChaayaTheme.accent.withOpacity(0.2),
-          child: Text(
-            conversation.contactName.isNotEmpty 
-                ? conversation.contactName[0].toUpperCase()
-                : '?',
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: ChaayaTheme.accent,
-            ),
-          ),
-        ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                conversation.contactName,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w500,
-                  color: ChaayaTheme.textPrimary,
-                  fontSize: 15,
-                ),
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) { setState(() => _pressed = false); widget.onTap(); },
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutQuart,
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        transform: Matrix4.identity()..scale(_pressed ? 0.96 : 1.0),
+        transformAlignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: ChaayaTheme.surfaceLight.withValues(alpha: 0.7),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          boxShadow: [
+            if (!_pressed)
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 15,
+                offset: const Offset(0, 5),
               ),
-            ),
-            Text(
-              conversation.timeText,
-              style: TextStyle(
-                fontSize: 12,
-                color: conversation.unreadCount > 0
-                    ? ChaayaTheme.accent
-                    : ChaayaTheme.textMuted,
-              ),
-            ),
           ],
         ),
-        subtitle: Row(
-          children: [
-            Expanded(
-              child: Text(
-                conversation.lastMessage,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: conversation.unreadCount > 0
-                      ? ChaayaTheme.textSecondary
-                      : ChaayaTheme.textMuted,
-                ),
-              ),
-            ),
-            if (conversation.unreadCount > 0)
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              // Glowing Avatar
               Container(
-                padding: const EdgeInsets.all(6),
-                decoration: const BoxDecoration(
-                  color: ChaayaTheme.accent,
+                width: 54, height: 54,
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [ChaayaTheme.accent.withValues(alpha: 0.2), ChaayaTheme.accentLight.withValues(alpha: 0.05)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  border: Border.all(color: ChaayaTheme.accent.withValues(alpha: 0.4), width: 1.5),
+                  boxShadow: [
+                    BoxShadow(color: ChaayaTheme.accent.withValues(alpha: 0.15), blurRadius: 12),
+                  ],
                 ),
-                child: Text(
-                  '${conversation.unreadCount}',
-                  style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w600),
+                child: Center(
+                  child: Text(
+                    widget.conversation.contactName.isNotEmpty 
+                        ? widget.conversation.contactName[0].toUpperCase()
+                        : '?',
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: ChaayaTheme.accentLight),
+                  ),
                 ),
               ),
-          ],
+              const SizedBox(width: 14),
+              
+              // Text Content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            widget.conversation.contactName,
+                            style: const TextStyle(fontWeight: FontWeight.w600, color: ChaayaTheme.textPrimary, fontSize: 16, letterSpacing: -0.3),
+                          ),
+                        ),
+                        Text(
+                          widget.conversation.timeText,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: widget.conversation.unreadCount > 0 ? FontWeight.w600 : FontWeight.normal,
+                            color: widget.conversation.unreadCount > 0 ? ChaayaTheme.accentLight : ChaayaTheme.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            widget.conversation.lastMessage,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: widget.conversation.unreadCount > 0 ? ChaayaTheme.textSecondary : ChaayaTheme.textMuted,
+                            ),
+                          ),
+                        ),
+                        if (widget.conversation.unreadCount > 0)
+                          Container(
+                            margin: const EdgeInsets.only(left: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(colors: [ChaayaTheme.gradientStart, ChaayaTheme.gradientEnd]),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${widget.conversation.unreadCount}',
+                              style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

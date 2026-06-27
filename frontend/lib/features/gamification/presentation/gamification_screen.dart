@@ -2,10 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/chaaya_theme.dart';
 import '../gamification_engine.dart';
-
-final gamificationEngineProvider = Provider<GamificationEngine>((ref) {
-  return GamificationEngine();
-});
+import '../../../core/providers/app_providers.dart';
 
 class GamificationScreen extends ConsumerStatefulWidget {
   const GamificationScreen({super.key});

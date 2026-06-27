@@ -42,6 +42,9 @@ import '../../features/messenger/data/poll_service.dart';
 import '../../features/safety/data/location_share_service.dart';
 import '../../features/safety/data/panic_button_service.dart';
 import '../../features/ai/data/offline_ai_service.dart';
+import '../../features/gamification/gamification_engine.dart';
+import '../../features/mission/mission_planner.dart';
+import '../../features/intelligence/crowd_intelligence.dart';
 import '../../core/theme/theme_service.dart';
 import '../../core/network/dtn_bundle_protocol.dart';
 import '../../core/network/epidemic_spread.dart';
@@ -303,6 +306,18 @@ final panicButtonServiceProvider = Provider<PanicButtonService>((ref) {
 
 final offlineAIServiceProvider = Provider<OfflineAIService>((ref) {
   return OfflineAIService();
+});
+
+final gamificationEngineProvider = Provider<GamificationEngine>((ref) {
+  return GamificationEngine();
+});
+
+final missionPlannerProvider = Provider<MissionPlanner>((ref) {
+  return MissionPlanner();
+});
+
+final crowdIntelProvider = Provider<CrowdIntelligence>((ref) {
+  return CrowdIntelligence();
 });
 
 final currentThemeProvider =

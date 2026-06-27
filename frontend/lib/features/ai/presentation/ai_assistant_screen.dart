@@ -1,8 +1,10 @@
+import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../core/theme/chaaya_theme.dart';
 import '../data/ai_assistant_service.dart';
 
-/// AI Assistant Screen — chat-style interface for offline survival intelligence.
+/// AI Assistant Screen — Premium chat-style interface for offline survival intelligence.
 class AIAssistantScreen extends StatefulWidget {
   const AIAssistantScreen({super.key});
 
@@ -10,27 +12,82 @@ class AIAssistantScreen extends StatefulWidget {
   State<AIAssistantScreen> createState() => _AIAssistantScreenState();
 }
 
-class _AIAssistantScreenState extends State<AIAssistantScreen> {
+class _AIAssistantScreenState extends State<AIAssistantScreen>
+    with TickerProviderStateMixin {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   final _aiService = AIAssistantService();
   final List<_ChatMessage> _messages = [];
+  final _focusNode = FocusNode();
+
+  bool _isTyping = false;
+  bool _triageMode = false;
+  final List<String> _triageSymptoms = [];
+  bool _showScrollToBottom = false;
+
+  late AnimationController _pulseController;
+  late AnimationController _welcomeController;
+  late Animation<double> _welcomeFade;
+  late Animation<Offset> _welcomeSlide;
 
   @override
   void initState() {
     super.initState();
     _aiService.initialize();
-    // Welcome message
-    _messages.add(_ChatMessage(
-      text: 'I\'m your offline AI survival assistant. Ask me about:\n'
-          '• First aid (CPR, bleeding, fractures)\n'
-          '• Water purification\n'
-          '• Fire starting & shelter building\n'
-          '• Navigation without GPS\n'
-          '• Rescue signaling\n'
-          '• Medical triage',
-      isAI: true,
+
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+
+    _welcomeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _welcomeFade = CurvedAnimation(
+      parent: _welcomeController,
+      curve: Curves.easeOut,
+    );
+    _welcomeSlide = Tween<Offset>(
+      begin: const Offset(0, 0.15),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _welcomeController,
+      curve: Curves.easeOutCubic,
     ));
+
+    _scrollController.addListener(_onScroll);
+
+    // Add welcome message with delay for animation
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        setState(() {
+          _messages.add(_ChatMessage(
+            text: 'I\'m your offline AI survival assistant. Ask me about:\n\n'
+                '🏥  First Aid — CPR, bleeding, fractures\n'
+                '💧  Water — purification methods\n'
+                '🔥  Fire — starting techniques\n'
+                '🏕️  Shelter — emergency building\n'
+                '🧭  Navigation — without GPS\n'
+                '📡  Signaling — rescue protocols\n'
+                '🌡️  Hypothermia — cold treatment\n'
+                '🐍  Snakebite — emergency response',
+            isAI: true,
+            timestamp: DateTime.now(),
+          ));
+        });
+        _welcomeController.forward();
+      }
+    });
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final showBtn = _scrollController.offset <
+        _scrollController.position.maxScrollExtent - 100;
+    if (showBtn != _showScrollToBottom) {
+      setState(() => _showScrollToBottom = showBtn);
+    }
   }
 
   void _sendMessage() {
@@ -38,21 +95,104 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     if (text.isEmpty) return;
 
     setState(() {
-      _messages.add(_ChatMessage(text: text, isAI: false));
+      _messages.add(_ChatMessage(
+        text: text,
+        isAI: false,
+        timestamp: DateTime.now(),
+      ));
+      _isTyping = true;
     });
     _controller.clear();
+    _scrollToBottom();
 
-    // Get AI response
-    final response = _aiService.ask(text);
+    // Simulate AI thinking with a brief delay
+    Future.delayed(Duration(milliseconds: 400 + (text.length * 3).clamp(0, 800)), () {
+      if (!mounted) return;
+
+      if (_triageMode) {
+        _handleTriageInput(text);
+      } else {
+        final response = _aiService.ask(text);
+        setState(() {
+          _isTyping = false;
+          _messages.add(_ChatMessage(
+            text: response.answer,
+            isAI: true,
+            confidence: response.confidence,
+            category: response.category,
+            timestamp: DateTime.now(),
+          ));
+        });
+      }
+      _scrollToBottom();
+    });
+  }
+
+  void _handleTriageInput(String text) {
+    _triageSymptoms.add(text);
+
+    if (_triageSymptoms.length < 3) {
+      setState(() {
+        _isTyping = false;
+        _messages.add(_ChatMessage(
+          text: 'Symptom "$text" noted. ${3 - _triageSymptoms.length} more to go, '
+              'or type "done" to get triage results.',
+          isAI: true,
+          category: 'medical',
+          timestamp: DateTime.now(),
+        ));
+      });
+    } else {
+      _finishTriage();
+    }
+
+    if (text.toLowerCase() == 'done' && _triageSymptoms.isNotEmpty) {
+      _triageSymptoms.removeLast(); // remove "done"
+      _finishTriage();
+    }
+  }
+
+  void _finishTriage() {
+    final result = _aiService.triage(_triageSymptoms);
+    final priorityEmoji = result.priority == 'RED'
+        ? '🔴'
+        : result.priority == 'YELLOW'
+            ? '🟡'
+            : '🟢';
+
     setState(() {
+      _isTyping = false;
+      _triageMode = false;
       _messages.add(_ChatMessage(
-        text: response.answer,
+        text: '$priorityEmoji TRIAGE RESULT: ${result.priority} PRIORITY\n'
+            'Score: ${result.score}/15\n\n'
+            '${result.actions.isNotEmpty ? result.actions.join('\n') : 'No critical actions needed.'}',
         isAI: true,
-        confidence: response.confidence,
-        category: response.category,
+        category: 'medical',
+        confidence: 0.9,
+        isTriage: true,
+        triagePriority: result.priority,
+        timestamp: DateTime.now(),
+      ));
+      _triageSymptoms.clear();
+    });
+  }
+
+  void _startTriage() {
+    setState(() {
+      _triageMode = true;
+      _triageSymptoms.clear();
+      _messages.add(_ChatMessage(
+        text: '🏥 MEDICAL TRIAGE MODE\n\n'
+            'Describe the patient\'s symptoms one at a time.\n'
+            'Examples: "chest pain", "difficulty breathing", "deep cut"\n\n'
+            'I\'ll assess the priority level when you\'re done.\n'
+            'Type "done" when finished.',
+        isAI: true,
+        category: 'medical',
+        timestamp: DateTime.now(),
       ));
     });
-
     _scrollToBottom();
   }
 
@@ -61,145 +201,416 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutCubic,
         );
       }
     });
   }
 
   @override
+  void dispose() {
+    _pulseController.dispose();
+    _welcomeController.dispose();
+    _scrollController.dispose();
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: ChaayaTheme.background,
-      appBar: AppBar(
-        backgroundColor: ChaayaTheme.background,
-        title: const Row(
-          children: [
-            Icon(Icons.smart_toy, color: ChaayaTheme.warningYellow, size: 22),
-            SizedBox(width: 10),
-            Text('AI Assistant'),
-          ],
-        ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: ChaayaTheme.safeGreen.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.wifi_off, size: 12, color: ChaayaTheme.safeGreen),
-                SizedBox(width: 4),
-                Text('Offline', style: TextStyle(fontSize: 11, color: ChaayaTheme.safeGreen)),
-              ],
-            ),
-          ),
-        ],
-      ),
-      body: Column(
+      body: Stack(
         children: [
-          // Quick topic buttons
-          SizedBox(
-            height: 44,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              children: [
-                _topicChip('🏥 First Aid'),
-                _topicChip('💧 Water'),
-                _topicChip('🔥 Fire'),
-                _topicChip('🏕️ Shelter'),
-                _topicChip('🧭 Navigation'),
-                _topicChip('📡 Signaling'),
-                _topicChip('🌡️ Hypothermia'),
-              ],
+          // Background gradient blobs
+          Positioned(
+            top: -60,
+            right: -40,
+            child: AnimatedBuilder(
+              animation: _pulseController,
+              builder: (_, __) => Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      ChaayaTheme.accent.withValues(alpha: 0.06 + _pulseController.value * 0.04),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
-
-          // Messages
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(12),
-              itemCount: _messages.length,
-              itemBuilder: (context, i) => _buildBubble(_messages[i]),
+          Positioned(
+            bottom: 100,
+            left: -60,
+            child: Container(
+              width: 160,
+              height: 160,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    ChaayaTheme.gradientCool.withValues(alpha: 0.05),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
             ),
           ),
-
-          // Input
-          _buildInput(),
+          // Main content
+          Column(
+            children: [
+              _buildAppBar(),
+              _buildTopicChips(),
+              Expanded(child: _buildMessageList()),
+              if (_isTyping) _buildTypingIndicator(),
+              _buildInput(),
+            ],
+          ),
+          // Scroll-to-bottom FAB
+          if (_showScrollToBottom && _messages.length > 5)
+            Positioned(
+              bottom: 80,
+              right: 16,
+              child: GestureDetector(
+                onTap: _scrollToBottom,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: ChaayaTheme.surfaceElevated,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: ChaayaTheme.glassBorder),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.keyboard_arrow_down,
+                      color: ChaayaTheme.textSecondary, size: 22),
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _topicChip(String label) {
+  // ─── App Bar ───
+  Widget _buildAppBar() {
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          padding: EdgeInsets.only(
+            top: MediaQuery.of(context).padding.top + 8,
+            left: 16,
+            right: 16,
+            bottom: 12,
+          ),
+          decoration: BoxDecoration(
+            color: ChaayaTheme.surface.withValues(alpha: 0.85),
+            border: const Border(
+              bottom: BorderSide(color: ChaayaTheme.glassBorder, width: 0.5),
+            ),
+          ),
+          child: Row(
+            children: [
+              // Back button
+              GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: ChaayaTheme.surfaceLight,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: ChaayaTheme.glassBorder),
+                  ),
+                  child: const Icon(Icons.arrow_back_ios_new,
+                      size: 14, color: ChaayaTheme.textSecondary),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // AI avatar with pulse
+              AnimatedBuilder(
+                animation: _pulseController,
+                builder: (_, __) => Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      colors: [ChaayaTheme.accent, ChaayaTheme.gradientEnd],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: ChaayaTheme.accent
+                            .withValues(alpha: 0.2 + _pulseController.value * 0.15),
+                        blurRadius: 10 + _pulseController.value * 6,
+                        spreadRadius: _pulseController.value * 2,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.psychology, color: Colors.white, size: 20),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Title + status
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Survival AI',
+                      style: TextStyle(
+                        color: ChaayaTheme.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            color: ChaayaTheme.safeGreen,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Text(
+                          'Offline • Ready',
+                          style: TextStyle(
+                              color: ChaayaTheme.safeGreen, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              // Triage button
+              GestureDetector(
+                onTap: _triageMode ? null : _startTriage,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    gradient: _triageMode
+                        ? null
+                        : const LinearGradient(
+                            colors: [Color(0xFFEF4444), Color(0xFFDC2626)]),
+                    color: _triageMode
+                        ? ChaayaTheme.sosRed.withValues(alpha: 0.2)
+                        : null,
+                    borderRadius: BorderRadius.circular(10),
+                    border: _triageMode
+                        ? Border.all(color: ChaayaTheme.sosRed.withValues(alpha: 0.4))
+                        : null,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.medical_services,
+                        size: 13,
+                        color:
+                            _triageMode ? ChaayaTheme.sosRed : Colors.white,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _triageMode ? 'Active' : 'Triage',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: _triageMode
+                              ? ChaayaTheme.sosRed
+                              : Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─── Topic Chips ───
+  Widget _buildTopicChips() {
+    final topics = [
+      const _TopicItem('🏥', 'First Aid', ChaayaTheme.sosRed),
+      const _TopicItem('💧', 'Water', Color(0xFF3B82F6)),
+      const _TopicItem('🔥', 'Fire', ChaayaTheme.warningYellow),
+      const _TopicItem('🏕️', 'Shelter', ChaayaTheme.safeGreen),
+      const _TopicItem('🧭', 'Navigation', Color(0xFF8B5CF6)),
+      const _TopicItem('📡', 'Signaling', Color(0xFFF97316)),
+      const _TopicItem('🌡️', 'Hypothermia', Color(0xFF06B6D4)),
+      const _TopicItem('🐍', 'Snakebite', Color(0xFFEC4899)),
+    ];
+
+    return Container(
+      height: 50,
+      margin: const EdgeInsets.only(top: 4),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        itemCount: topics.length,
+        itemBuilder: (context, i) => _buildTopicChip(topics[i]),
+      ),
+    );
+  }
+
+  Widget _buildTopicChip(_TopicItem topic) {
     return GestureDetector(
       onTap: () {
-        _controller.text = label.replaceAll(RegExp(r'[^\w\s]'), '').trim();
+        _controller.text = topic.label;
         _sendMessage();
       },
       child: Container(
-        margin: const EdgeInsets.only(right: 8),
+        margin: const EdgeInsets.only(right: 8, top: 4, bottom: 4),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: ChaayaTheme.surfaceLight,
+          color: topic.color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: ChaayaTheme.glassBorder),
+          border: Border.all(color: topic.color.withValues(alpha: 0.2)),
         ),
-        child: Text(label, style: const TextStyle(fontSize: 12, color: ChaayaTheme.textSecondary)),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(topic.emoji, style: const TextStyle(fontSize: 13)),
+            const SizedBox(width: 5),
+            Text(
+              topic.label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: topic.color,
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  // ─── Message List ───
+  Widget _buildMessageList() {
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      itemCount: _messages.length,
+      itemBuilder: (context, i) {
+        final msg = _messages[i];
+        final isFirst = i == 0;
+        // Staggered entry animation via SlideTransition on welcome
+        if (isFirst && msg.isAI) {
+          return SlideTransition(
+            position: _welcomeSlide,
+            child: FadeTransition(
+              opacity: _welcomeFade,
+              child: _buildBubble(msg),
+            ),
+          );
+        }
+        return _buildBubble(msg);
+      },
     );
   }
 
   Widget _buildBubble(_ChatMessage msg) {
+    final isAI = msg.isAI;
+    final isTriage = msg.isTriage;
+
     return Align(
-      alignment: msg.isAI ? Alignment.centerLeft : Alignment.centerRight,
+      alignment: isAI ? Alignment.centerLeft : Alignment.centerRight,
       child: Container(
         margin: EdgeInsets.only(
-          top: 4, bottom: 4,
-          left: msg.isAI ? 0 : 48,
-          right: msg.isAI ? 48 : 0,
-        ),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: msg.isAI
-              ? ChaayaTheme.surfaceLight
-              : ChaayaTheme.accent.withOpacity(0.2),
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(msg.isAI ? 4 : 16),
-            bottomRight: Radius.circular(msg.isAI ? 16 : 4),
-          ),
+          top: 6,
+          bottom: 6,
+          left: isAI ? 0 : 52,
+          right: isAI ? 52 : 0,
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              isAI ? CrossAxisAlignment.start : CrossAxisAlignment.end,
           children: [
-            if (msg.isAI && msg.category != null)
-              Container(
-                margin: const EdgeInsets.only(bottom: 6),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: msg.category == 'medical'
-                      ? ChaayaTheme.sosRed.withOpacity(0.15)
-                      : ChaayaTheme.safeGreen.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(4),
+            // Bubble
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: isTriage
+                    ? _triageColor(msg.triagePriority).withValues(alpha: 0.1)
+                    : isAI
+                        ? ChaayaTheme.surfaceLight
+                        : ChaayaTheme.accent.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(18),
+                  topRight: const Radius.circular(18),
+                  bottomLeft: Radius.circular(isAI ? 4 : 18),
+                  bottomRight: Radius.circular(isAI ? 18 : 4),
                 ),
-                child: Text(
-                  msg.category == 'medical' ? '🏥 Medical' : '🏕️ Survival',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: msg.category == 'medical' ? ChaayaTheme.sosRed : ChaayaTheme.safeGreen,
+                border: Border.all(
+                  color: isTriage
+                      ? _triageColor(msg.triagePriority).withValues(alpha: 0.25)
+                      : isAI
+                          ? ChaayaTheme.glassBorder
+                          : ChaayaTheme.accent.withValues(alpha: 0.2),
+                  width: 0.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
                   ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Category badge
+                  if (isAI && msg.category != null) _buildCategoryBadge(msg),
+                  // Message text
+                  Text(
+                    msg.text,
+                    style: TextStyle(
+                      color: ChaayaTheme.textPrimary,
+                      fontSize: 13.5,
+                      height: 1.5,
+                      fontWeight: isTriage ? FontWeight.w500 : FontWeight.w400,
+                    ),
+                  ),
+                  // Confidence meter
+                  if (isAI && msg.confidence != null && msg.confidence! > 0)
+                    _buildConfidenceMeter(msg.confidence!),
+                ],
+              ),
+            ),
+            // Timestamp
+            Padding(
+              padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+              child: Text(
+                _formatTime(msg.timestamp),
+                style: const TextStyle(
+                  color: ChaayaTheme.textMuted,
+                  fontSize: 10,
                 ),
               ),
-            Text(
-              msg.text,
-              style: const TextStyle(color: ChaayaTheme.textPrimary, fontSize: 14, height: 1.4),
             ),
           ],
         ),
@@ -207,40 +618,103 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     );
   }
 
-  Widget _buildInput() {
+  Widget _buildCategoryBadge(_ChatMessage msg) {
+    final cat = msg.category!;
+    final isMedical = cat == 'medical';
+    final color = isMedical ? ChaayaTheme.sosRed : ChaayaTheme.safeGreen;
+    final icon = isMedical ? Icons.medical_services : Icons.park;
+    final label = isMedical ? 'Medical' : 'Survival';
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: const BoxDecoration(
-        color: ChaayaTheme.surface,
-        border: Border(top: BorderSide(color: ChaayaTheme.glassBorder, width: 0.5)),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          children: [
-            Expanded(
-              child: Container(
-                decoration: ChaayaTheme.glassDecoration(borderRadius: 24),
-                child: TextField(
-                  controller: _controller,
-                  style: const TextStyle(color: ChaayaTheme.textPrimary, fontSize: 14),
-                  decoration: const InputDecoration(
-                    hintText: 'Ask a survival question...',
-                    hintStyle: TextStyle(color: ChaayaTheme.textMuted),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  ),
-                  onSubmitted: (_) => _sendMessage(),
-                ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+                fontSize: 10, fontWeight: FontWeight.w600, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConfidenceMeter(double confidence) {
+    final pct = (confidence * 100).round();
+    final color = confidence >= 0.8
+        ? ChaayaTheme.safeGreen
+        : confidence >= 0.5
+            ? ChaayaTheme.warningYellow
+            : ChaayaTheme.sosRed;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.verified, size: 11, color: color.withValues(alpha: 0.7)),
+          const SizedBox(width: 5),
+          SizedBox(
+            width: 60,
+            height: 4,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: LinearProgressIndicator(
+                value: confidence,
+                backgroundColor: ChaayaTheme.surfaceElevated,
+                valueColor: AlwaysStoppedAnimation(color),
               ),
             ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            '$pct%',
+            style: TextStyle(
+                fontSize: 10,
+                color: color.withValues(alpha: 0.8),
+                fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── Typing Indicator ───
+  Widget _buildTypingIndicator() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(left: 12, bottom: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: ChaayaTheme.surfaceLight,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: ChaayaTheme.glassBorder, width: 0.5),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _TypingDot(delay: 0, controller: _pulseController),
+            const SizedBox(width: 4),
+            _TypingDot(delay: 0.2, controller: _pulseController),
+            const SizedBox(width: 4),
+            _TypingDot(delay: 0.4, controller: _pulseController),
             const SizedBox(width: 8),
-            Container(
-              width: 44, height: 44,
-              decoration: const BoxDecoration(color: ChaayaTheme.accent, shape: BoxShape.circle),
-              child: IconButton(
-                icon: const Icon(Icons.send, size: 20, color: Colors.white),
-                onPressed: _sendMessage,
+            Text(
+              _triageMode ? 'Assessing...' : 'Analyzing...',
+              style: const TextStyle(
+                color: ChaayaTheme.textMuted,
+                fontSize: 11,
+                fontStyle: FontStyle.italic,
               ),
             ),
           ],
@@ -248,13 +722,168 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
       ),
     );
   }
+
+  // ─── Input Field ───
+  Widget _buildInput() {
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: ChaayaTheme.surface.withValues(alpha: 0.9),
+            border: const Border(
+              top: BorderSide(color: ChaayaTheme.glassBorder, width: 0.5),
+            ),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Row(
+              children: [
+                // Input field
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: ChaayaTheme.surfaceLight,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: ChaayaTheme.glassBorder),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _controller,
+                            focusNode: _focusNode,
+                            style: const TextStyle(
+                              color: ChaayaTheme.textPrimary,
+                              fontSize: 14,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: _triageMode
+                                  ? 'Describe a symptom...'
+                                  : 'Ask a survival question...',
+                              hintStyle: const TextStyle(
+                                  color: ChaayaTheme.textMuted, fontSize: 13),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 10),
+                            ),
+                            onSubmitted: (_) => _sendMessage(),
+                            textInputAction: TextInputAction.send,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Send button
+                GestureDetector(
+                  onTap: _sendMessage,
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [ChaayaTheme.gradientStart, ChaayaTheme.gradientEnd],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: ChaayaTheme.accent.withValues(alpha: 0.35),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.send_rounded,
+                        size: 19, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─── Helpers ───
+  Color _triageColor(String? priority) {
+    switch (priority) {
+      case 'RED':
+        return ChaayaTheme.sosRed;
+      case 'YELLOW':
+        return ChaayaTheme.warningYellow;
+      default:
+        return ChaayaTheme.safeGreen;
+    }
+  }
+
+  String _formatTime(DateTime? dt) {
+    if (dt == null) return '';
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '$h:$m';
+  }
 }
+
+// ─── Data Models ───
 
 class _ChatMessage {
   final String text;
   final bool isAI;
   final double? confidence;
   final String? category;
-  _ChatMessage({required this.text, required this.isAI, this.confidence, this.category});
+  final DateTime? timestamp;
+  final bool isTriage;
+  final String? triagePriority;
+
+  _ChatMessage({
+    required this.text,
+    required this.isAI,
+    this.confidence,
+    this.category,
+    this.timestamp,
+    this.isTriage = false,
+    this.triagePriority,
+  });
 }
 
+class _TopicItem {
+  final String emoji;
+  final String label;
+  final Color color;
+  const _TopicItem(this.emoji, this.label, this.color);
+}
+
+// ─── Typing Dot Animation ───
+
+class _TypingDot extends StatelessWidget {
+  final double delay;
+  final AnimationController controller;
+
+  const _TypingDot({required this.delay, required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (_, __) {
+        // Create staggered bounce via phase offset
+        final t = (controller.value + delay) % 1.0;
+        final scale = 0.5 + (t < 0.5 ? t : 1.0 - t) * 1.0;
+        return Container(
+          width: 7 * scale,
+          height: 7 * scale,
+          decoration: BoxDecoration(
+            color: ChaayaTheme.accent.withValues(alpha: 0.4 + scale * 0.4),
+            shape: BoxShape.circle,
+          ),
+        );
+      },
+    );
+  }
+}

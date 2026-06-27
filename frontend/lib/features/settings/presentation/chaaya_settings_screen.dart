@@ -8,6 +8,12 @@ import '../../auth/presentation/widgets/decoy_setup_sheet.dart';
 import '../../auth/presentation/biometric_setup_screen.dart';
 import '../../identity/presentation/safety_numbers_screen.dart';
 import '../../contacts/domain/models/contact.dart';
+import '../../security/presentation/panic_wipe_screen.dart';
+import '../../security/presentation/dead_man_switch_screen.dart';
+import '../../security/presentation/device_manager_screen.dart';
+import '../../security/presentation/privacy_settings_screen.dart';
+import '../../status/presentation/statuses_screen.dart';
+import '../../chat/presentation/starred_messages_screen.dart';
 
 final decoyServiceProvider = Provider<DecoyService>((ref) {
   return DecoyService();
@@ -250,12 +256,42 @@ class _ChaayaSettingsScreenState extends ConsumerState<ChaayaSettingsScreen> {
               ),
             );
           }),
+          _actionTile(Icons.devices, 'Device Manager',
+              'Manage linked devices', () {
+            Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const DeviceManagerScreen()));
+          }),
+          _actionTile(Icons.timer, 'Dead Man\'s Switch',
+              'Auto-wipe if no check-in', () {
+            Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const DeadManSwitchScreen()));
+          }),
+          _actionTile(Icons.star_border, 'Starred Messages',
+              'Bookmarked messages', () {
+            Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const StarredMessagesScreen()));
+          }),
+          const SizedBox(height: 16),
+          _sectionTitle('Social'),
+          _actionTile(Icons.circle, 'Status',
+              'Share 24-hour stories', () {
+            Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const StatusesScreen()));
+          }),
+          const SizedBox(height: 16),
+          _sectionTitle('Privacy'),
+          _actionTile(Icons.visibility, 'Privacy Controls',
+              'Last seen, profile photo, read receipts', () {
+            Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const PrivacySettingsScreen()));
+          }),
           const SizedBox(height: 16),
           _sectionTitle('Danger Zone', color: ChaayaTheme.sosRed),
           _dangerTile(
               Icons.delete_forever, 'Panic Wipe', 'Destroy ALL data instantly',
               () {
-            _showPanicDialog(context);
+            Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const PanicWipeScreen()));
           }),
           _dangerTile(
               Icons.logout, 'Reset Identity', 'Delete keypair and start fresh',
@@ -408,55 +444,6 @@ class _ChaayaSettingsScreenState extends ConsumerState<ChaayaSettingsScreen> {
         subtitle: Text(subtitle,
             style: const TextStyle(color: ChaayaTheme.textMuted, fontSize: 11)),
         onTap: onTap,
-      ),
-    );
-  }
-
-  void _showPanicDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: ChaayaTheme.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.delete_forever, color: ChaayaTheme.sosRed),
-            SizedBox(width: 8),
-            Text('PANIC WIPE',
-                style: TextStyle(
-                    color: ChaayaTheme.sosRed, fontWeight: FontWeight.w700)),
-          ],
-        ),
-        content: const Text(
-          'This will PERMANENTLY DELETE:\n'
-          '• All messages\n'
-          '• All contacts\n'
-          '• Your identity keypair\n'
-          '• All files and media\n'
-          '• Location history\n\n'
-          'This action CANNOT be undone.',
-          style: ChaayaTheme.bodyMedium,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style:
-                ElevatedButton.styleFrom(backgroundColor: ChaayaTheme.sosRed),
-            onPressed: () {
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('🗑️ All data wiped. App reset.'),
-                  backgroundColor: ChaayaTheme.sosRed,
-                ),
-              );
-            },
-            child: const Text('WIPE EVERYTHING'),
-          ),
-        ],
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:encrypt/encrypt.dart' as encrypt;
@@ -181,7 +182,7 @@ class MediaService {
       ownerId: ownerId,
     );
 
-    await _mediaBox?.put(id, mediaItem.toJson().toString());
+    await _mediaBox?.put(id, jsonEncode(mediaItem.toJson()));
 
     return mediaItem;
   }
@@ -219,7 +220,7 @@ class MediaService {
       ownerId: ownerId,
     );
 
-    await _mediaBox?.put(id, mediaItem.toJson().toString());
+    await _mediaBox?.put(id, jsonEncode(mediaItem.toJson()));
 
     return mediaItem;
   }
@@ -258,7 +259,7 @@ class MediaService {
     final json = _mediaBox?.get(id);
     if (json == null) return null;
 
-    final mediaItem = MediaItem.fromJson(Uri.splitQueryString(json));
+    final mediaItem = MediaItem.fromJson(jsonDecode(json));
     final file = File(mediaItem.filePath);
 
     if (!await file.exists()) return null;
@@ -280,7 +281,7 @@ class MediaService {
       if (json == null) continue;
 
       try {
-        final item = MediaItem.fromJson(Uri.splitQueryString(json));
+        final item = MediaItem.fromJson(jsonDecode(json));
 
         if (albumId != null && item.albumId != albumId) continue;
         if (from != null && item.createdAt.isBefore(from)) continue;
@@ -337,7 +338,7 @@ class MediaService {
     if (json == null) return;
 
     try {
-      final item = MediaItem.fromJson(Uri.splitQueryString(json));
+      final item = MediaItem.fromJson(jsonDecode(json));
       final updated = MediaItem(
         id: item.id,
         type: item.type,
@@ -354,7 +355,7 @@ class MediaService {
         isSynced: item.isSynced,
       );
 
-      await _mediaBox?.put(id, updated.toJson().toString());
+      await _mediaBox?.put(id, jsonEncode(updated.toJson()));
     } catch (_) {}
   }
 
@@ -370,7 +371,7 @@ class MediaService {
       sharedWithDeviceIds: sharedWith ?? [],
     );
 
-    await _albumsBox?.put(id, album.toJson().toString());
+    await _albumsBox?.put(id, jsonEncode(album.toJson()));
 
     return album;
   }
@@ -383,7 +384,7 @@ class MediaService {
       if (json == null) continue;
 
       try {
-        albums.add(Album.fromJson(Uri.splitQueryString(json)));
+        albums.add(Album.fromJson(jsonDecode(json)));
       } catch (_) {}
     }
 
@@ -434,7 +435,7 @@ class MediaService {
       final json = _mediaBox?.get(id);
       if (json != null) {
         try {
-          final item = MediaItem.fromJson(Uri.splitQueryString(json));
+          final item = MediaItem.fromJson(jsonDecode(json));
           items.add(item.toJson());
         } catch (_) {}
       }
@@ -452,7 +453,7 @@ class MediaService {
     };
 
     final reportBox = await Hive.openBox('incident_reports');
-    await reportBox.put(reportId, report.toString());
+    await reportBox.put(reportId, jsonEncode(report));
 
     return report;
   }
@@ -465,7 +466,7 @@ class MediaService {
       final json = reportBox.get(key);
       if (json != null) {
         try {
-          reports.add(Uri.splitQueryString(json));
+          reports.add(jsonDecode(json));
         } catch (_) {}
       }
     }

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:ui';
 import '../../../../core/theme/chaaya_theme.dart';
 import '../../data/location_safety_service.dart';
 
-/// Apple Maps-style draggable bottom sheet with frosted glass
+/// Apple Maps-style draggable bottom sheet with deep frosted glass
 class MapBottomSheet extends StatelessWidget {
   final bool sharingLocation;
   final bool privateMode;
@@ -44,21 +45,21 @@ class MapBottomSheet extends StatelessWidget {
       snapSizes: const [0.15, 0.4, 0.65],
       builder: (context, scrollController) {
         return ClipRRect(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+            filter: ImageFilter.blur(sigmaX: 35, sigmaY: 35),
             child: Container(
               decoration: BoxDecoration(
-                color: ChaayaTheme.surface.withValues(alpha: 0.85),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                border: const Border(
-                  top: BorderSide(color: ChaayaTheme.glassBorder, width: 0.5),
+                color: ChaayaTheme.surface.withValues(alpha: 0.88),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border(
+                  top: BorderSide(color: Colors.white.withValues(alpha: 0.08), width: 1),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.4),
-                    blurRadius: 30,
-                    offset: const Offset(0, -10),
+                    color: Colors.black.withValues(alpha: 0.5),
+                    blurRadius: 40,
+                    offset: const Offset(0, -15),
                   ),
                 ],
               ),
@@ -66,14 +67,14 @@ class MapBottomSheet extends StatelessWidget {
                 controller: scrollController,
                 padding: EdgeInsets.zero,
                 children: [
-                  // Drag handle
+                  // Premium drag handle
                   Center(
                     child: Container(
-                      margin: const EdgeInsets.only(top: 8, bottom: 12),
-                      width: 36,
+                      margin: const EdgeInsets.only(top: 10, bottom: 16),
+                      width: 40,
                       height: 5,
                       decoration: BoxDecoration(
-                        color: ChaayaTheme.textMuted.withValues(alpha: 0.4),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(3),
                       ),
                     ),
@@ -85,31 +86,33 @@ class MapBottomSheet extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
                         _QuickAction(
-                          icon: sharingLocation ? Icons.location_on : Icons.location_off,
+                          icon: sharingLocation ? Icons.location_on_rounded : Icons.location_off_rounded,
                           label: 'Share',
                           isActive: sharingLocation,
+                          activeColor: ChaayaTheme.safeGreen,
                           onTap: onToggleSharing,
                         ),
                         _QuickAction(
-                          icon: Icons.visibility_off,
+                          icon: Icons.visibility_off_rounded,
                           label: 'Private',
                           isActive: privateMode,
+                          activeColor: ChaayaTheme.warningYellow,
                           onTap: onTogglePrivate,
                         ),
                         _QuickAction(
-                          icon: Icons.add_location_alt,
+                          icon: Icons.add_location_alt_rounded,
                           label: 'Check In',
                           isActive: false,
                           onTap: onCheckIn,
                         ),
                         _QuickAction(
-                          icon: Icons.groups_2,
+                          icon: Icons.groups_2_rounded,
                           label: 'Circles',
                           isActive: false,
                           onTap: onCircles,
                         ),
                         _QuickAction(
-                          icon: Icons.place,
+                          icon: Icons.place_rounded,
                           label: 'Places',
                           isActive: false,
                           onTap: onPlaces,
@@ -117,38 +120,50 @@ class MapBottomSheet extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  // SOS Button
+                  const SizedBox(height: 20),
+                  // SOS Button — premium 3D gradient
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: GestureDetector(
-                      onTap: onSOS,
+                      onTap: () {
+                        HapticFeedback.heavyImpact();
+                        onSOS();
+                      },
                       child: Container(
-                        height: 54,
+                        height: 58,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(18),
                           gradient: const LinearGradient(
-                            colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                            colors: [Color(0xFFEF4444), Color(0xFFB91C1C)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
                           boxShadow: [
                             BoxShadow(
-                              color: ChaayaTheme.sosRed.withValues(alpha: 0.4),
-                              blurRadius: 20,
-                              offset: const Offset(0, 6),
+                              color: ChaayaTheme.sosRed.withValues(alpha: 0.45),
+                              blurRadius: 25,
+                              offset: const Offset(0, 8),
+                            ),
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2),
+                              blurRadius: 10,
+                              offset: const Offset(0, 12),
                             ),
                           ],
                         ),
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.sos, color: Colors.white, size: 22),
-                            SizedBox(width: 8),
+                            Icon(Icons.sos_rounded, color: Colors.white, size: 26),
+                            SizedBox(width: 10),
                             Text(
                               'SOS — Send to Circle',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 17,
+                                letterSpacing: 0.3,
                               ),
                             ),
                           ],
@@ -156,35 +171,39 @@ class MapBottomSheet extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24),
                   // Section: Recent Check-ins
                   if (recentCheckIns.isNotEmpty) ...[
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 20),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 22),
                       child: Text('RECENT CHECK-INS', style: TextStyle(
-                        color: ChaayaTheme.textMuted,
+                        color: ChaayaTheme.textMuted.withValues(alpha: 0.7),
                         fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.8,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2,
                       )),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     ...recentCheckIns.take(5).map((c) => _CheckInTile(checkIn: c)),
                   ],
-                  // Section: History link
+                  // History link
                   Padding(
                     padding: const EdgeInsets.all(20),
                     child: GestureDetector(
                       onTap: onHistory,
                       child: Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: ChaayaTheme.glassDecoration(borderRadius: 14),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: ChaayaTheme.surfaceLight.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                        ),
                         child: const Row(children: [
-                          Icon(Icons.history, color: ChaayaTheme.textMuted, size: 20),
-                          SizedBox(width: 12),
-                          Text('Location History', style: ChaayaTheme.bodyMedium),
+                          Icon(Icons.history_rounded, color: ChaayaTheme.textMuted, size: 22),
+                          SizedBox(width: 14),
+                          Text('Location History', style: TextStyle(color: ChaayaTheme.textSecondary, fontSize: 15, fontWeight: FontWeight.w500)),
                           Spacer(),
-                          Icon(Icons.chevron_right, color: ChaayaTheme.textMuted, size: 20),
+                          Icon(Icons.chevron_right_rounded, color: ChaayaTheme.textMuted, size: 22),
                         ]),
                       ),
                     ),
@@ -199,55 +218,64 @@ class MapBottomSheet extends StatelessWidget {
   }
 }
 
-class _QuickAction extends StatelessWidget {
+class _QuickAction extends StatefulWidget {
   final IconData icon;
   final String label;
   final bool isActive;
+  final Color? activeColor;
   final VoidCallback onTap;
 
   const _QuickAction({
     required this.icon,
     required this.label,
     required this.isActive,
+    this.activeColor,
     required this.onTap,
   });
 
   @override
+  State<_QuickAction> createState() => _QuickActionState();
+}
+
+class _QuickActionState extends State<_QuickAction> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
+    final color = widget.activeColor ?? ChaayaTheme.accent;
     return GestureDetector(
-      onTap: onTap,
-      child: Column(children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: isActive
-                ? ChaayaTheme.accent.withValues(alpha: 0.15)
-                : ChaayaTheme.surfaceLight,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: isActive
-                  ? ChaayaTheme.accent.withValues(alpha: 0.5)
-                  : ChaayaTheme.glassBorder,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) { setState(() => _pressed = false); HapticFeedback.lightImpact(); widget.onTap(); },
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        transform: Matrix4.identity()..scale(_pressed ? 0.9 : 1.0),
+        transformAlignment: Alignment.center,
+        child: Column(children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: widget.isActive ? color.withValues(alpha: 0.15) : ChaayaTheme.surfaceLight,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: widget.isActive ? color.withValues(alpha: 0.5) : Colors.white.withValues(alpha: 0.05),
+                width: widget.isActive ? 1.5 : 0.5,
+              ),
+              boxShadow: widget.isActive
+                  ? [BoxShadow(color: color.withValues(alpha: 0.2), blurRadius: 14)]
+                  : [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 8, offset: const Offset(0, 3))],
             ),
-            boxShadow: isActive
-                ? [BoxShadow(
-                    color: ChaayaTheme.accent.withValues(alpha: 0.2),
-                    blurRadius: 12,
-                  )]
-                : null,
+            child: Icon(widget.icon, size: 24, color: widget.isActive ? color : ChaayaTheme.textMuted),
           ),
-          child: Icon(icon,
-              size: 22,
-              color: isActive ? ChaayaTheme.accent : ChaayaTheme.textMuted),
-        ),
-        const SizedBox(height: 6),
-        Text(label,
-            style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: isActive ? ChaayaTheme.accent : ChaayaTheme.textMuted)),
-      ]),
+          const SizedBox(height: 7),
+          Text(widget.label,
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: widget.isActive ? FontWeight.w700 : FontWeight.w500,
+                  color: widget.isActive ? color : ChaayaTheme.textMuted)),
+        ]),
+      ),
     );
   }
 }
@@ -259,43 +287,43 @@ class _CheckInTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ago = DateTime.now().difference(checkIn.timestamp);
-    final timeStr = ago.inMinutes < 60
-        ? '${ago.inMinutes}m ago'
-        : '${ago.inHours}h ago';
+    final timeStr = ago.inMinutes < 60 ? '${ago.inMinutes}m ago' : '${ago.inHours}h ago';
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-      padding: const EdgeInsets.all(12),
-      decoration: ChaayaTheme.glassDecoration(borderRadius: 12),
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: ChaayaTheme.surfaceLight.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+      ),
       child: Row(children: [
         Container(
-          width: 36,
-          height: 36,
+          width: 40,
+          height: 40,
           decoration: BoxDecoration(
-            color: ChaayaTheme.safeGreen.withValues(alpha: 0.15),
+            color: ChaayaTheme.safeGreen.withValues(alpha: 0.12),
             shape: BoxShape.circle,
+            border: Border.all(color: ChaayaTheme.safeGreen.withValues(alpha: 0.3)),
           ),
-          child: const Icon(Icons.check, color: ChaayaTheme.safeGreen, size: 18),
+          child: const Icon(Icons.check_rounded, color: ChaayaTheme.safeGreen, size: 20),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 14),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(checkIn.username,
-                  style: const TextStyle(
-                      color: ChaayaTheme.textPrimary,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 14)),
+                  style: const TextStyle(color: ChaayaTheme.textPrimary, fontWeight: FontWeight.w600, fontSize: 15)),
               if (checkIn.statusMessage.isNotEmpty)
                 Text(checkIn.statusMessage,
-                    style: ChaayaTheme.bodySmall,
+                    style: const TextStyle(color: ChaayaTheme.textMuted, fontSize: 13),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis),
             ],
           ),
         ),
-        Text(timeStr, style: ChaayaTheme.bodySmall),
+        Text(timeStr, style: const TextStyle(color: ChaayaTheme.textMuted, fontSize: 12, fontWeight: FontWeight.w500)),
       ]),
     );
   }

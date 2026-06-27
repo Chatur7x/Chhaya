@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:math' as math;
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../../../core/sync/vector_clock.dart';
+import 'package:hive/hive.dart';
 
 enum IntelReportType { danger, safe, resource, infrastructure }
 
@@ -110,11 +113,55 @@ class CrowdIntelligence {
   static const int _maxReportsPerType = 100;
   static const int _baseConfidence = 50;
 
+  static const String _reportsBoxName = 'chaaya_intel_reports';
+  static const String _reputationBoxName = 'chaaya_reporter_reputation';
+  Box<String>? _reportsBox;
+  Box<double>? _reputationBox;
+
   final _reportController = StreamController<IntelReport>.broadcast();
   Stream<IntelReport> get reportStream => _reportController.stream;
 
   final _expiryController = StreamController<IntelReport>.broadcast();
   Stream<IntelReport> get expiryStream => _expiryController.stream;
+
+  Future<void> initialize() async {
+    _reportsBox = await Hive.openBox<String>(_reportsBoxName);
+    _reputationBox = await Hive.openBox<double>(_reputationBoxName);
+    _loadFromHive();
+  }
+
+  void _loadFromHive() {
+    if (_reportsBox != null) {
+      for (final key in _reportsBox!.keys) {
+        final json = _reportsBox!.get(key);
+        if (json != null) {
+          try {
+            final report = IntelReport.fromJson(jsonDecode(json));
+            if (!report.isExpired) {
+              _reports[report.id] = report;
+            } else {
+              _reportsBox!.delete(key);
+            }
+          } catch (e) {
+            debugPrint('[CrowdIntel] Error parsing report: $e');
+          }
+        }
+      }
+    }
+    if (_reputationBox != null) {
+      for (final key in _reputationBox!.keys) {
+        _reporterReputation[key.toString()] = _reputationBox!.get(key) ?? 0.5;
+      }
+    }
+  }
+
+  void _saveReport(IntelReport report) {
+    _reportsBox?.put(report.id, jsonEncode(report.toJson()));
+  }
+
+  void _saveReputation(String reporterId, double reputation) {
+    _reputationBox?.put(reporterId, reputation);
+  }
 
   String createReport({
     required String reporterId,
@@ -144,6 +191,7 @@ class CrowdIntelligence {
     );
 
     _reports[id] = report;
+    _saveReport(report);
     _reportController.add(report);
     debugPrint('Intel report created: $id');
 
@@ -178,6 +226,7 @@ class CrowdIntelligence {
     );
 
     _reports[reportId] = updated;
+    _saveReport(updated);
     _updateReporterReputation(report.reporterId, 0.1);
     _reportController.add(updated);
   }
@@ -186,6 +235,7 @@ class CrowdIntelligence {
     _reporterReputation[reporterId] ??= 0.5;
     _reporterReputation[reporterId] =
         (_reporterReputation[reporterId]! + delta).clamp(0.0, 1.0);
+    _saveReputation(reporterId, _reporterReputation[reporterId]!);
   }
 
   void processExpiredReports() {
@@ -193,6 +243,7 @@ class CrowdIntelligence {
 
     for (final entry in expired) {
       _reports.remove(entry.key);
+      _reportsBox?.delete(entry.key);
       _expiryController.add(entry.value);
     }
   }
@@ -211,71 +262,16 @@ class CrowdIntelligence {
     const double earthRadius = 6371000;
     final dLat = _toRadians(lat2 - lat1);
     final dLng = _toRadians(lng2 - lng1);
-    final a = _sin(dLat / 2) * _sin(dLat / 2) +
-        _cos(_toRadians(lat1)) *
-            _cos(_toRadians(lat2)) *
-            _sin(dLng / 2) *
-            _sin(dLng / 2);
-    final c = 2 * _atan2(_sqrt(a), _sqrt(1 - a));
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_toRadians(lat1)) *
+            math.cos(_toRadians(lat2)) *
+            math.sin(dLng / 2) *
+            math.sin(dLng / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
     return earthRadius * c;
   }
 
-  double _toRadians(double degrees) => degrees * 3.14159265359 / 180;
-  double _sin(double x) => _taylorSin(x);
-  double _cos(double x) => _taylorCos(x);
-  double _sqrt(double x) => x > 0 ? _newtonSqrt(x) : 0;
-  double _atan2(double y, double x) => _simpleAtan2(y, x);
-
-  double _taylorSin(double x) {
-    x = x % (2 * 3.14159265359);
-    if (x > 3.14159265359) x -= 2 * 3.14159265359;
-    double result = x, term = x;
-    for (int i = 1; i < 10; i++) {
-      term *= -x * x / ((2 * i) * (2 * i + 1));
-      result += term;
-    }
-    return result;
-  }
-
-  double _taylorCos(double x) {
-    x = x % (2 * 3.14159265359);
-    double result = 1, term = 1;
-    for (int i = 1; i < 10; i++) {
-      term *= -x * x / ((2 * i - 1) * (2 * i));
-      result += term;
-    }
-    return result;
-  }
-
-  double _newtonSqrt(double x) {
-    if (x == 0) return 0;
-    double guess = x / 2;
-    for (int i = 0; i < 20; i++) {
-      guess = (guess + x / guess) / 2;
-    }
-    return guess;
-  }
-
-  double _simpleAtan2(double y, double x) {
-    if (x > 0) return _atan(y / x);
-    if (x < 0 && y >= 0) return _atan(y / x) + 3.14159265359;
-    if (x < 0 && y < 0) return _atan(y / x) - 3.14159265359;
-    if (x == 0 && y > 0) return 3.14159265359 / 2;
-    if (x == 0 && y < 0) return -3.14159265359 / 2;
-    return 0;
-  }
-
-  double _atan(double x) {
-    if (x.abs() > 1) {
-      return (x > 0 ? 1 : -1) * 3.14159265359 / 2 - _atan(1 / x);
-    }
-    double result = x, term = x;
-    for (int i = 1; i < 15; i++) {
-      term *= -x * x;
-      result += term / (2 * i + 1);
-    }
-    return result;
-  }
+  double _toRadians(double degrees) => degrees * math.pi / 180;
 
   List<IntelReport> getReportsByType(IntelReportType type) {
     return _reports.values

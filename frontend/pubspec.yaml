@@ -1,8 +1,8 @@
 name: chaaya_release
-description: "Chaaya-Release-V1.0.4 — Offline Communication & Survival Platform"
+description: "Chaaya-Release-V1.0.5 — Offline Communication & Survival Platform"
 publish_to: 'none'
 
-version: 1.0.4+1
+version: 1.0.5+5
 
 environment:
   sdk: '>=3.2.3 <4.0.0'

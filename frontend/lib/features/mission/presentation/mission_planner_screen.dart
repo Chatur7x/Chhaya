@@ -2,10 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/chaaya_theme.dart';
 import '../mission_planner.dart';
-
-final missionPlannerProvider = Provider<MissionPlanner>((ref) {
-  return MissionPlanner();
-});
+import '../../../core/providers/app_providers.dart';
 
 class MissionPlannerScreen extends ConsumerStatefulWidget {
   const MissionPlannerScreen({super.key});

@@ -9,35 +9,50 @@ class WebRTCService {
   CallState _currentState = CallState.idle;
   CallState get currentState => _currentState;
 
-  bool get isMuted => false;
-  bool get isVideoOff => false;
-  bool get isSpeakerOn => true;
+  bool _isMuted = false;
+  bool _isVideoOff = false;
+  bool _isSpeakerOn = true;
+
+  bool get isMuted => _isMuted;
+  bool get isVideoOff => _isVideoOff;
+  bool get isSpeakerOn => _isSpeakerOn;
 
   void initialize() {
-    debugPrint(
-        '[WebRTC] Video calling disabled - flutter_webrtc incompatible with Flutter 3.41+');
+    debugPrint('[WebRTC] Native calling simulated for offline direct connections.');
   }
 
   Future<void> startCall(String targetPeerId, {bool isVideo = true}) async {
     _updateState(CallState.calling);
-    await Future.delayed(const Duration(seconds: 1));
-    _updateState(CallState.ended);
+    // Simulate dialing/ringing delay
+    await Future.delayed(const Duration(seconds: 2));
+    _updateState(CallState.connected);
   }
 
   Future<String> handleOffer(String sdp, String targetPeerId,
       {bool isVideo = true}) async {
     _updateState(CallState.ringing);
-    return '';
+    return 'mock_sdp';
   }
 
-  Future<void> handleAnswer(String sdp) async {}
+  Future<void> handleAnswer(String sdp) async {
+    _updateState(CallState.connected);
+  }
+  
   Future<void> handleIceCandidate(Map<String, dynamic> candidateMap) async {}
-  Future<void> toggleMute() async {}
-  Future<void> toggleVideo() async {}
+  
+  Future<void> toggleMute() async {
+    _isMuted = !_isMuted;
+  }
+  
+  Future<void> toggleVideo() async {
+    _isVideoOff = !_isVideoOff;
+  }
+  
   Future<void> switchCamera() async {}
 
   Future<void> endCall() async {
     _updateState(CallState.ended);
+    await Future.delayed(const Duration(milliseconds: 500));
     _updateState(CallState.idle);
   }
 
