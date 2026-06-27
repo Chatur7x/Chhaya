@@ -65,22 +65,6 @@ class _ChaayaAppState extends ConsumerState<ChaayaApp> {
       final chatService = ref.read(meshChatServiceProvider);
       await chatService.initialize();
 
-      // Initialize location safety service (geofencing, SOS, wellness)
-      final locationSafety = ref.read(locationSafetyServiceProvider);
-      await locationSafety.initialize();
-
-      // Initialize gamification engine
-      final gamification = ref.read(gamificationEngineProvider);
-      await gamification.initialize();
-
-      // Initialize mission planner
-      final missionPlanner = ref.read(missionPlannerProvider);
-      await missionPlanner.initialize();
-
-      // Initialize crowd intelligence
-      final crowdIntel = ref.read(crowdIntelProvider);
-      await crowdIntel.initialize();
-
       if (exists && identityService.currentIdentity != null) {
         ref.read(currentIdentityProvider.notifier).state =
             identityService.currentIdentity;

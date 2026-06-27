@@ -2,7 +2,6 @@ package com.proj16.backend.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
@@ -22,7 +21,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableMethodSecurity
-@EnableScheduling
 public class WebSecurityConfig {
     
     private final UserDetailsService userDetailsService;
@@ -64,9 +62,6 @@ public class WebSecurityConfig {
                 .authorizeHttpRequests(auth ->
                         auth.requestMatchers("/api/auth/**").permitAll()
                                 .requestMatchers("/api/test/**").permitAll()
-                                .requestMatchers("/health").permitAll()
-                                .requestMatchers("/ws-chat/**").permitAll()
-                                .requestMatchers("/api/v1/devices/link/**").permitAll()
                                 .anyRequest().authenticated()
                 );
 

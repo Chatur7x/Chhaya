@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import 'dart:async';
-import 'package:sensors_plus/sensors_plus.dart';
 import '../../core/theme/chaaya_theme.dart';
 import '../../features/messenger/presentation/mesh_chat_list_screen.dart';
 import '../../features/contacts/presentation/qr_pairing_screen.dart';
@@ -14,13 +12,6 @@ import '../../features/mission/presentation/mission_planner_screen.dart';
 import '../../features/intelligence/presentation/crowd_intelligence_screen.dart';
 import '../../features/navigation/presentation/multi_hop_navigator_screen.dart';
 import '../../features/emergency/presentation/emergency_screen.dart';
-import '../../features/survival/presentation/survival_toolkit_screen.dart';
-import '../../features/security/presentation/panic_wipe_screen.dart';
-import '../../features/security/presentation/dead_man_switch_screen.dart';
-import '../../features/security/presentation/device_manager_screen.dart';
-import '../../features/security/presentation/privacy_settings_screen.dart';
-import '../../features/status/presentation/statuses_screen.dart';
-import '../../features/chat/presentation/starred_messages_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -117,18 +108,6 @@ class _MoreScreen extends StatelessWidget {
                 _Card3D(icon: Icons.navigation, title: 'Navigator', subtitle: 'Multi-Hop', color: ChaayaTheme.bleColor,
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MultiHopNavigatorScreen()))),
                 _Card3D(icon: Icons.folder_outlined, title: 'File Vault', subtitle: 'Encrypted Storage', color: ChaayaTheme.bleColor, onTap: () {}),
-                _Card3D(icon: Icons.emergency_rounded, title: 'Survival Kit', subtitle: 'Grid-Down Tools', color: ChaayaTheme.sosRed,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SurvivalToolkitScreen()))),
-                _Card3D(icon: Icons.circle, title: 'Status', subtitle: '24-Hour Stories', color: ChaayaTheme.gradientCool,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StatusesScreen()))),
-                _Card3D(icon: Icons.devices, title: 'Devices', subtitle: 'Linked Devices', color: ChaayaTheme.bleColor,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DeviceManagerScreen()))),
-                _Card3D(icon: Icons.timer, title: 'DMS', subtitle: 'Dead Man\'s Switch', color: ChaayaTheme.warningYellow,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DeadManSwitchScreen()))),
-                _Card3D(icon: Icons.visibility, title: 'Privacy', subtitle: 'Privacy Controls', color: ChaayaTheme.accent,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacySettingsScreen()))),
-                _Card3D(icon: Icons.star, title: 'Starred', subtitle: 'Bookmarked Messages', color: ChaayaTheme.warningYellow,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StarredMessagesScreen()))),
                 _Card3D(icon: Icons.settings_outlined, title: 'Settings', subtitle: 'Security & Mesh', color: ChaayaTheme.textSecondary,
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChaayaSettingsScreen()))),
               ]),
@@ -154,116 +133,44 @@ class _Card3D extends StatefulWidget {
 
 class _Card3DState extends State<_Card3D> {
   bool _pressed = false;
-  double _tiltX = 0.0;
-  double _tiltY = 0.0;
-  StreamSubscription<AccelerometerEvent>? _accelSubscription;
-
-  @override
-  void initState() {
-    super.initState();
-    _accelSubscription = accelerometerEventStream().listen((AccelerometerEvent event) {
-      if (mounted) {
-        setState(() {
-          // Subtle tilt based on device movement
-          _tiltX = (event.y * 0.05).clamp(-0.15, 0.15);
-          _tiltY = (event.x * 0.05).clamp(-0.15, 0.15);
-        });
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _accelSubscription?.cancel();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
-    // Advanced 3D matrix transformation
-    final matrix = Matrix4.identity()
-      ..setEntry(3, 2, 0.002) // Perspective depth
-      ..rotateX(_pressed ? 0 : _tiltX)
-      ..rotateY(_pressed ? 0 : _tiltY)
-      ..scale(_pressed ? 0.92 : 1.0);
-
     return GestureDetector(
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) { setState(() => _pressed = false); widget.onTap(); },
       onTapCancel: () => setState(() => _pressed = false),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutQuart,
-        transform: matrix,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+        transform: Matrix4.identity()..scale(_pressed ? 0.95 : 1.0),
         transformAlignment: Alignment.center,
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                ChaayaTheme.surfaceLight.withValues(alpha: 0.9),
-                ChaayaTheme.surfaceLight.withValues(alpha: 0.6),
-              ],
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: ChaayaTheme.surfaceLight,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: widget.color.withValues(alpha: _pressed ? 0.3 : 0.1)),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withValues(alpha: _pressed ? 0.15 : 0.35), blurRadius: _pressed ? 8 : 20, offset: Offset(0, _pressed ? 3 : 10)),
+            BoxShadow(color: widget.color.withValues(alpha: _pressed ? 0.02 : 0.06), blurRadius: 30, offset: const Offset(0, 2)),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: widget.color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(widget.icon, color: widget.color, size: 24),
             ),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: widget.color.withValues(alpha: _pressed ? 0.4 : 0.15), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.4),
-                blurRadius: _pressed ? 10 : 25,
-                offset: Offset(0, _pressed ? 4 : 12),
-              ),
-              BoxShadow(
-                color: widget.color.withValues(alpha: _pressed ? 0.05 : 0.1),
-                blurRadius: 30,
-                offset: const Offset(0, 0),
-              ),
-              // Inner light reflection (simulated glassmorphism)
-              BoxShadow(
-                color: Colors.white.withValues(alpha: 0.03),
-                blurRadius: 0,
-                spreadRadius: 1,
-                offset: const Offset(0, -1),
-              ),
-            ],
-          ),
-          child: Stack(
-            children: [
-              // Background glow
-              Positioned(
-                right: -20,
-                top: -20,
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: widget.color.withValues(alpha: 0.1),
-                  ),
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 48, height: 48,
-                    decoration: BoxDecoration(
-                      color: widget.color.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: widget.color.withValues(alpha: 0.3)),
-                    ),
-                    child: Icon(widget.icon, color: widget.color, size: 26),
-                  ),
-                  const Spacer(),
-                  Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w700, color: ChaayaTheme.textPrimary, fontSize: 16, letterSpacing: -0.3)),
-                  const SizedBox(height: 4),
-                  Text(widget.subtitle, style: const TextStyle(fontSize: 12, color: ChaayaTheme.textMuted, fontWeight: FontWeight.w500)),
-                ],
-              ),
-            ],
-          ),
+            const Spacer(),
+            Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w600, color: ChaayaTheme.textPrimary, fontSize: 15)),
+            const SizedBox(height: 2),
+            Text(widget.subtitle, style: const TextStyle(fontSize: 12, color: ChaayaTheme.textMuted)),
+          ],
         ),
       ),
     );

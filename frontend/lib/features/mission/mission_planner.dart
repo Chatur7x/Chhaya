@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:hive/hive.dart';
 
 class MissionTask {
   final String id;
@@ -59,21 +57,6 @@ class MissionTask {
         'createdAt': createdAt.toIso8601String(),
         'completedAt': completedAt?.toIso8601String(),
       };
-
-  factory MissionTask.fromJson(Map<String, dynamic> json) => MissionTask(
-        id: json['id'] ?? '',
-        title: json['title'] ?? '',
-        description: json['description'] ?? '',
-        targetLatitude: json['targetLatitude']?.toDouble(),
-        targetLongitude: json['targetLongitude']?.toDouble(),
-        radius: json['radius']?.toDouble() ?? 100,
-        status: json['status'] ?? 'pending',
-        assignedTo: json['assignedTo'],
-        createdAt: DateTime.parse(json['createdAt']),
-        completedAt: json['completedAt'] != null
-            ? DateTime.parse(json['completedAt'])
-            : null,
-      );
 }
 
 class Mission {
@@ -122,24 +105,6 @@ class Mission {
         'completedAt': completedAt?.toIso8601String(),
         'completionPercentage': completionPercentage,
       };
-
-  factory Mission.fromJson(Map<String, dynamic> json) => Mission(
-        id: json['id'] ?? '',
-        name: json['name'] ?? '',
-        description: json['description'] ?? '',
-        status: json['status'] ?? 'planning',
-        tasks: (json['tasks'] as List?)
-            ?.map((t) => MissionTask.fromJson(t))
-            .toList(),
-        assignedMembers: List<String>.from(json['assignedMembers'] ?? []),
-        leaderId: json['leaderId'] ?? '',
-        rallyLatitude: json['rallyLatitude']?.toDouble(),
-        rallyLongitude: json['rallyLongitude']?.toDouble(),
-        createdAt: DateTime.parse(json['createdAt']),
-        completedAt: json['completedAt'] != null
-            ? DateTime.parse(json['completedAt'])
-            : null,
-      );
 }
 
 enum MissionRole { leader, member, scout, medic, relay }
@@ -148,39 +113,11 @@ class MissionPlanner {
   final Map<String, Mission> _missions = {};
   final Map<String, MissionRole> _userRoles = {};
 
-  static const String _boxName = 'chaaya_missions';
-  Box<String>? _box;
-
   final _missionController = StreamController<Mission>.broadcast();
   Stream<Mission> get missionStream => _missionController.stream;
 
   final _taskController = StreamController<MissionTask>.broadcast();
   Stream<MissionTask> get taskStream => _taskController.stream;
-
-  Future<void> initialize() async {
-    _box = await Hive.openBox<String>(_boxName);
-    _loadFromHive();
-  }
-
-  void _loadFromHive() {
-    if (_box == null) return;
-    for (final key in _box!.keys) {
-      final json = _box!.get(key);
-      if (json != null) {
-        try {
-          final mission = Mission.fromJson(jsonDecode(json));
-          _missions[mission.id] = mission;
-          _userRoles[mission.leaderId] = MissionRole.leader;
-        } catch (e) {
-          debugPrint('[MissionPlanner] Error parsing mission: $e');
-        }
-      }
-    }
-  }
-
-  void _saveMission(Mission mission) {
-    _box?.put(mission.id, jsonEncode(mission.toJson()));
-  }
 
   String createMission({
     required String name,
@@ -205,7 +142,6 @@ class MissionPlanner {
 
     _missions[id] = mission;
     _userRoles[leaderId] = MissionRole.leader;
-    _saveMission(mission);
 
     _missionController.add(mission);
     debugPrint('Mission created: $name');
@@ -217,7 +153,6 @@ class MissionPlanner {
     if (mission == null) return;
 
     mission.tasks.add(task);
-    _saveMission(mission);
     _missionController.add(mission);
   }
 
@@ -230,7 +165,6 @@ class MissionPlanner {
 
     mission.tasks[taskIndex] =
         mission.tasks[taskIndex].copyWith(assignedTo: userId);
-    _saveMission(mission);
     _taskController.add(mission.tasks[taskIndex]);
     _missionController.add(mission);
   }
@@ -246,7 +180,6 @@ class MissionPlanner {
       status: 'completed',
       completedAt: DateTime.now(),
     );
-    _saveMission(mission);
     _taskController.add(mission.tasks[taskIndex]);
     _missionController.add(mission);
 
@@ -260,7 +193,6 @@ class MissionPlanner {
     if (mission.tasks.every((t) => t.isComplete)) {
       mission.status = 'completed';
       mission.completedAt = DateTime.now();
-      _saveMission(mission);
       _missionController.add(mission);
     }
   }
@@ -270,7 +202,6 @@ class MissionPlanner {
     if (mission == null) return;
 
     mission.status = 'active';
-    _saveMission(mission);
     _missionController.add(mission);
   }
 
@@ -279,7 +210,6 @@ class MissionPlanner {
     if (mission == null) return;
 
     mission.status = 'paused';
-    _saveMission(mission);
     _missionController.add(mission);
   }
 
@@ -288,7 +218,6 @@ class MissionPlanner {
     if (mission == null) return;
 
     mission.status = 'archived';
-    _saveMission(mission);
     _missionController.add(mission);
   }
 

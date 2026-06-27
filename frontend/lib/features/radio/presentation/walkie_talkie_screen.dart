@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:async';
-import 'package:sensors_plus/sensors_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/chaaya_theme.dart';
 import '../../../core/providers/app_providers.dart';
-import '../../../core/widgets/animated_builder.dart';
 import '../data/walkie_talkie_service.dart';
 
 /// Walkie-Talkie PTT Screen — Zello-style push-to-talk radio interface.
@@ -25,10 +22,6 @@ class _WalkieTalkieScreenState extends ConsumerState<WalkieTalkieScreen>
   final List<String> _channels = ['#default', '#emergency', '#team-alpha', '#family'];
   late AnimationController _pulseController;
   late WalkieTalkieService _pttService;
-  
-  double _tiltX = 0.0;
-  double _tiltY = 0.0;
-  StreamSubscription<AccelerometerEvent>? _accelSubscription;
 
   @override
   void initState() {
@@ -37,14 +30,6 @@ class _WalkieTalkieScreenState extends ConsumerState<WalkieTalkieScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
-    _accelSubscription = accelerometerEventStream().listen((event) {
-      if (mounted) {
-        setState(() {
-          _tiltX = (event.y * 0.04).clamp(-0.1, 0.1);
-          _tiltY = (event.x * 0.04).clamp(-0.1, 0.1);
-        });
-      }
-    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _pttService = ref.read(walkieTalkieServiceProvider);
       _pttService.switchChannel(_activeChannel);
@@ -53,7 +38,6 @@ class _WalkieTalkieScreenState extends ConsumerState<WalkieTalkieScreen>
 
   @override
   void dispose() {
-    _accelSubscription?.cancel();
     _pulseController.dispose();
     _pttService.dispose();
     super.dispose();
@@ -218,20 +202,9 @@ class _WalkieTalkieScreenState extends ConsumerState<WalkieTalkieScreen>
 
   Widget _buildStatusBar(bool isReceiving) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: ChaayaTheme.surfaceLight.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: ChaayaTheme.glassDecoration(borderRadius: 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
@@ -277,149 +250,101 @@ class _WalkieTalkieScreenState extends ConsumerState<WalkieTalkieScreen>
 
   Widget _buildPTTArea(bool isReceiving) {
     final ident = ref.watch(identityServiceProvider).currentIdentity;
-    final matrix = Matrix4.identity()
-      ..setEntry(3, 2, 0.001)
-      ..rotateX(_tiltX)
-      ..rotateY(_tiltY);
 
     return Center(
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutQuart,
-        transform: matrix,
-        transformAlignment: Alignment.center,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Callsign display
-            Text(
-              ident?.username.toUpperCase() ?? 'ALPHA-1',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: ChaayaTheme.textSecondary,
-                fontFamily: 'JetBrains Mono',
-                letterSpacing: 4,
-              ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Callsign display
+          Text(
+            ident?.username.toUpperCase() ?? 'ALPHA-1',
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: ChaayaTheme.textSecondary,
+              fontFamily: 'JetBrains Mono',
+              letterSpacing: 2,
             ),
-            const SizedBox(height: 8),
-            Text(
-              _activeChannel,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                color: ChaayaTheme.accent,
-                letterSpacing: -0.5,
-              ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _activeChannel,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: ChaayaTheme.accent,
             ),
-            const SizedBox(height: 50),
+          ),
+          const SizedBox(height: 30),
 
-            // Heavy 3D PTT Button
-            GestureDetector(
-              onTapDown: (_) => _startTransmit(),
-              onTapUp: (_) => _stopTransmit(),
-              onTapCancel: () => _stopTransmit(),
-              child: ChaayaAnimatedBuilder(
-                animation: _pulseController,
-                builder: (context, child) {
-                  return AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    curve: Curves.easeOutCubic,
-                    width: 200 + (_isTransmitting ? _pulseController.value * 25 : 0),
-                    height: 200 + (_isTransmitting ? _pulseController.value * 25 : 0),
-                    transform: Matrix4.identity()..scale(_isTransmitting ? 0.92 : 1.0),
-                    transformAlignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: _isTransmitting
-                            ? [ChaayaTheme.sosRed, ChaayaTheme.sosRed.withValues(alpha: 0.6)]
-                            : isReceiving
-                                ? [ChaayaTheme.safeGreen, ChaayaTheme.safeGreen.withValues(alpha: 0.6)]
-                                : [ChaayaTheme.accent, ChaayaTheme.accent.withValues(alpha: 0.6)],
-                      ),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: _isTransmitting ? 0.4 : 0.1),
-                        width: _isTransmitting ? 4 : 1,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: (_isTransmitting ? ChaayaTheme.sosRed : ChaayaTheme.accent)
-                              .withValues(alpha: _isTransmitting ? 0.6 : 0.2),
-                          blurRadius: _isTransmitting ? 50 : 25,
-                          spreadRadius: _isTransmitting ? 10 : 0,
-                          offset: const Offset(0, 10),
-                        ),
-                        // Inner deep shadow for 3D button effect
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: _isTransmitting ? 0.0 : 0.3),
-                          blurRadius: 15,
-                          spreadRadius: -5,
-                          offset: const Offset(0, 15),
-                        ),
-                      ],
+          // PTT Button
+          GestureDetector(
+            onTapDown: (_) => _startTransmit(),
+            onTapUp: (_) => _stopTransmit(),
+            onTapCancel: () => _stopTransmit(),
+            child: AnimatedBuilder(
+              animation: _pulseController,
+              builder: (context, child) {
+                return Container(
+                  width: 140 + (_isTransmitting ? _pulseController.value * 20 : 0),
+                  height: 140 + (_isTransmitting ? _pulseController.value * 20 : 0),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: _isTransmitting
+                          ? [ChaayaTheme.sosRed, ChaayaTheme.sosRed.withOpacity(0.6)]
+                          : isReceiving
+                              ? [ChaayaTheme.safeGreen, ChaayaTheme.safeGreen.withOpacity(0.6)]
+                              : [ChaayaTheme.accent, ChaayaTheme.accent.withOpacity(0.6)],
                     ),
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        // Inner ring glow
-                        if (!_isTransmitting)
-                          Container(
-                            width: 170,
-                            height: 170,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 2),
-                            ),
-                          ),
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              _isTransmitting ? Icons.mic : isReceiving ? Icons.volume_up : Icons.mic_none,
-                              size: 56,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              _isTransmitting ? 'TRANSMITTING' : isReceiving ? 'RECEIVING' : 'HOLD TO TALK',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                                letterSpacing: 1.5,
-                              ),
-                            ),
-                          ],
+                    boxShadow: [
+                      BoxShadow(
+                        color: (_isTransmitting ? ChaayaTheme.sosRed : ChaayaTheme.accent)
+                            .withOpacity(0.4),
+                        blurRadius: _isTransmitting ? 40 : 20,
+                        spreadRadius: _isTransmitting ? 5 : 0,
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        _isTransmitting ? Icons.mic : isReceiving ? Icons.volume_up : Icons.mic_none,
+                        size: 48,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _isTransmitting ? 'TRANSMITTING' : isReceiving ? 'RECEIVING' : 'HOLD TO TALK',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          letterSpacing: 1,
                         ),
-                      ],
-                    ),
-                  );
-                },
-              ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
-            const SizedBox(height: 50),
+          ),
+          const SizedBox(height: 20),
 
-            // Status text
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              child: Text(
-                _isTransmitting 
-                    ? '🔴 BROADCASTING ON $_activeChannel' 
-                    : isReceiving 
-                        ? '🟢 RECEIVING TRANSMISSION' 
-                        : 'READY TO TRANSMIT',
-                key: ValueKey(_isTransmitting || isReceiving),
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1,
-                  color: _isTransmitting ? ChaayaTheme.sosRed : isReceiving ? ChaayaTheme.safeGreen : ChaayaTheme.textMuted,
-                ),
-              ),
+          // Status text
+          Text(
+            _isTransmitting 
+                ? '🔴 Broadcasting on $_activeChannel' 
+                : isReceiving 
+                    ? '🟢 Receiving transmission' 
+                    : 'Ready to transmit',
+            style: TextStyle(
+              fontSize: 13,
+              color: _isTransmitting ? ChaayaTheme.sosRed : isReceiving ? ChaayaTheme.safeGreen : ChaayaTheme.textMuted,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -427,33 +352,38 @@ class _WalkieTalkieScreenState extends ConsumerState<WalkieTalkieScreen>
   Widget _buildSOSButton() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Container(
-        height: 54,
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: ChaayaTheme.sosRed.withValues(alpha: 0.15),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
+      child: SizedBox(
+        width: double.infinity,
+        height: 48,
         child: ElevatedButton.icon(
           onPressed: _triggerSOS,
           style: ElevatedButton.styleFrom(
-            backgroundColor: ChaayaTheme.sosRed.withValues(alpha: 0.15),
+            backgroundColor: ChaayaTheme.sosRed.withOpacity(0.2),
             foregroundColor: ChaayaTheme.sosRed,
-            shadowColor: Colors.transparent,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: const BorderSide(color: ChaayaTheme.sosRed, width: 1.5),
+              borderRadius: BorderRadius.circular(14),
+              side: const BorderSide(color: ChaayaTheme.sosRed),
             ),
           ),
-          icon: const Icon(Icons.sos_rounded, size: 24),
-          label: const Text('SOS — OVERRIDE ALL', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, letterSpacing: 0.5)),
+          icon: const Icon(Icons.sos, size: 20),
+          label: const Text('SOS — ALL CHANNELS', style: TextStyle(fontWeight: FontWeight.w700)),
         ),
       ),
     );
   }
+}
+
+/// AnimatedBuilder from controller
+class AnimatedBuilder extends AnimatedWidget {
+  final Widget Function(BuildContext, Widget?) builder;
+
+  const AnimatedBuilder({
+    super.key,
+    required Animation<double> animation,
+    required this.builder,
+  }) : super(listenable: animation);
+
+  @override
+  Widget build(BuildContext context) => builder(context, null);
 }
 

@@ -48,18 +48,6 @@ public class MeshContact {
     @Column(name = "is_stealth")
     private boolean stealth = false;
 
-    @Column(name = "battery_level")
-    private Integer batteryLevel = 100;
-
-    @Column(name = "ble_advertising_interval")
-    private Integer bleAdvertisingInterval = 1000;
-
-    @Column(name = "is_discoverable")
-    private Boolean isDiscoverable = false;
-
-    @Column(name = "discoverable_until")
-    private LocalDateTime discoverableUntil;
-
     public enum ContactStatus {
         NEARBY,
         RELAY,

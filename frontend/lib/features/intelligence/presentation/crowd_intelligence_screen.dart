@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/chaaya_theme.dart';
 import '../../../core/sync/vector_clock.dart';
 import '../crowd_intelligence.dart';
-import '../../../core/providers/app_providers.dart';
+
+final crowdIntelProvider = Provider<CrowdIntelligence>((ref) {
+  return CrowdIntelligence();
+});
 
 class CrowdIntelligenceScreen extends ConsumerStatefulWidget {
   const CrowdIntelligenceScreen({super.key});

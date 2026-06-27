@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:hive/hive.dart';
 
 enum AchievementCategory { relay, sos, exploration, social, knowledge }
 
@@ -57,22 +55,6 @@ class Achievement {
         'unlockedAt': unlockedAt?.toIso8601String(),
         'points': points,
       };
-
-  factory Achievement.fromJson(Map<String, dynamic> json) => Achievement(
-        id: json['id'] ?? '',
-        title: json['title'] ?? '',
-        description: json['description'] ?? '',
-        target: json['target'] ?? 0,
-        current: json['current'] ?? 0,
-        icon: json['icon'] ?? '',
-        category: AchievementCategory.values.firstWhere(
-            (e) => e.name == json['category'],
-            orElse: () => AchievementCategory.relay),
-        unlockedAt: json['unlockedAt'] != null
-            ? DateTime.parse(json['unlockedAt'])
-            : null,
-        points: json['points'] ?? 0,
-      );
 }
 
 class UserScore {
@@ -110,28 +92,12 @@ class UserScore {
         'totalPoints': totalPoints,
         'updatedAt': updatedAt.toIso8601String(),
       };
-
-  factory UserScore.fromJson(Map<String, dynamic> json) => UserScore(
-        odId: json['odId'] ?? '',
-        relayScore: json['relayScore'] ?? 0,
-        sosScore: json['sosScore'] ?? 0,
-        explorationScore: json['explorationScore'] ?? 0,
-        socialScore: json['socialScore'] ?? 0,
-        knowledgeScore: json['knowledgeScore'] ?? 0,
-        totalPoints: json['totalPoints'] ?? 0,
-        updatedAt: json['updatedAt'] != null
-            ? DateTime.parse(json['updatedAt'])
-            : null,
-      );
 }
 
 class GamificationEngine {
   final Map<String, Achievement> _achievements = {};
   final Map<String, UserScore> _userScores = {};
   final Random _random = Random.secure();
-
-  static const String _boxName = 'chaaya_gamification';
-  Box<String>? _box;
 
   final _achievementController = StreamController<Achievement>.broadcast();
   Stream<Achievement> get achievementStream => _achievementController.stream;
@@ -141,52 +107,6 @@ class GamificationEngine {
 
   GamificationEngine() {
     _initializeAchievements();
-  }
-
-  Future<void> initialize() async {
-    _box = await Hive.openBox<String>(_boxName);
-    _loadFromHive();
-  }
-
-  void _loadFromHive() {
-    if (_box == null) return;
-    
-    // Load achievements
-    for (final key in _box!.keys) {
-      final keyStr = key.toString();
-      if (keyStr.startsWith('achievement_')) {
-        final json = _box!.get(keyStr);
-        if (json != null) {
-          try {
-            final ach = Achievement.fromJson(jsonDecode(json));
-            if (_achievements.containsKey(ach.id)) {
-              _achievements[ach.id]!.current = ach.current;
-              _achievements[ach.id]!.unlockedAt = ach.unlockedAt;
-            }
-          } catch (e) {
-            debugPrint('[Gamification] Error parsing achievement: $e');
-          }
-        }
-      } else if (keyStr.startsWith('score_')) {
-        final userId = keyStr.replaceFirst('score_', '');
-        final json = _box!.get(keyStr);
-        if (json != null) {
-          try {
-            _userScores[userId] = UserScore.fromJson(jsonDecode(json));
-          } catch (e) {
-            debugPrint('[Gamification] Error parsing score: $e');
-          }
-        }
-      }
-    }
-  }
-
-  void _saveAchievement(String userId, Achievement achievement) {
-    _box?.put('achievement_${userId}_${achievement.id}', jsonEncode(achievement.toJson()));
-  }
-
-  void _saveScore(String userId, UserScore score) {
-    _box?.put('score_$userId', jsonEncode(score.toJson()));
   }
 
   void _initializeAchievements() {
@@ -339,7 +259,6 @@ class GamificationEngine {
     if (achievement == null || achievement.isUnlocked) return;
 
     achievement.current += amount;
-    _saveAchievement(userId, achievement);
     if (achievement.current >= achievement.target) {
       _unlockAchievement(userId, achievementId);
     }
@@ -355,9 +274,6 @@ class GamificationEngine {
     _ensureUserExists(userId);
     _userScores[userId]!.totalPoints += achievement.points;
 
-    _saveAchievement(userId, achievement);
-    _saveScore(userId, _userScores[userId]!);
-
     _achievementController.add(achievement);
     debugPrint('Achievement unlocked: ${achievement.title}');
   }
@@ -365,7 +281,6 @@ class GamificationEngine {
   void _emitScore(String userId) {
     final score = _userScores[userId];
     if (score != null) {
-      _saveScore(userId, score);
       _scoreController.add(score);
     }
   }

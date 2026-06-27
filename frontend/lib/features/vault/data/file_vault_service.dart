@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:encrypt/encrypt.dart' as encrypt;
@@ -339,7 +338,7 @@ class FileVaultService {
       ownerId: ownerId,
     );
 
-    await _filesBox?.put(id, jsonEncode(vaultFile.toJson()));
+    await _filesBox?.put(id, vaultFile.toJson().toString());
 
     return vaultFile;
   }
@@ -382,7 +381,7 @@ class FileVaultService {
     final json = _filesBox?.get(fileId);
     if (json == null) return null;
 
-    final file = VaultFile.fromJson(jsonDecode(json));
+    final file = VaultFile.fromJson(Uri.splitQueryString(json));
     final localFile = File(file.path);
 
     if (!await localFile.exists()) return null;
@@ -415,7 +414,7 @@ class FileVaultService {
       ownerId: ownerId,
     );
 
-    await _foldersBox?.put(id, jsonEncode(folder.toJson()));
+    await _foldersBox?.put(id, folder.toJson().toString());
 
     final folderPath = Directory('${_vaultDir.path}/$id');
     await folderPath.create(recursive: true);
@@ -427,7 +426,7 @@ class FileVaultService {
     final json = _foldersBox?.get(folderId);
     if (json == null) return;
 
-    final folder = VaultFolder.fromJson(jsonDecode(json));
+    final folder = VaultFolder.fromJson(Uri.splitQueryString(json));
     final updated = VaultFolder(
       id: folder.id,
       name: newName,
@@ -438,14 +437,14 @@ class FileVaultService {
       ownerId: folder.ownerId,
     );
 
-    await _foldersBox?.put(folderId, jsonEncode(updated.toJson()));
+    await _foldersBox?.put(folderId, updated.toJson().toString());
   }
 
   Future<void> moveFolder(String folderId, String? newParentId) async {
     final json = _foldersBox?.get(folderId);
     if (json == null) return;
 
-    final folder = VaultFolder.fromJson(jsonDecode(json));
+    final folder = VaultFolder.fromJson(Uri.splitQueryString(json));
     final updated = VaultFolder(
       id: folder.id,
       name: folder.name,
@@ -456,7 +455,7 @@ class FileVaultService {
       ownerId: folder.ownerId,
     );
 
-    await _foldersBox?.put(folderId, jsonEncode(updated.toJson()));
+    await _foldersBox?.put(folderId, updated.toJson().toString());
   }
 
   Future<void> deleteFolder(String folderId) async {
@@ -490,7 +489,7 @@ class FileVaultService {
       if (json == null) continue;
 
       try {
-        final file = VaultFile.fromJson(jsonDecode(json));
+        final file = VaultFile.fromJson(Uri.splitQueryString(json));
 
         if (folderId != null && file.folderId != folderId) continue;
         if (type != null && file.type != type) continue;
@@ -521,7 +520,7 @@ class FileVaultService {
       if (json == null) continue;
 
       try {
-        final folder = VaultFolder.fromJson(jsonDecode(json));
+        final folder = VaultFolder.fromJson(Uri.splitQueryString(json));
 
         if (parentId == null && folder.parentId == null) {
           folders.add(folder);
@@ -539,28 +538,28 @@ class FileVaultService {
     final json = _filesBox?.get(fileId);
     if (json == null) return;
 
-    final file = VaultFile.fromJson(jsonDecode(json));
+    final file = VaultFile.fromJson(Uri.splitQueryString(json));
     final updated = file.copyWith(name: newName, modifiedAt: DateTime.now());
 
-    await _filesBox?.put(fileId, jsonEncode(updated.toJson()));
+    await _filesBox?.put(fileId, updated.toJson().toString());
   }
 
   Future<void> moveFile(String fileId, String newFolderId) async {
     final json = _filesBox?.get(fileId);
     if (json == null) return;
 
-    final file = VaultFile.fromJson(jsonDecode(json));
+    final file = VaultFile.fromJson(Uri.splitQueryString(json));
     final updated =
         file.copyWith(folderId: newFolderId, modifiedAt: DateTime.now());
 
-    await _filesBox?.put(fileId, jsonEncode(updated.toJson()));
+    await _filesBox?.put(fileId, updated.toJson().toString());
   }
 
   Future<void> deleteFile(String fileId) async {
     final json = _filesBox?.get(fileId);
     if (json == null) return;
 
-    final file = VaultFile.fromJson(jsonDecode(json));
+    final file = VaultFile.fromJson(Uri.splitQueryString(json));
 
     await _binBox?.put(fileId, json);
 
@@ -578,7 +577,7 @@ class FileVaultService {
   Future<void> permanentlyDeleteFile(String fileId) async {
     final json = _binBox?.get(fileId);
     if (json != null) {
-      final file = VaultFile.fromJson(jsonDecode(json));
+      final file = VaultFile.fromJson(Uri.splitQueryString(json));
       final localFile = File(file.path);
       if (await localFile.exists()) {
         await localFile.delete();
@@ -594,7 +593,7 @@ class FileVaultService {
     for (final key in versionKeys) {
       final vJson = _versionsBox?.get(key);
       if (vJson != null) {
-        final version = FileVersion.fromJson(jsonDecode(vJson));
+        final version = FileVersion.fromJson(Uri.splitQueryString(vJson));
         final vFile = File(version.path);
         if (await vFile.exists()) {
           await vFile.delete();
@@ -612,7 +611,7 @@ class FileVaultService {
       if (json == null) continue;
 
       try {
-        files.add(VaultFile.fromJson(jsonDecode(json)));
+        files.add(VaultFile.fromJson(Uri.splitQueryString(json)));
       } catch (_) {}
     }
 
@@ -630,21 +629,21 @@ class FileVaultService {
     final json = _filesBox?.get(fileId);
     if (json == null) return;
 
-    final file = VaultFile.fromJson(jsonDecode(json));
+    final file = VaultFile.fromJson(Uri.splitQueryString(json));
     if (file.tags.contains(tag)) return;
 
     final updated = file.copyWith(tags: [...file.tags, tag]);
-    await _filesBox?.put(fileId, jsonEncode(updated.toJson()));
+    await _filesBox?.put(fileId, updated.toJson().toString());
   }
 
   Future<void> removeTag(String fileId, String tag) async {
     final json = _filesBox?.get(fileId);
     if (json == null) return;
 
-    final file = VaultFile.fromJson(jsonDecode(json));
+    final file = VaultFile.fromJson(Uri.splitQueryString(json));
     final updated =
         file.copyWith(tags: file.tags.where((t) => t != tag).toList());
-    await _filesBox?.put(fileId, jsonEncode(updated.toJson()));
+    await _filesBox?.put(fileId, updated.toJson().toString());
   }
 
   List<String> getAllTags() {
@@ -655,7 +654,7 @@ class FileVaultService {
       if (json == null) continue;
 
       try {
-        final file = VaultFile.fromJson(jsonDecode(json));
+        final file = VaultFile.fromJson(Uri.splitQueryString(json));
         tags.addAll(file.tags);
       } catch (_) {}
     }
@@ -667,7 +666,7 @@ class FileVaultService {
     final json = _filesBox?.get(fileId);
     if (json == null) return;
 
-    final file = VaultFile.fromJson(jsonDecode(json));
+    final file = VaultFile.fromJson(Uri.splitQueryString(json));
     final localFile = File(file.path);
 
     if (!await localFile.exists()) return;
@@ -687,10 +686,10 @@ class FileVaultService {
       checksum: _computeChecksum(bytes),
     );
 
-    await _versionsBox?.put(versionId, jsonEncode(version.toJson()));
+    await _versionsBox?.put(versionId, version.toJson().toString());
 
     final updated = file.copyWith(version: file.version + 1);
-    await _filesBox?.put(fileId, jsonEncode(updated.toJson()));
+    await _filesBox?.put(fileId, updated.toJson().toString());
   }
 
   List<FileVersion> getVersions(String fileId) {
@@ -701,7 +700,7 @@ class FileVaultService {
       if (json == null) continue;
 
       try {
-        final version = FileVersion.fromJson(jsonDecode(json));
+        final version = FileVersion.fromJson(Uri.splitQueryString(json));
         if (version.fileId == fileId) {
           versions.add(version);
         }
@@ -717,7 +716,7 @@ class FileVaultService {
     final json = _versionsBox?.get(versionId);
     if (json == null) return;
 
-    final version = FileVersion.fromJson(jsonDecode(json));
+    final version = FileVersion.fromJson(Uri.splitQueryString(json));
     final versionFile = File(version.path);
 
     if (!await versionFile.exists()) return;
@@ -725,7 +724,7 @@ class FileVaultService {
     final fileJson = _filesBox?.get(fileId);
     if (fileJson == null) return;
 
-    final currentFile = VaultFile.fromJson(jsonDecode(fileJson));
+    final currentFile = VaultFile.fromJson(Uri.splitQueryString(fileJson));
     final currentLocalFile = File(currentFile.path);
 
     await saveVersion(fileId);
@@ -749,7 +748,7 @@ class FileVaultService {
       if (json == null) continue;
 
       try {
-        final file = VaultFile.fromJson(jsonDecode(json));
+        final file = VaultFile.fromJson(Uri.splitQueryString(json));
         final category = file.type.name;
         usage[category] = (usage[category] ?? 0) + file.size;
         usage['other'] = (usage['other'] ?? 0) + file.size;
@@ -766,7 +765,7 @@ class FileVaultService {
       if (json == null) continue;
 
       try {
-        final file = VaultFile.fromJson(jsonDecode(json));
+        final file = VaultFile.fromJson(Uri.splitQueryString(json));
         total += file.size;
       } catch (_) {}
     }
@@ -782,7 +781,7 @@ class FileVaultService {
       if (json == null) continue;
 
       try {
-        final file = VaultFile.fromJson(jsonDecode(json));
+        final file = VaultFile.fromJson(Uri.splitQueryString(json));
         if (file.name.toLowerCase().contains(lowerQuery)) {
           results.add(file.id);
         }
@@ -796,7 +795,7 @@ class FileVaultService {
     final json = _foldersBox?.get(folderId);
     if (json == null) return;
 
-    final folder = VaultFolder.fromJson(jsonDecode(json));
+    final folder = VaultFolder.fromJson(Uri.splitQueryString(json));
     final updated = VaultFolder(
       id: folder.id,
       name: folder.name,
@@ -807,7 +806,7 @@ class FileVaultService {
       ownerId: folder.ownerId,
     );
 
-    await _foldersBox?.put(folderId, jsonEncode(updated.toJson()));
+    await _foldersBox?.put(folderId, updated.toJson().toString());
   }
 
   List<VaultFolder> getSharedFolders() {
@@ -818,7 +817,7 @@ class FileVaultService {
       if (json == null) continue;
 
       try {
-        final folder = VaultFolder.fromJson(jsonDecode(json));
+        final folder = VaultFolder.fromJson(Uri.splitQueryString(json));
         if (folder.isShared) {
           folders.add(folder);
         }
