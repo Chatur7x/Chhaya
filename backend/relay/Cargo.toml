@@ -1,0 +1,8 @@
+[package]
+name = "chaaya-swarm-relay"
+version = "2.0.0"
+edition = "2021"
+description = "Chaaya SwarmRelay - Zero-Knowledge Encrypted Media Relay Node"
+authors = ["Chaaya Team"]
+
+[dependencies]

@@ -1,0 +1,42 @@
+import 'dart:ui';
+import 'package:flutter/cupertino.dart';
+import 'package:chaaya/ui/theme/chhaya_theme.dart';
+
+class GlassContainer extends StatelessWidget {
+  final Widget child;
+  final double borderRadius;
+  final double blurSigma;
+  final Color? color;
+  final EdgeInsetsGeometry padding;
+
+  const GlassContainer({
+    super.key,
+    required this.child,
+    this.borderRadius = 16,
+    this.blurSigma = 30,
+    this.color,
+    this.padding = const EdgeInsets.all(16),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(borderRadius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            color: color ?? ChhayaColors.secondaryBackground.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(borderRadius),
+            border: Border.all(
+              color: ChhayaColors.glassBorder.withValues(alpha: 0.12),
+              width: 0.5,
+            ),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
