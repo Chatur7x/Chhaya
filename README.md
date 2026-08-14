@@ -63,7 +63,7 @@ Chhaya is an app for sending messages, making calls, and sharing files. Everythi
 
 | Part | Technology |
 |------|------------|
-| App | Flutter (works on Android, iOS, Windows) |
+| App | Flutter (works on Android, Windows) |
 | State | Riverpod (manages app data) |
 | Database | Hive (stores messages locally) |
 | Encryption | AES-256-GCM + Double Ratchet |
