@@ -165,9 +165,6 @@ go run main.go
 
 ---
 
-## License
-
-This project is open source under the MIT License.
 
 ---
 
