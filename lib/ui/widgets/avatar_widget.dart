@@ -1,4 +1,4 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:chaaya/ui/theme/chhaya_theme.dart';
 
 class AvatarWidget extends StatelessWidget {
@@ -77,7 +77,10 @@ class AvatarWidget extends StatelessWidget {
               decoration: BoxDecoration(
                 color: statusColor,
                 shape: BoxShape.circle,
-                border: Border.all(color: ChhayaColors.primaryBackground, width: 2),
+                border: Border.all(
+                  color: ChhayaColors.primaryBackground,
+                  width: 2,
+                ),
               ),
             ),
           ),

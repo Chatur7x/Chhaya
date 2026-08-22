@@ -1,5 +1,4 @@
-import 'dart:ui';
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/chhaya_theme.dart';
@@ -22,6 +21,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _disappearingMessages = false;
   bool _meshRouting = false;
 
+  String _shortId(String id, int max) => id.length > max ? '${id.substring(0, max)}…' : id;
+
   @override
   void initState() {
     super.initState();
@@ -36,17 +37,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
-    final ChhayaId = user?.ChhayaId.publicKey ?? '—';
+    final chhayaIdText = user?.chhayaId.publicKey ?? '—';
     final displayName = user?.displayName ?? 'Chhaya User';
 
-    return CupertinoPageScaffold(
+    return Scaffold(
       backgroundColor: ChhayaColors.primaryBackground,
-      navigationBar: CupertinoNavigationBar(
-        backgroundColor: ChhayaColors.primaryBackground.withValues(alpha: 0.92),
-        border: null,
-        middle: Text('Settings', style: ChhayaTypography.headline),
+      appBar: AppBar(
+        backgroundColor: ChhayaColors.primaryBackground,
+        title: Text('Settings', style: ChhayaTypography.headline),
       ),
-      child: SafeArea(
+      body: SafeArea(
         child: ListView(
           physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
           children: [
@@ -68,18 +68,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             const SizedBox(height: 2),
                             GestureDetector(
                               onTap: () {
-                                Clipboard.setData(ClipboardData(text: ChhayaId));
+                                Clipboard.setData(ClipboardData(text: chhayaIdText));
                                 ChhayaHaptics.selection();
                               },
                               child: Text(
-                                '${ChhayaId.substring(0, 12)}…',
+                                _shortId(chhayaIdText, 12),
                                 style: ChhayaTypography.caption1.copyWith(color: ChhayaColors.accentBlue),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const Icon(CupertinoIcons.chevron_right, color: ChhayaColors.labelTertiary, size: 16),
+                      const Icon(Icons.chevron_right, color: ChhayaColors.labelTertiary, size: 16),
                     ],
                   ),
                 ),
@@ -88,82 +88,108 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
 
             _sectionHeader('ACCOUNT'),
-            _settingsTile(CupertinoIcons.doc_text_fill, ChhayaColors.accentBlue, 'Recovery Phrase', onTap: _showRecoveryPhrase),
-            _settingsTile(CupertinoIcons.desktopcomputer, ChhayaColors.accentPurple, 'Linked Devices', onTap: _showLinkedDevices),
-            _settingsTile(CupertinoIcons.cloud_download_fill, ChhayaColors.accentTeal, 'Backup', onTap: _showBackup),
+            _settingsCard([
+              _settingsTile(Icons.description, ChhayaColors.accentBlue, 'Recovery Phrase', onTap: _showRecoveryPhrase),
+              const Divider(height: 0),
+              _settingsTile(Icons.devices, ChhayaColors.accentPurple, 'Linked Devices', onTap: _showLinkedDevices),
+              const Divider(height: 0),
+              _settingsTile(Icons.cloud_download, ChhayaColors.accentTeal, 'Backup', onTap: _showBackup),
+            ]),
 
 
             _sectionHeader('PRIVACY'),
-            _settingsSwitch(CupertinoIcons.clock_fill, ChhayaColors.accentOrange, 'Disappearing Messages', _disappearingMessages, (v) async {
-              if (v) {
-                _showDisappearingDuration();
-              } else {
-                await ref.read(localDatabaseProvider).setGlobalDisappearingDuration(0);
-                setState(() => _disappearingMessages = false);
-              }
-            }),
-            _settingsSwitch(CupertinoIcons.eye_fill, ChhayaColors.accentGreen, 'Read Receipts', _readReceipts, (v) async {
-              await ref.read(localDatabaseProvider).setReadReceiptsEnabled(v);
-              setState(() => _readReceipts = v);
-            }),
-            _settingsTile(CupertinoIcons.nosign, ChhayaColors.accentRed, 'Block List', onTap: _showBlockList, trailing: _blockedCountBadge()),
+            _settingsCard([
+              _settingsSwitch(Icons.timer, ChhayaColors.accentOrange, 'Disappearing Messages', _disappearingMessages, (v) async {
+                if (v) {
+                  _showDisappearingDuration();
+                } else {
+                  await ref.read(localDatabaseProvider).setGlobalDisappearingDuration(0);
+                  setState(() => _disappearingMessages = false);
+                }
+              }),
+              const Divider(height: 0),
+              _settingsSwitch(Icons.visibility, ChhayaColors.accentGreen, 'Read Receipts', _readReceipts, (v) async {
+                await ref.read(localDatabaseProvider).setReadReceiptsEnabled(v);
+                setState(() => _readReceipts = v);
+              }),
+              const Divider(height: 0),
+              _settingsTile(Icons.block, ChhayaColors.accentRed, 'Block List', onTap: _showBlockList, trailing: _blockedCountBadge()),
+            ]),
 
 
             _sectionHeader('SECURITY'),
-            _settingsSwitch(CupertinoIcons.lock_shield_fill, ChhayaColors.accentIndigo, 'Biometric Lock', _biometricLock, (v) async {
-              await ref.read(localDatabaseProvider).setBiometricLockEnabled(v);
-              setState(() => _biometricLock = v);
-            }),
-            _settingsTile(CupertinoIcons.exclamationmark_shield_fill, ChhayaColors.accentRed, 'Panic PIN', subtitle: 'Auto-wipe on entry', onTap: _showPanicPinSetup),
-            _settingsTile(CupertinoIcons.qrcode, ChhayaColors.accentGreen, 'Verify Contact', onTap: () {
-              Navigator.of(context).pushNamed(ChhayaRouter.verification);
-            }),
+            _settingsCard([
+              _settingsSwitch(Icons.security, ChhayaColors.accentIndigo, 'Biometric Lock', _biometricLock, (v) async {
+                await ref.read(localDatabaseProvider).setBiometricLockEnabled(v);
+                setState(() => _biometricLock = v);
+              }),
+              const Divider(height: 0),
+              _settingsTile(Icons.warning, ChhayaColors.accentRed, 'Panic PIN', subtitle: 'Auto-wipe on entry', onTap: _showPanicPinSetup),
+              const Divider(height: 0),
+              _settingsTile(Icons.qr_code, ChhayaColors.accentGreen, 'Verify Contact', onTap: () {
+                Navigator.of(context).pushNamed(ChhayaRouter.verification);
+              }),
+            ]),
 
 
             _sectionHeader('NETWORK'),
-            _settingsSwitch(CupertinoIcons.globe, ChhayaColors.accentBlue, 'Onion Routing', _onionRouting, (v) async {
-              await ref.read(localDatabaseProvider).setOnionRoutingEnabled(v);
-              setState(() => _onionRouting = v);
-            }),
-            _settingsTile(CupertinoIcons.speedometer, ChhayaColors.accentYellow, 'Relay Speed', onTap: _showRelaySpeed),
-            _settingsSwitch(CupertinoIcons.antenna_radiowaves_left_right, ChhayaColors.accentTeal, 'Local Mesh', _meshRouting, (v) async {
-              await ref.read(localDatabaseProvider).setMeshRoutingEnabled(v);
-              setState(() => _meshRouting = v);
-              if (v) _showMeshPeers();
-            }),
+            _settingsCard([
+              _settingsSwitch(Icons.public, ChhayaColors.accentBlue, 'Onion Routing', _onionRouting, (v) async {
+                await ref.read(localDatabaseProvider).setOnionRoutingEnabled(v);
+                setState(() => _onionRouting = v);
+              }),
+              const Divider(height: 0),
+              _settingsTile(Icons.speed, ChhayaColors.accentYellow, 'Relay Speed', onTap: _showRelaySpeed),
+              const Divider(height: 0),
+              _settingsSwitch(Icons.wifi_tethering, ChhayaColors.accentTeal, 'Local Mesh', _meshRouting, (v) async {
+                await ref.read(localDatabaseProvider).setMeshRoutingEnabled(v);
+                setState(() => _meshRouting = v);
+                if (v) _showMeshPeers();
+              }),
+            ]),
 
 
             _sectionHeader('ABOUT'),
-            _settingsTile(CupertinoIcons.info_circle_fill, ChhayaColors.labelSecondary, 'Version', trailing: Text('2.0.0', style: ChhayaTypography.caption1), onTap: () {
-              showCupertinoDialog(context: context, builder: (_) => CupertinoAlertDialog(
-                title: const Text('Chhaya'), content: const Text('Version 2.0.0 (Build 1)\n\n© 2025 Chhaya Project'),
-                actions: [CupertinoDialogAction(child: const Text('OK'), onPressed: () => Navigator.pop(context))],
-              ));
-            }),
-            _settingsTile(CupertinoIcons.doc_text, ChhayaColors.labelSecondary, 'Licenses', onTap: () {
-              showCupertinoDialog(context: context, builder: (_) => CupertinoAlertDialog(
-                title: const Text('Open Source Licenses'),
-                content: const Text('Flutter, Dart, PointyCastle, Hive, Riverpod, and other open-source packages under their respective licenses.'),
-                actions: [CupertinoDialogAction(child: const Text('OK'), onPressed: () => Navigator.pop(context))],
-              ));
-            }),
-            _settingsTile(CupertinoIcons.star_fill, ChhayaColors.accentYellow, 'Rate Chhaya', onTap: () {
-              showCupertinoDialog(context: context, builder: (_) => CupertinoAlertDialog(
-                title: const Text('Thank You! ❤️'), content: const Text('We appreciate your support. Chhaya is built with privacy-first principles.'),
-                actions: [CupertinoDialogAction(child: const Text('Close'), onPressed: () => Navigator.pop(context))],
-              ));
-            }),
+            _settingsCard([
+              _settingsTile(Icons.info, ChhayaColors.labelSecondary, 'Version', trailing: Text('2.0.0', style: ChhayaTypography.caption1), onTap: () {
+                showDialog(context: context, builder: (_) => AlertDialog(
+                  title: const Text('Chhaya'), content: const Text('Version 2.0.0 (Build 1)\n\n© 2025 Chhaya Project'),
+                  actions: [TextButton(child: const Text('OK'), onPressed: () => Navigator.pop(context))],
+                ));
+              }),
+              const Divider(height: 0),
+              _settingsTile(Icons.description_outlined, ChhayaColors.labelSecondary, 'Licenses', onTap: () {
+                showDialog(context: context, builder: (_) => AlertDialog(
+                  title: const Text('Open Source Licenses'),
+                  content: const Text('Flutter, Dart, PointyCastle, Hive, Riverpod, and other open-source packages under their respective licenses.'),
+                  actions: [TextButton(child: const Text('OK'), onPressed: () => Navigator.pop(context))],
+                ));
+              }),
+              const Divider(height: 0),
+              _settingsTile(Icons.star, ChhayaColors.accentYellow, 'Rate Chhaya', onTap: () {
+                showDialog(context: context, builder: (_) => AlertDialog(
+                  title: const Text('Thank You! ❤️'), content: const Text('We appreciate your support. Chhaya is built with privacy-first principles.'),
+                  actions: [TextButton(child: const Text('Close'), onPressed: () => Navigator.pop(context))],
+                ));
+              }),
+            ]),
 
             const SizedBox(height: 40),
 
 
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: CupertinoButton(
-                color: ChhayaColors.accentRed.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-                onPressed: _logout,
-                child: Text('Log Out', style: ChhayaTypography.headline.copyWith(color: ChhayaColors.accentRed)),
+              child: SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: ChhayaColors.accentRed.withValues(alpha: 0.15),
+                    foregroundColor: ChhayaColors.accentRed,
+                  ),
+                  onPressed: _logout,
+                  child: Text('Log Out', style: ChhayaTypography.headline.copyWith(color: ChhayaColors.accentRed)),
+                ),
               ),
             ),
 
@@ -183,60 +209,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
 
-  Widget _settingsTile(IconData icon, Color color, String title, {String? subtitle, Widget? trailing, VoidCallback? onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: ChhayaColors.separator, width: 0.33)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 30, height: 30,
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
-              child: Icon(icon, color: color, size: 18),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: ChhayaTypography.body),
-                  if (subtitle != null)
-                    Text(subtitle, style: ChhayaTypography.caption1.copyWith(color: ChhayaColors.labelTertiary)),
-                ],
-              ),
-            ),
-            if (trailing != null) trailing,
-            if (onTap != null && trailing == null)
-              const Icon(CupertinoIcons.chevron_right, color: ChhayaColors.labelTertiary, size: 14),
-          ],
-        ),
+  Widget _settingsCard(List<Widget> children) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: Column(children: children),
       ),
+    );
+  }
+
+  Widget _settingsTile(IconData icon, Color color, String title, {String? subtitle, Widget? trailing, VoidCallback? onTap}) {
+    return ListTile(
+      leading: Container(
+        width: 30, height: 30,
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
+        child: Icon(icon, color: color, size: 18),
+      ),
+      title: Text(title, style: ChhayaTypography.body),
+      subtitle: subtitle != null ? Text(subtitle, style: ChhayaTypography.caption1.copyWith(color: ChhayaColors.labelTertiary)) : null,
+      trailing: trailing ?? (onTap != null ? const Icon(Icons.chevron_right, color: ChhayaColors.labelTertiary, size: 14) : null),
+      onTap: onTap,
     );
   }
 
 
   Widget _settingsSwitch(IconData icon, Color color, String title, bool value, ValueChanged<bool> onChanged) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: ChhayaColors.separator, width: 0.33)),
+    return SwitchListTile(
+      secondary: Container(
+        width: 30, height: 30,
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
+        child: Icon(icon, color: color, size: 18),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 30, height: 30,
-            decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
-            child: Icon(icon, color: color, size: 18),
-          ),
-          const SizedBox(width: 14),
-          Expanded(child: Text(title, style: ChhayaTypography.body)),
-          CupertinoSwitch(value: value, onChanged: (v) { ChhayaHaptics.selection(); onChanged(v); }, activeTrackColor: color),
-        ],
-      ),
+      title: Text(title, style: ChhayaTypography.body),
+      value: value,
+      onChanged: (v) { ChhayaHaptics.selection(); onChanged(v); },
+      activeTrackColor: color.withValues(alpha: 0.3),
+      activeThumbColor: color,
     );
   }
 
@@ -257,7 +266,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final auth = ref.read(authServiceProvider);
     final phrase = await auth.getRecoveryPhrase() ?? ['anchor','brave','castle','diamond','eagle','frost','garden','harbor','ivory','jasmine','knight','lantern'];
     if (!mounted) return;
-    showCupertinoModalPopup(
+    showModalBottomSheet(
       context: context,
       builder: (_) => _buildBottomSheet(
         title: 'Recovery Phrase',
@@ -276,7 +285,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void _showLinkedDevices() {
     final db = ref.read(localDatabaseProvider);
     var devices = db.getLinkedDevices();
-    showCupertinoModalPopup(
+    showModalBottomSheet(
       context: context,
       builder: (_) => StatefulBuilder(
         builder: (ctx, setSt) => _buildBottomSheet(
@@ -288,14 +297,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(color: ChhayaColors.fillTertiary, borderRadius: BorderRadius.circular(12)),
                 child: Row(children: [
-                  const Icon(CupertinoIcons.desktopcomputer, color: ChhayaColors.accentPurple, size: 24),
+                  const Icon(Icons.devices, color: ChhayaColors.accentPurple, size: 24),
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(d['name'] as String? ?? 'Device', style: ChhayaTypography.body),
                     Text(d['id'] as String? ?? '', style: ChhayaTypography.caption2),
                   ])),
-                  CupertinoButton(
-                    padding: EdgeInsets.zero, minimumSize: Size.zero,
+                  TextButton(
                     onPressed: () async {
                       await db.removeLinkedDevice(d['id'] as String);
                       setSt(() => devices = db.getLinkedDevices());
@@ -306,9 +314,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ]),
               )),
               const SizedBox(height: 12),
-              CupertinoButton(
-                color: ChhayaColors.accentBlue,
-                borderRadius: BorderRadius.circular(12),
+              FilledButton(
                 onPressed: () async {
                   final id = 'device_${DateTime.now().millisecondsSinceEpoch}';
                   await db.addLinkedDevice({'id': id, 'name': 'Desktop ${devices.length + 1}'});
@@ -328,7 +334,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final auth = ref.read(authServiceProvider);
     final backup = await auth.generateBackup();
     if (!mounted) return;
-    showCupertinoModalPopup(
+    showModalBottomSheet(
       context: context,
       builder: (_) => _buildBottomSheet(
         title: 'Encrypted Backup',
@@ -339,9 +345,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: Text(backup.length > 120 ? '${backup.substring(0, 120)}…' : backup, style: ChhayaTypography.caption1.copyWith(fontFamily: 'Courier')),
           ),
           const SizedBox(height: 16),
-          CupertinoButton(
-            color: ChhayaColors.accentBlue,
-            borderRadius: BorderRadius.circular(12),
+          FilledButton(
             onPressed: () { Clipboard.setData(ClipboardData(text: backup)); ChhayaHaptics.success(); },
             child: const Text('Copy to Clipboard'),
           ),
@@ -352,20 +356,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _showDisappearingDuration() {
     final options = {'5 seconds': 5, '30 seconds': 30, '1 minute': 60, '1 hour': 3600, '1 day': 86400};
-    showCupertinoModalPopup(
+    showModalBottomSheet(
       context: context,
-      builder: (_) => CupertinoActionSheet(
-        title: const Text('Set Duration'),
-        actions: options.entries.map((e) => CupertinoActionSheetAction(
-          child: Text(e.key),
-          onPressed: () async {
-            Navigator.pop(context);
-            await ref.read(localDatabaseProvider).setGlobalDisappearingDuration(e.value);
-            setState(() => _disappearingMessages = true);
-            ChhayaHaptics.selection();
-          },
-        )).toList(),
-        cancelButton: CupertinoActionSheetAction(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
+      builder: (_) => _buildBottomSheet(
+        title: 'Set Duration',
+        child: Column(
+          children: options.entries.map((e) => ListTile(
+            title: Text(e.key),
+            onTap: () async {
+              Navigator.pop(context);
+              await ref.read(localDatabaseProvider).setGlobalDisappearingDuration(e.value);
+              setState(() => _disappearingMessages = true);
+              ChhayaHaptics.selection();
+            },
+          )).toList(),
+        ),
       ),
     );
   }
@@ -373,7 +378,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void _showBlockList() {
     final db = ref.read(localDatabaseProvider);
     var blocked = db.getBlockedContacts();
-    showCupertinoModalPopup(
+    showModalBottomSheet(
       context: context,
       builder: (_) => StatefulBuilder(
         builder: (ctx, setSt) => _buildBottomSheet(
@@ -393,8 +398,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         AvatarWidget(name: name, size: 36),
                         const SizedBox(width: 12),
                         Expanded(child: Text(name, style: ChhayaTypography.body)),
-                        CupertinoButton(
-                          padding: EdgeInsets.zero, minimumSize: Size.zero,
+                        TextButton(
                           onPressed: () async {
                             await db.unblockContact(id);
                             setSt(() => blocked = db.getBlockedContacts());
@@ -413,27 +417,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _showPanicPinSetup() {
     final pinCtrl = TextEditingController();
-    showCupertinoDialog(
+    showDialog(
       context: context,
-      builder: (_) => CupertinoAlertDialog(
+      builder: (_) => AlertDialog(
         title: const Text('Set Panic PIN'),
         content: Padding(
           padding: const EdgeInsets.only(top: 12),
-          child: Column(children: [
-            const Text('If entered at the lock screen, ALL data will be permanently erased.', style: TextStyle(fontSize: 13)),
-            const SizedBox(height: 12),
-            CupertinoTextField(controller: pinCtrl, placeholder: '4-digit PIN', keyboardType: TextInputType.number, maxLength: 4, obscureText: true),
-          ]),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('If entered at the lock screen, ALL data will be permanently erased.', style: TextStyle(fontSize: 13)),
+              const SizedBox(height: 12),
+              TextField(controller: pinCtrl, decoration: const InputDecoration(hintText: '4-digit PIN'), keyboardType: TextInputType.number, maxLength: 4, obscureText: true),
+            ],
+          ),
         ),
         actions: [
-          CupertinoDialogAction(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
-          CupertinoDialogAction(
-            isDestructiveAction: true,
+          TextButton(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: ChhayaColors.accentRed),
             child: const Text('Set Panic PIN'),
             onPressed: () async {
               if (pinCtrl.text.length != 4) return;
               await ref.read(localDatabaseProvider).setPanicPin(pinCtrl.text);
-              Navigator.pop(context);
+              if (mounted) Navigator.pop(context);
               ChhayaHaptics.warning();
             },
           ),
@@ -445,7 +452,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void _showRelaySpeed() {
     final router = ref.read(onionRouterProvider);
     final nodes = router.activeNodes;
-    showCupertinoModalPopup(
+    showModalBottomSheet(
       context: context,
       builder: (_) => _buildBottomSheet(
         title: 'Relay Network Telemetry',
@@ -459,7 +466,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(color: ChhayaColors.fillTertiary, borderRadius: BorderRadius.circular(10)),
             child: Row(children: [
-              const Icon(CupertinoIcons.globe, color: ChhayaColors.accentBlue, size: 18),
+              const Icon(Icons.public, color: ChhayaColors.accentBlue, size: 18),
               const SizedBox(width: 8),
               Expanded(child: Text(n.address, style: ChhayaTypography.caption1)),
               Text('${n.latencyMs}ms', style: ChhayaTypography.caption1.copyWith(color: ChhayaColors.accentGreen)),
@@ -487,7 +494,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       {'name': 'iPhone 16', 'signal': '▂▄▆', 'latency': '28ms'},
       {'name': 'Galaxy S25', 'signal': '▂▄', 'latency': '45ms'},
     ];
-    showCupertinoModalPopup(
+    showModalBottomSheet(
       context: context,
       builder: (_) => _buildBottomSheet(
         title: 'Nearby Mesh Peers',
@@ -497,15 +504,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(color: ChhayaColors.fillTertiary, borderRadius: BorderRadius.circular(12)),
             child: Row(children: [
-              const Icon(CupertinoIcons.antenna_radiowaves_left_right, color: ChhayaColors.accentTeal, size: 22),
+              const Icon(Icons.wifi_tethering, color: ChhayaColors.accentTeal, size: 22),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(p['name']!, style: ChhayaTypography.body),
                 Text('${p['signal']}  ${p['latency']}', style: ChhayaTypography.caption1.copyWith(color: ChhayaColors.accentGreen)),
               ])),
-              CupertinoButton(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero,
-                color: ChhayaColors.accentTeal, borderRadius: BorderRadius.circular(8),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: ChhayaColors.accentTeal, foregroundColor: ChhayaColors.labelPrimary),
                 onPressed: () { ChhayaHaptics.success(); },
                 child: const Text('Connect', style: TextStyle(fontSize: 13)),
               ),
@@ -517,15 +523,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _logout() async {
-    showCupertinoDialog(
+    showDialog(
       context: context,
-      builder: (_) => CupertinoAlertDialog(
+      builder: (_) => AlertDialog(
         title: const Text('Log Out'),
         content: const Text('All local data will be erased. Make sure you have your recovery phrase.'),
         actions: [
-          CupertinoDialogAction(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
-          CupertinoDialogAction(
-            isDestructiveAction: true,
+          TextButton(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: ChhayaColors.accentRed),
             child: const Text('Log Out'),
             onPressed: () async {
               Navigator.pop(context);
@@ -542,27 +548,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Widget _buildBottomSheet({required String title, required Widget child}) {
-    return ClipRRect(
-      borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-        child: Container(
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.65),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: ChhayaColors.secondaryBackground.withValues(alpha: 0.92),
-            borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
-          ),
-          child: SingleChildScrollView(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(child: Container(width: 36, height: 5, decoration: BoxDecoration(color: ChhayaColors.fillPrimary, borderRadius: BorderRadius.circular(3)))),
-              const SizedBox(height: 16),
-              Text(title, style: ChhayaTypography.title2),
-              const SizedBox(height: 16),
-              child,
-            ],
-          )),
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(child: Container(width: 36, height: 5, decoration: BoxDecoration(color: ChhayaColors.fillPrimary, borderRadius: BorderRadius.circular(3)))),
+            const SizedBox(height: 16),
+            Text(title, style: ChhayaTypography.title2),
+            const SizedBox(height: 16),
+            child,
+          ],
         ),
       ),
     );

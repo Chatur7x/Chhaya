@@ -43,14 +43,14 @@ class AuthService {
     await _keyManager.storeRecoveryPhrase(recoveryPhrase);
 
 
-    final ChhayaId = ChhayaId(
+    final chhayaId = ChhayaId(
       publicKey: keyPair.publicKeyHex,
       createdAt: DateTime.now(),
     );
 
 
     final profile = UserProfile(
-      ChhayaId: ChhayaId,
+      chhayaId: chhayaId,
       displayName: displayName ?? 'Chhaya User',
       recoveryPhrase: recoveryPhrase,
       createdAt: DateTime.now(),
@@ -71,28 +71,28 @@ class AuthService {
     final contacts = [
       Contact(
         id: 'contact_priya',
-        ChhayaId: ChhayaId.fromPublicKey('5f7b3c2a8d1e4c9b3a7d2e5f9a1b4c8d6e2f7a3b5c9d1e4f8a6b2c7d3e5f9a12'),
+        chhayaId: ChhayaId.fromPublicKey('5f7b3c2a8d1e4c9b3a7d2e5f9a1b4c8d6e2f7a3b5c9d1e4f8a6b2c7d3e5f9a12'),
         displayName: 'Priya Sharma',
         verificationLevel: 3,
         isOnline: true,
       ),
       Contact(
         id: 'contact_arjun',
-        ChhayaId: ChhayaId.fromPublicKey('2e8d1e4c9b3a7d2e5f9a1b4c8d6e2f7a3b5c9d1e4f8a6b2c7d3e5f9a1b4c8d62'),
+        chhayaId: ChhayaId.fromPublicKey('2e8d1e4c9b3a7d2e5f9a1b4c8d6e2f7a3b5c9d1e4f8a6b2c7d3e5f9a1b4c8d62'),
         displayName: 'Arjun Mehta',
         verificationLevel: 2,
         isOnline: true,
       ),
       Contact(
         id: 'contact_neha',
-        ChhayaId: ChhayaId.fromPublicKey('b3c7d2e5f9a1b4c8d6e2f7a3b5c9d1e4f8a6b2c7d3e5f9a1b4c8d6e2f7a3b5c9'),
+        chhayaId: ChhayaId.fromPublicKey('b3c7d2e5f9a1b4c8d6e2f7a3b5c9d1e4f8a6b2c7d3e5f9a1b4c8d6e2f7a3b5c9'),
         displayName: 'Neha Gupta',
         verificationLevel: 1,
         isOnline: false,
       ),
       Contact(
         id: 'contact_rahul',
-        ChhayaId: ChhayaId.fromPublicKey('f8a6b2c7d3e5f9a1b4c8d6e2f7a3b5c9d1e4f8a6b2c7d3e5f9a1b4c8d6e2f7a3'),
+        chhayaId: ChhayaId.fromPublicKey('f8a6b2c7d3e5f9a1b4c8d6e2f7a3b5c9d1e4f8a6b2c7d3e5f9a1b4c8d6e2f7a3'),
         displayName: 'Rahul Kapoor',
         verificationLevel: 2,
         isOnline: false,
@@ -214,13 +214,13 @@ class AuthService {
     await _keyManager.storeKeyPair(keyPair);
     await _keyManager.storeRecoveryPhrase(recoveryPhrase);
 
-    final ChhayaId = ChhayaId(
+    final chhayaId = ChhayaId(
       publicKey: keyPair.publicKeyHex,
       createdAt: DateTime.now(),
     );
 
     final profile = UserProfile(
-      ChhayaId: ChhayaId,
+      chhayaId: chhayaId,
       displayName: 'Restored User',
       recoveryPhrase: recoveryPhrase,
       createdAt: DateTime.now(),
@@ -330,6 +330,6 @@ class AuthService {
     }
 
     final linkKeyPair = _crypto.generateKeyPair();
-    return 'Chhaya-link:${_currentUser!.ChhayaId.publicKey}:${linkKeyPair.publicKeyHex}';
+    return 'Chhaya-link:${_currentUser!.chhayaId.publicKey}:${linkKeyPair.publicKeyHex}';
   }
 }

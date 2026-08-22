@@ -254,7 +254,7 @@ class WebSocketTransport {
   static Future<bool> sendPacket(String nodeAddress, Uint8List payload) async {
     try {
 
-      final uri = Uri.parse('wss:
+      final uri = Uri.parse('wss://$nodeAddress/relay');
       final socket = await WebSocket.connect(uri.toString())
           .timeout(const Duration(seconds: 5));
 
@@ -280,7 +280,7 @@ class WebSocketTransport {
 
   static Future<Stream<Uint8List>?> openReceiveStream(String nodeAddress) async {
     try {
-      final uri = Uri.parse('wss:
+      final uri = Uri.parse('wss://$nodeAddress/relay');
       final socket = await WebSocket.connect(uri.toString())
           .timeout(const Duration(seconds: 5));
 

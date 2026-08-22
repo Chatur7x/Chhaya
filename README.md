@@ -1,177 +1,186 @@
-# Chhaya - The Secure Messenger
+# Chhaya 🛡️
 
-> Privacy Redefined. Speed Perfected. Apple-Grade Design.
+> **Privacy Redefined. Speed Perfected. Material Design.**
 
-Chhaya is a secure messaging app that keeps your conversations private. It combines the best features of Threema (clean design, large file sharing) and Session (decentralized network, anonymous identity).
+Chhaya is a privacy-first, end-to-end encrypted messenger inspired by Threema and Session. No phone number, no email, no central server — just a 66-character anonymous identity and military-grade encryption.
 
----
-
-## What is Chhaya?
-
-Chhaya is an app for sending messages, making calls, and sharing files. Everything is encrypted, so only you and the person you are talking to can see your messages. No one else - not even us - can read them.
-
-### Key Features
-
-**Privacy & Security**
-- No phone number or email needed - your identity is a 66-character code
-- All messages are encrypted with military-grade encryption
-- Messages route through 3 anonymous servers to hide your location
-- Messages can self-destruct after a set time
-- Fingerprint or face unlock to open the app
-- Enter a special PIN to instantly delete all data
-
-**Communication**
-- Send text messages to individuals or groups (up to 256 people)
-- Make voice and video calls
-- Send files up to 100MB
-- Create polls in group chats
-- See when someone is typing or has read your message
-
-**Design**
-- Beautiful Apple-style interface
-- Smooth animations at 120 frames per second
-- True black background for battery savings
-- Frosted glass effects
+[![Flutter](https://img.shields.io/badge/Flutter-3.29%2B-blue?logo=flutter)](https://flutter.dev)
+[![Dart](https://img.shields.io/badge/Dart-3.7%2B-0175C2?logo=dart)](https://dart.dev)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
 
-## How It Works
+## ✨ Features
 
-### Creating an Account
-1. Open the app
-2. Tap "Create Account"
-3. A 66-character identity code is generated for you
-3. You get 12 recovery words - write them down!
-4. You are ready to use the app
+### 🔒 Privacy & Security
+- **Anonymous identity** — no phone number or email required
+- **End-to-end encryption** via AES-256-GCM + Double Ratchet
+- **Onion routing** through 3 anonymous hops to hide your IP
+- **Biometric lock** with fingerprint / face unlock
+- **Panic PIN** — enter a special code to instantly wipe all data
+- **Disappearing messages** with configurable timers
+- **QR code verification** to confirm contacts in person
 
-### Sending a Message
-1. Open a chat
-2. Type your message
-3. Message is encrypted (locked with a secret key)
-4. Message goes through 3 anonymous servers
-5. Only the recipient can unlock and read it
+### 💬 Communication
+- Encrypted 1:1 and group text chats
+- HD voice and **peer-to-peer video calls** via WebRTC
+- File sharing with decentralized chunk storage
+- In-chat polls and reactions
+- Typing indicators and read receipts
 
-### Making a Call
-1. Open a chat
-2. Tap the call button
-3. Your devices connect directly
-4. Audio/video streams peer-to-peer (no server)
-
----
-
-## Tech Stack
-
-| Part | Technology |
-|------|------------|
-| App | Flutter (works on Android, Windows) |
-| State | Riverpod (manages app data) |
-| Database | Hive (stores messages locally) |
-| Encryption | AES-256-GCM + Double Ratchet |
-| Calls | WebRTC (peer-to-peer) |
-| Onion Server | Go language |
-| File Server | Rust language |
+### 🎨 Design
+- Clean **Material 3** dark UI with true-black background
+- Frosted-glass cards and spring-physics animations
+- 120 Hz-friendly motion and haptic feedback
 
 ---
 
-## Project Structure
+## 📸 Screenshots
+
+> *Add your screenshots inside `assets/screenshots/` and update the paths below.*
+
+| Onboarding | Chats | Call | Settings |
+|---|---|---|---|
+| ![Onboarding](assets/screenshots/onboarding.png) | ![Chats](assets/screenshots/chats.png) | ![Call](assets/screenshots/call.png) | ![Settings](assets/screenshots/settings.png) |
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────┐
+│  UI Layer (Flutter + Riverpod)          │
+├─────────────────────────────────────────┤
+│  Services (Auth, Network, Calls, Files) │
+├─────────────────────────────────────────┤
+│  Core (Crypto, Database, Models)        │
+├─────────────────────────────────────────┤
+│  Local Storage (Hive) + Key Store       │
+└─────────────────────────────────────────┘
+```
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Framework | Flutter 3.29+ |
+| State Management | Riverpod |
+| Local Database | Hive |
+| Cryptography | PointyCastle / `crypto` |
+| Voice/Video Calls | WebRTC (`flutter_webrtc`) |
+| QR Codes | `qr_flutter` / `mobile_scanner` |
+| Biometrics | `local_auth` |
+| Notifications | `flutter_local_notifications` |
+
+---
+
+## 📁 Project Structure
 
 ```
 lib/
-  main.dart                    - App entry point
-  core/
-    crypto/                    - Encryption engine
-    database/                  - Local storage
-    models/                    - Data structures
-    providers/                 - State management
-    router/                    - Screen navigation
-  services/
-    auth/                      - Account management
-    network/                   - Onion routing, calls, files
-    notification/              - Notification banners
-  ui/
-    screens/                   - All app screens
-    theme/                     - Colors and styles
-    widgets/                   - Reusable components
+├── main.dart                     # App entry point
+├── core/
+│   ├── crypto/                   # Encryption engine & key manager
+│   ├── database/                 # Hive local database
+│   ├── models/                   # ChhayaId, Contact, Message, etc.
+│   ├── providers/                # Riverpod state providers
+│   └── router/                   # Route definitions
+├── services/
+│   ├── auth/                     # Account creation / restore / backup
+│   └── network/                  # Onion routing, P2P calls, file client
+└── ui/
+    ├── screens/                  # Onboarding, Chat, Calls, Settings, etc.
+    ├── theme/                    # Colors, typography, components
+    └── widgets/                  # Reusable buttons, avatars, glass cards
+
 backend/
-  node/                        - Go onion routing server
-  relay/                       - Rust file storage server
+├── node/                         # Go onion-routing relay
+└── relay/                        # Rust decentralized file relay
 ```
 
 ---
 
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
-- Flutter SDK 3.29 or higher
-- Dart SDK 3.7 or higher
-- Android Studio or VS Code
+- Flutter SDK **3.29+**
+- Dart SDK **3.7+**
+- Android Studio / VS Code with Flutter extension
+- JDK 17+ (for Android builds)
 
-### Install and Run
+### Install & Run
 
 ```bash
-# Get dependencies
+# Clone the repo
+git clone https://github.com/Chatur7x/Chhaya.git
+cd Chhaya
+
+# Install dependencies
 flutter pub get
 
-# Run on device
+# Run on a connected device or emulator
 flutter run
+```
 
-# Build APK
+### Build APK
+
+```bash
+# Debug APK
+flutter build apk --debug
+
+# Release APK
 flutter build apk --release
 ```
 
-### Run Backend Servers (Optional)
+The release APK will be generated at:
+
+```
+build/app/outputs/flutter-apk/app-release.apk
+```
+
+---
+
+## 🖥️ Backend Servers (Optional)
 
 ```bash
-# File storage server (Rust)
+# Decentralized file relay (Rust)
 cd backend/relay
 cargo run
 
-# Onion routing server (Go)
+# Onion routing node (Go)
 cd backend/node
 go run main.go
 ```
 
 ---
 
-## Security Features
+## 🔐 Security Checklist
 
-| Feature | What It Does |
-|---------|--------------|
-| Zero Knowledge Identity | No phone/email needed |
-| End-to-End Encryption | Only you and recipient can read |
-| Forward Secrecy | Old messages stay safe |
-| Onion Routing | Hides your IP address |
-| Biometric Lock | Fingerprint/face unlock |
-| Panic PIN | Special code wipes all data |
-| Disappearing Messages | Auto-delete after time |
-| QR Verification | Verify contacts in person |
-
----
-
-## Dependencies
-
-| Package | Purpose |
-|---------|---------|
-| flutter_riverpod | State management |
-| pointycastle | Encryption algorithms |
-| crypto | Hashing functions |
-| hive | Local database |
-| flutter_webrtc | Voice/video calls |
-| qr_flutter | Generate QR codes |
-| mobile_scanner | Scan QR codes |
-| local_auth | Biometric authentication |
-| flutter_local_notifications | Notification banners |
-| file_picker | Select files |
+| Feature | Description |
+|---------|-------------|
+| Zero-Knowledge Identity | No phone/email tied to your account |
+| End-to-End Encryption | Only sender and recipient can read messages |
+| Forward Secrecy | Keys rotate with every message |
+| Onion Routing | Hides origin IP across 3 hops |
+| Biometric Lock | Require fingerprint/face to open the app |
+| Panic PIN | Instantly wipe local data |
+| Disappearing Messages | Auto-delete after a set duration |
+| QR Verification | Confirm contacts in person |
 
 ---
 
+## 🤝 Contributing
+
+Contributions are welcome. Please open an issue or pull request on [GitHub](https://github.com/Chatur7x/Chhaya).
 
 ---
 
-## Contact
+## 📄 License
 
-GitHub: [Chatur7x](https://github.com/Chatur7x)
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
 
 ---
 
-Built with security in mind. Your privacy matters.
+<p align="center">Built with privacy in mind. Your data belongs to you.</p>

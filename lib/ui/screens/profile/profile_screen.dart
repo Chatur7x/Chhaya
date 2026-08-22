@@ -1,6 +1,6 @@
 import 'dart:math';
 import 'dart:ui';
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/chhaya_theme.dart';
@@ -31,6 +31,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _verifying = false;
   List<bool> _chunkStatus = List.filled(5, false);
 
+  String _shortId(String id, int max) => id.length > max ? '${id.substring(0, max)}…' : id;
+
   @override
   void initState() {
     super.initState();
@@ -60,19 +62,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final isSelf = contact == null;
 
     final name = isSelf ? (user?.displayName ?? 'Chhaya User') : contact.displayName;
-    final ChhayaId = isSelf ? (user?.ChhayaId.publicKey ?? '') : contact.ChhayaId.publicKey;
+    final chhayaIdText = isSelf ? (user?.chhayaId.publicKey ?? '') : contact.chhayaId.publicKey;
     final verLevel = isSelf ? 3 : contact.verificationLevel;
     final verColor = verLevel == 3 ? ChhayaColors.verifiedLevel3 : verLevel == 2 ? ChhayaColors.verifiedLevel2 : ChhayaColors.verifiedLevel1;
     final verLabel = verLevel == 3 ? 'Verified' : verLevel == 2 ? 'Matched' : 'Unverified';
 
-    return CupertinoPageScaffold(
+    return Scaffold(
       backgroundColor: ChhayaColors.primaryBackground,
-      navigationBar: CupertinoNavigationBar(
+      appBar: AppBar(
         backgroundColor: ChhayaColors.primaryBackground.withValues(alpha: 0.92),
-        border: null,
-        middle: Text(isSelf ? 'My Profile' : 'Contact', style: ChhayaTypography.headline),
+        elevation: 0,
+        title: Text(isSelf ? 'My Profile' : 'Contact', style: ChhayaTypography.headline),
       ),
-      child: SafeArea(
+      body: SafeArea(
         child: ListView(
           physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
           padding: const EdgeInsets.all(16),
@@ -88,8 +90,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
             Center(
               child: GestureDetector(
-                onTap: () { Clipboard.setData(ClipboardData(text: ChhayaId)); ChhayaHaptics.selection(); },
-                child: Text('${ChhayaId.substring(0, 16)}…', style: ChhayaTypography.caption1.copyWith(color: ChhayaColors.accentBlue)),
+                onTap: () { Clipboard.setData(ClipboardData(text: chhayaIdText)); ChhayaHaptics.selection(); },
+                child: Text(_shortId(chhayaIdText, 16), style: ChhayaTypography.caption1.copyWith(color: ChhayaColors.accentBlue)),
               ),
             ),
             const SizedBox(height: 8),
@@ -111,20 +113,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
             if (contact != null) ...[
               Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-                _actionBtn(CupertinoIcons.chat_bubble_fill, 'Message', ChhayaColors.accentBlue, () {
+                _actionBtn(Icons.chat_bubble, 'Message', ChhayaColors.accentBlue, () {
                   final convos = ref.read(conversationsProvider);
                   final existing = convos.where((c) => c.participants.any((p) => p.id == contact.id)).toList();
                   if (existing.isNotEmpty) {
                     Navigator.of(context).pushNamed(ChhayaRouter.chat, arguments: {'conversationId': existing.first.id, 'contactName': contact.displayName});
                   }
                 }),
-                _actionBtn(CupertinoIcons.phone_fill, 'Audio', ChhayaColors.accentGreen, () {
+                _actionBtn(Icons.phone, 'Audio', ChhayaColors.accentGreen, () {
                   Navigator.of(context).pushNamed(ChhayaRouter.call, arguments: {'contactName': contact.displayName, 'isVideo': false});
                 }),
-                _actionBtn(CupertinoIcons.videocam_fill, 'Video', ChhayaColors.accentPurple, () {
+                _actionBtn(Icons.videocam, 'Video', ChhayaColors.accentPurple, () {
                   Navigator.of(context).pushNamed(ChhayaRouter.call, arguments: {'contactName': contact.displayName, 'isVideo': true});
                 }),
-                _actionBtn(CupertinoIcons.qrcode, 'Verify', ChhayaColors.accentOrange, () {
+                _actionBtn(Icons.qr_code, 'Verify', ChhayaColors.accentOrange, () {
                   Navigator.of(context).pushNamed(ChhayaRouter.verification, arguments: {'contactId': contact.id});
                 }),
               ]),
@@ -136,13 +138,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               onTap: _showRatchetVisualizer,
               child: GlassContainer(
                 child: Row(children: [
-                  const Icon(CupertinoIcons.lock_shield_fill, color: ChhayaColors.accentGreen, size: 24),
+                  const Icon(Icons.shield, color: ChhayaColors.accentGreen, size: 24),
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('End-to-End Encrypted', style: ChhayaTypography.headline),
                     Text('Tap to view key rotation', style: ChhayaTypography.caption1.copyWith(color: ChhayaColors.labelTertiary)),
                   ])),
-                  const Icon(CupertinoIcons.chevron_right, color: ChhayaColors.labelTertiary, size: 14),
+                  const Icon(Icons.chevron_right, color: ChhayaColors.labelTertiary, size: 14),
                 ]),
               ),
             ),
@@ -169,7 +171,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: colors[i].withValues(alpha: 0.3)),
                       ),
-                      child: Icon(CupertinoIcons.doc_fill, color: colors[i], size: 28),
+                      child: Icon(Icons.insert_drive_file, color: colors[i], size: 28),
                     ),
                   );
                 },
@@ -183,13 +185,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               onTap: _showShamirKeys,
               child: GlassContainer(
                 child: Row(children: [
-                  const Icon(CupertinoIcons.person_3_fill, color: ChhayaColors.accentIndigo, size: 24),
+                  const Icon(Icons.group, color: ChhayaColors.accentIndigo, size: 24),
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('Group Key Shards', style: ChhayaTypography.headline),
                     Text('Shamir\'s Secret Sharing (3-of-5)', style: ChhayaTypography.caption1.copyWith(color: ChhayaColors.labelTertiary)),
                   ])),
-                  const Icon(CupertinoIcons.chevron_right, color: ChhayaColors.labelTertiary, size: 14),
+                  const Icon(Icons.chevron_right, color: ChhayaColors.labelTertiary, size: 14),
                 ]),
               ),
             ),
@@ -209,8 +211,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _actionBtn(IconData icon, String label, Color color, VoidCallback onTap) {
-    return GestureDetector(
+    return InkWell(
       onTap: () { ChhayaHaptics.light(); onTap(); },
+      customBorder: const CircleBorder(),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Container(
           width: 52, height: 52,
@@ -226,8 +229,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget _blockUnblockTile(Contact contact) {
     final db = ref.read(localDatabaseProvider);
     final blocked = db.getBlockedContacts().contains(contact.id);
-    return GestureDetector(
-      onTap: () async {
+    return FilledButton.icon(
+      onPressed: () async {
         if (blocked) {
           await db.unblockContact(contact.id);
         } else {
@@ -236,22 +239,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         setState(() {});
         ChhayaHaptics.medium();
       },
-      child: Container(
+      icon: Icon(blocked ? Icons.check_circle : Icons.block, color: blocked ? ChhayaColors.accentGreen : ChhayaColors.accentRed, size: 20),
+      label: Text(blocked ? 'Unblock Contact' : 'Block Contact', style: ChhayaTypography.headline.copyWith(color: blocked ? ChhayaColors.accentGreen : ChhayaColors.accentRed)),
+      style: FilledButton.styleFrom(
+        backgroundColor: blocked
+            ? ChhayaColors.accentGreen.withValues(alpha: 0.1)
+            : ChhayaColors.accentRed.withValues(alpha: 0.1),
+        foregroundColor: blocked ? ChhayaColors.accentGreen : ChhayaColors.accentRed,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: ChhayaColors.accentRed.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(blocked ? CupertinoIcons.checkmark_circle : CupertinoIcons.nosign, color: blocked ? ChhayaColors.accentGreen : ChhayaColors.accentRed, size: 20),
-          const SizedBox(width: 8),
-          Text(blocked ? 'Unblock Contact' : 'Block Contact', style: ChhayaTypography.headline.copyWith(color: blocked ? ChhayaColors.accentGreen : ChhayaColors.accentRed)),
-        ]),
       ),
     );
   }
 
 
   void _showRatchetVisualizer() {
-    showCupertinoModalPopup(
+    showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (_) => StatefulBuilder(
         builder: (ctx, setSt) => _bottomSheet(
           title: '🔑 Double Ratchet Visualizer',
@@ -268,9 +274,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 Text('Messages: $_msgCount', style: ChhayaTypography.body.copyWith(color: ChhayaColors.accentGreen)),
               ]),
               const SizedBox(height: 16),
-              CupertinoButton(
-                color: ChhayaColors.accentBlue,
-                borderRadius: BorderRadius.circular(12),
+              FilledButton.icon(
                 onPressed: () {
                   _ratchetEpoch++;
                   _msgCount = 0;
@@ -279,11 +283,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   setState(() {});
                   ChhayaHaptics.success();
                 },
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  const Icon(CupertinoIcons.arrow_2_circlepath, size: 18),
-                  const SizedBox(width: 8),
-                  const Text('Simulate Key Exchange'),
-                ]),
+                icon: const Icon(Icons.sync, size: 18),
+                label: const Text('Simulate Key Exchange'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 48),
+                ),
               ),
             ],
           ),
@@ -315,8 +319,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       'hash': sha(),
     });
 
-    showCupertinoModalPopup(
+    showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (_) => StatefulBuilder(
         builder: (ctx, setSt) => _bottomSheet(
           title: '📦 Swarm Chunk Manager',
@@ -328,29 +333,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               const SizedBox(height: 12),
               ...chunks.map((c) {
                 final i = c['index'] as int;
-                return Container(
+                return Card(
                   margin: const EdgeInsets.only(bottom: 6),
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: ChhayaColors.fillTertiary, borderRadius: BorderRadius.circular(10)),
-                  child: Row(children: [
-                    Icon(
-                      _chunkStatus[i] ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
-                      color: _chunkStatus[i] ? ChhayaColors.accentGreen : ChhayaColors.labelTertiary,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text('Chunk ${i + 1}', style: ChhayaTypography.body),
-                    const Spacer(),
-                    Text(c['node'] as String, style: ChhayaTypography.caption2.copyWith(color: ChhayaColors.accentBlue)),
-                    const SizedBox(width: 8),
-                    Text('${(c['hash'] as String).substring(0, 8)}…', style: ChhayaTypography.caption2.copyWith(fontFamily: 'Courier')),
-                  ]),
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Row(children: [
+                      Icon(
+                        _chunkStatus[i] ? Icons.check_circle : Icons.circle_outlined,
+                        color: _chunkStatus[i] ? ChhayaColors.accentGreen : ChhayaColors.labelTertiary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text('Chunk ${i + 1}', style: ChhayaTypography.body),
+                      const Spacer(),
+                      Text(c['node'] as String, style: ChhayaTypography.caption2.copyWith(color: ChhayaColors.accentBlue)),
+                      const SizedBox(width: 8),
+                      Text('${(c['hash'] as String).substring(0, 8)}…', style: ChhayaTypography.caption2.copyWith(fontFamily: 'Courier')),
+                    ]),
+                  ),
                 );
               }),
               const SizedBox(height: 12),
-              CupertinoButton(
-                color: _verifying ? ChhayaColors.fillTertiary : ChhayaColors.accentGreen,
-                borderRadius: BorderRadius.circular(12),
+              FilledButton.icon(
                 onPressed: _verifying ? null : () async {
                   setSt(() => _verifying = true);
                   for (int i = 0; i < 5; i++) {
@@ -362,11 +366,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   _verifying = false;
                   ChhayaHaptics.success();
                 },
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(_verifying ? CupertinoIcons.arrow_2_circlepath : CupertinoIcons.checkmark_shield, size: 18),
-                  const SizedBox(width: 8),
-                  Text(_verifying ? 'Verifying…' : 'Verify Integrity'),
-                ]),
+                icon: Icon(_verifying ? Icons.sync : Icons.verified_user, size: 18),
+                label: Text(_verifying ? 'Verifying…' : 'Verify Integrity'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 48),
+                ),
               ),
             ],
           ),
@@ -381,8 +385,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final colors = [ChhayaColors.accentBlue, ChhayaColors.accentPurple, ChhayaColors.accentOrange, ChhayaColors.accentTeal, ChhayaColors.accentGreen];
     bool reconstructed = false;
 
-    showCupertinoModalPopup(
+    showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (_) => StatefulBuilder(
         builder: (ctx, setSt) => _bottomSheet(
           title: '🔐 Shamir\'s Secret Sharing',
@@ -390,37 +395,32 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             Text('Threshold: 3 of 5 shards required', style: ChhayaTypography.body.copyWith(color: ChhayaColors.labelSecondary)),
             const SizedBox(height: 16),
 
-            ...List.generate(5, (i) => Container(
+            ...List.generate(5, (i) => Card(
               margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: colors[i].withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: colors[i].withValues(alpha: 0.3)),
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Row(children: [
+                  Container(width: 12, height: 12, decoration: BoxDecoration(color: colors[i], shape: BoxShape.circle)),
+                  const SizedBox(width: 10),
+                  Text(members[i], style: ChhayaTypography.body),
+                  const Spacer(),
+                  Text('Shard ${i + 1}', style: ChhayaTypography.caption1.copyWith(color: colors[i])),
+                ]),
               ),
-              child: Row(children: [
-                Container(width: 12, height: 12, decoration: BoxDecoration(color: colors[i], shape: BoxShape.circle)),
-                const SizedBox(width: 10),
-                Text(members[i], style: ChhayaTypography.body),
-                const Spacer(),
-                Text('Shard ${i + 1}', style: ChhayaTypography.caption1.copyWith(color: colors[i])),
-              ]),
             )),
             const SizedBox(height: 16),
-            CupertinoButton(
-              color: reconstructed ? ChhayaColors.accentGreen : ChhayaColors.accentIndigo,
-              borderRadius: BorderRadius.circular(12),
+            FilledButton.icon(
               onPressed: () async {
                 setSt(() => reconstructed = false);
                 await Future.delayed(const Duration(milliseconds: 800));
                 setSt(() => reconstructed = true);
                 ChhayaHaptics.success();
               },
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(reconstructed ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.lock_open_fill, size: 18),
-                const SizedBox(width: 8),
-                Text(reconstructed ? 'Key Reconstructed ✅' : 'Reconstruct Key'),
-              ]),
+              icon: Icon(reconstructed ? Icons.check_circle : Icons.lock_open, size: 18),
+              label: Text(reconstructed ? 'Key Reconstructed ✅' : 'Reconstruct Key'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(double.infinity, 48),
+              ),
             ),
           ]),
         ),

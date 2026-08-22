@@ -1,13 +1,8 @@
 import 'dart:async';
 import 'dart:ui';
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:chaaya/ui/theme/chhaya_theme.dart';
 import 'package:chaaya/ui/widgets/avatar_widget.dart';
-
-
-
-
-
 
 class NotificationOverlay extends StatefulWidget {
   final String senderName;
@@ -25,9 +20,7 @@ class NotificationOverlay extends StatefulWidget {
     this.onDismiss,
   });
 
-
   static GlobalKey<_NotificationOverlayState>? _activeKey;
-
 
   static void show(
     BuildContext context, {
@@ -36,7 +29,6 @@ class NotificationOverlay extends StatefulWidget {
     String? avatarUrl,
     VoidCallback? onTap,
   }) {
-
     dismissActive();
 
     final key = GlobalKey<_NotificationOverlayState>();
@@ -56,9 +48,7 @@ class NotificationOverlay extends StatefulWidget {
         onDismiss: () {
           try {
             overlayEntry.remove();
-          } catch (_) {
-
-          }
+          } catch (_) {}
           if (_activeKey == key) {
             _activeKey = null;
           }
@@ -68,7 +58,6 @@ class NotificationOverlay extends StatefulWidget {
 
     Overlay.of(context).insert(overlayEntry);
   }
-
 
   static void dismissActive() {
     if (_activeKey != null) {
@@ -92,7 +81,6 @@ class _NotificationOverlayState extends State<NotificationOverlay>
   Timer? _autoDismissTimer;
   double _dragOffsetY = 0.0;
 
-
   static const double _bannerHeight = 90.0;
   static const double _borderRadius = 38.0;
   static const double _blurSigma = ChhayaBlur.notification;
@@ -108,7 +96,6 @@ class _NotificationOverlayState extends State<NotificationOverlay>
       duration: ChhayaAnimation.normal,
       reverseDuration: ChhayaAnimation.fast,
     );
-
 
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, -1.5),
@@ -127,17 +114,13 @@ class _NotificationOverlayState extends State<NotificationOverlay>
       curve: const Interval(0.0, 0.5, curve: Curves.easeOut),
     ));
 
-
     _controller.forward().then((_) {
-
       ChhayaHaptics.light();
-
       _autoDismissTimer = Timer(_autoDismissDuration, () {
         _dismiss();
       });
     });
   }
-
 
   void _dismiss() {
     _autoDismissTimer?.cancel();
@@ -168,25 +151,21 @@ class _NotificationOverlayState extends State<NotificationOverlay>
         behavior: HitTestBehavior.opaque,
         onVerticalDragUpdate: (details) {
           setState(() {
-
             _dragOffsetY += details.primaryDelta!;
             if (_dragOffsetY > 0.0) _dragOffsetY = 0.0;
           });
         },
         onVerticalDragEnd: (details) {
-
           if (_dragOffsetY < -20.0 ||
               details.primaryVelocity! < -_swipeVelocityThreshold) {
             _dismiss();
           } else {
-
             setState(() {
               _dragOffsetY = 0.0;
             });
           }
         },
         onTap: () {
-
           widget.onTap?.call();
         },
         child: AnimatedContainer(
@@ -233,14 +212,12 @@ class _NotificationOverlayState extends State<NotificationOverlay>
             ),
             child: Row(
               children: [
-
                 AvatarWidget(
                   name: widget.senderName,
                   imageUrl: widget.avatarUrl,
                   size: 42,
                 ),
                 const SizedBox(width: ChhayaSpacing.md),
-
                 Expanded(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,

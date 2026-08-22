@@ -168,7 +168,7 @@ class DecentralizedFileClient {
     final nodeId = _random.nextInt(100).toString().padLeft(3, '0');
     return ChunkUploadResult(
       chunkIndex: chunk.index,
-      chunkUrl: 'swarm:
+      chunkUrl: 'swarm://node-$nodeId/chunk-${chunk.hash}',
     );
   }
 

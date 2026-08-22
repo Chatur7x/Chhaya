@@ -1,10 +1,11 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:chaaya/ui/theme/chhaya_theme.dart';
 import 'package:chaaya/ui/widgets/avatar_widget.dart';
 import 'package:chaaya/core/providers/app_providers.dart';
 import 'package:chaaya/core/models/conversation.dart';
 import 'package:chaaya/core/router/chhaya_router.dart';
+import 'package:chaaya/ui/screens/contacts/contacts_tab.dart';
 
 class ChatListScreen extends ConsumerStatefulWidget {
   const ChatListScreen({super.key});
@@ -27,7 +28,6 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
             return name.toLowerCase().contains(_searchQuery.toLowerCase());
           }).toList();
 
-
     filtered.sort((a, b) {
       if (a.isPinned && !b.isPinned) return -1;
       if (!a.isPinned && b.isPinned) return 1;
@@ -36,47 +36,56 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       return bTime.compareTo(aTime);
     });
 
-    return CupertinoPageScaffold(
+    return Scaffold(
       backgroundColor: ChhayaColors.primaryBackground,
-      navigationBar: CupertinoNavigationBar(
-        backgroundColor: ChhayaColors.primaryBackground.withValues(alpha: 0.92),
-        border: null,
-        middle: Text('Chats', style: ChhayaTypography.headline),
+      appBar: AppBar(
+        backgroundColor: ChhayaColors.primaryBackground,
+        title: Text('Chats', style: ChhayaTypography.headline),
       ),
-      child: SafeArea(
+      body: SafeArea(
         child: Column(
           children: [
-
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: CupertinoSearchTextField(
-                placeholder: 'Search conversations',
+              child: TextField(
+                decoration: const InputDecoration(
+                  hintText: 'Search conversations',
+                  prefixIcon: Icon(Icons.search),
+                ),
                 style: ChhayaTypography.body,
                 onChanged: (v) => setState(() => _searchQuery = v),
               ),
             ),
-
-
             Expanded(
               child: filtered.isEmpty
                   ? Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(CupertinoIcons.shield_lefthalf_fill, size: 48, color: ChhayaColors.labelTertiary),
+                          const Icon(Icons.shield, size: 48, color: ChhayaColors.labelTertiary),
                           const SizedBox(height: ChhayaSpacing.md),
                           Text('No conversations yet', style: ChhayaTypography.body.copyWith(color: ChhayaColors.labelTertiary)),
                         ],
                       ),
                     )
-                  : ListView.builder(
+                  : ListView.separated(
                       physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                       itemCount: filtered.length,
+                      separatorBuilder: (_, __) => const Divider(height: 0, indent: 80),
                       itemBuilder: (ctx, i) => _buildConvoItem(ctx, filtered[i]),
                     ),
             ),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          ChhayaHaptics.selection();
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const ContactsTab()),
+          );
+        },
+        child: const Icon(Icons.chat_bubble),
       ),
     );
   }
@@ -95,7 +104,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         color: ChhayaColors.accentRed,
-        child: const Icon(CupertinoIcons.delete, color: ChhayaColors.labelPrimary),
+        child: const Icon(Icons.delete, color: ChhayaColors.labelPrimary),
       ),
       onDismissed: (_) async {
         final db = ref.read(localDatabaseProvider);
@@ -103,7 +112,50 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         ref.read(conversationsProvider.notifier).removeConversation(convo.id);
         ChhayaHaptics.medium();
       },
-      child: GestureDetector(
+      child: ListTile(
+        leading: AvatarWidget(
+          name: name,
+          size: 52,
+          statusColor: isOnline ? ChhayaColors.online : null,
+        ),
+        title: Row(
+          children: [
+            if (convo.isPinned)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Icon(Icons.push_pin, size: 12, color: ChhayaColors.accentBlue),
+              ),
+            Expanded(
+              child: Text(name, style: ChhayaTypography.headline, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+            Text(timeStr, style: ChhayaTypography.caption1),
+          ],
+        ),
+        subtitle: Row(
+          children: [
+            Expanded(
+              child: Text(
+                lastMsg.length > 40 ? '${lastMsg.substring(0, 40)}...' : lastMsg,
+                style: ChhayaTypography.subheadline.copyWith(color: ChhayaColors.labelSecondary),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (convo.unreadCount > 0)
+              Container(
+                margin: const EdgeInsets.only(left: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: const BoxDecoration(
+                  color: ChhayaColors.accentBlue,
+                  borderRadius: BorderRadius.all(Radius.circular(12)),
+                ),
+                child: Text(
+                  '${convo.unreadCount}',
+                  style: const TextStyle(color: ChhayaColors.labelPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              ),
+          ],
+        ),
         onTap: () {
           ChhayaHaptics.selection();
           Navigator.of(context).pushNamed(ChhayaRouter.chat, arguments: {
@@ -115,69 +167,6 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           ChhayaHaptics.medium();
           ref.read(conversationsProvider.notifier).pinConversation(convo.id);
         },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: ChhayaSpacing.lg, vertical: ChhayaSpacing.md),
-          decoration: BoxDecoration(
-            color: convo.isPinned ? ChhayaColors.fillTertiary.withValues(alpha: 0.15) : ChhayaColors.primaryBackground,
-            border: Border(bottom: BorderSide(color: ChhayaColors.separator, width: 0.33)),
-          ),
-          child: Row(
-            children: [
-              AvatarWidget(
-                name: name,
-                size: 52,
-                statusColor: isOnline ? ChhayaColors.online : null,
-              ),
-              const SizedBox(width: ChhayaSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        if (convo.isPinned)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 4),
-                            child: Icon(CupertinoIcons.pin_fill, size: 12, color: ChhayaColors.accentBlue),
-                          ),
-                        Expanded(
-                          child: Text(name, style: ChhayaTypography.headline, maxLines: 1, overflow: TextOverflow.ellipsis),
-                        ),
-                        Text(timeStr, style: ChhayaTypography.caption1),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            lastMsg.length > 40 ? '${lastMsg.substring(0, 40)}...' : lastMsg,
-                            style: ChhayaTypography.subheadline.copyWith(color: ChhayaColors.labelSecondary),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (convo.unreadCount > 0)
-                          Container(
-                            margin: const EdgeInsets.only(left: 8),
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                            decoration: const BoxDecoration(
-                              color: ChhayaColors.accentBlue,
-                              borderRadius: BorderRadius.all(Radius.circular(12)),
-                            ),
-                            child: Text(
-                              '${convo.unreadCount}',
-                              style: const TextStyle(color: ChhayaColors.labelPrimary, fontSize: 12, fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

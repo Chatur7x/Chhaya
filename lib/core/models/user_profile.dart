@@ -1,14 +1,14 @@
 import 'chhaya_id.dart';
 
 class UserProfile {
-  final ChhayaId ChhayaId;
+  final ChhayaId chhayaId;
   final String displayName;
   final String? avatarUrl;
   final List<String> recoveryPhrase;
   final DateTime createdAt;
 
   UserProfile({
-    required this.ChhayaId,
+    required this.chhayaId,
     required this.displayName,
     this.avatarUrl,
     required this.recoveryPhrase,
@@ -16,14 +16,14 @@ class UserProfile {
   });
 
   UserProfile copyWith({
-    ChhayaId? ChhayaId,
+    ChhayaId? chhayaId,
     String? displayName,
     String? avatarUrl,
     List<String>? recoveryPhrase,
     DateTime? createdAt,
   }) {
     return UserProfile(
-      ChhayaId: ChhayaId ?? this.ChhayaId,
+      chhayaId: chhayaId ?? this.chhayaId,
       displayName: displayName ?? this.displayName,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       recoveryPhrase: recoveryPhrase ?? this.recoveryPhrase,
@@ -33,7 +33,7 @@ class UserProfile {
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
-      ChhayaId: ChhayaId.fromJson(json['ChhayaId'] as Map<String, dynamic>),
+      chhayaId: ChhayaId.fromJson(json['ChhayaId'] as Map<String, dynamic>),
       displayName: json['displayName'] as String,
       avatarUrl: json['avatarUrl'] as String?,
       recoveryPhrase: (json['recoveryPhrase'] as List<dynamic>).cast<String>(),
@@ -42,7 +42,7 @@ class UserProfile {
   }
 
   Map<String, dynamic> toJson() => {
-    'ChhayaId': ChhayaId.toJson(),
+    'ChhayaId': chhayaId.toJson(),
     'displayName': displayName,
     'avatarUrl': avatarUrl,
     'recoveryPhrase': recoveryPhrase,

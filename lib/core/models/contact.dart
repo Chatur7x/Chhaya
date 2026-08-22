@@ -2,7 +2,7 @@ import 'chhaya_id.dart';
 
 class Contact {
   final String id;
-  final ChhayaId ChhayaId;
+  final ChhayaId chhayaId;
   final String displayName;
   final String? avatarUrl;
   final int verificationLevel;
@@ -13,7 +13,7 @@ class Contact {
 
   Contact({
     required this.id,
-    required this.ChhayaId,
+    required this.chhayaId,
     required this.displayName,
     this.avatarUrl,
     this.verificationLevel = 1,
@@ -25,7 +25,7 @@ class Contact {
 
   Contact copyWith({
     String? id,
-    ChhayaId? ChhayaId,
+    ChhayaId? chhayaId,
     String? displayName,
     String? avatarUrl,
     int? verificationLevel,
@@ -36,7 +36,7 @@ class Contact {
   }) {
     return Contact(
       id: id ?? this.id,
-      ChhayaId: ChhayaId ?? this.ChhayaId,
+      chhayaId: chhayaId ?? this.chhayaId,
       displayName: displayName ?? this.displayName,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       verificationLevel: verificationLevel ?? this.verificationLevel,
@@ -50,7 +50,7 @@ class Contact {
   factory Contact.fromJson(Map<String, dynamic> json) {
     return Contact(
       id: json['id'] as String,
-      ChhayaId: ChhayaId.fromJson(json['ChhayaId'] as Map<String, dynamic>),
+      chhayaId: ChhayaId.fromJson(json['ChhayaId'] as Map<String, dynamic>),
       displayName: json['displayName'] as String,
       avatarUrl: json['avatarUrl'] as String?,
       verificationLevel: json['verificationLevel'] as int? ?? 1,
@@ -65,7 +65,7 @@ class Contact {
 
   Map<String, dynamic> toJson() => {
     'id': id,
-    'ChhayaId': ChhayaId.toJson(),
+    'ChhayaId': chhayaId.toJson(),
     'displayName': displayName,
     'avatarUrl': avatarUrl,
     'verificationLevel': verificationLevel,

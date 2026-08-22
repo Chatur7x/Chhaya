@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:chaaya/ui/theme/chhaya_theme.dart';
 import 'package:chaaya/ui/widgets/avatar_widget.dart';
 
@@ -36,7 +36,7 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
 
   int _voiceMode = 0;
   static const _voiceModes = ['Natural', 'Low Pitch', 'High Pitch', 'Robotic'];
-  static const _voiceIcons = [CupertinoIcons.waveform, CupertinoIcons.arrow_down, CupertinoIcons.arrow_up, CupertinoIcons.gear_alt];
+  static const _voiceIcons = [Icons.waves, Icons.arrow_downward, Icons.arrow_upward, Icons.settings];
 
 
   late AnimationController _pulseCtrl;
@@ -89,9 +89,9 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
+    return Scaffold(
       backgroundColor: ChhayaColors.primaryBackground,
-      child: Stack(
+      body: Stack(
         children: [
 
           Container(
@@ -163,13 +163,13 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
                           _controlButton(
-                            icon: _muted ? CupertinoIcons.mic_off : CupertinoIcons.mic_fill,
+                            icon: _muted ? Icons.mic_off : Icons.mic,
                             label: 'Mute',
                             active: _muted,
                             onTap: () => setState(() { _muted = !_muted; ChhayaHaptics.selection(); }),
                           ),
                           _controlButton(
-                            icon: CupertinoIcons.speaker_2_fill,
+                            icon: Icons.volume_up,
                             label: 'Speaker',
                             active: _speaker,
                             onTap: () => setState(() { _speaker = !_speaker; ChhayaHaptics.selection(); }),
@@ -185,7 +185,7 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
                             }),
                           ),
                           _controlButton(
-                            icon: CupertinoIcons.videocam_fill,
+                            icon: Icons.videocam,
                             label: 'Video',
                             active: _videoOn,
                             onTap: () => setState(() { _videoOn = !_videoOn; ChhayaHaptics.selection(); }),
@@ -199,30 +199,23 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
                 const SizedBox(height: ChhayaSpacing.xxl),
 
 
-                GestureDetector(
-                  onTap: _endCall,
-                  child: AnimatedBuilder(
-                    animation: _pulseCtrl,
-                    builder: (_, child) => Transform.scale(
-                      scale: _ended ? 1.0 : 1.0 + _pulseCtrl.value * 0.05,
-                      child: child,
+                AnimatedBuilder(
+                  animation: _pulseCtrl,
+                  builder: (_, child) => Transform.scale(
+                    scale: _ended ? 1.0 : 1.0 + _pulseCtrl.value * 0.05,
+                    child: child,
+                  ),
+                  child: FilledButton(
+                    onPressed: _endCall,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: ChhayaColors.accentRed,
+                      foregroundColor: ChhayaColors.labelPrimary,
+                      minimumSize: const Size(72, 72),
+                      maximumSize: const Size(72, 72),
+                      shape: const CircleBorder(),
+                      padding: EdgeInsets.zero,
                     ),
-                    child: Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: ChhayaColors.dangerGradient,
-                        boxShadow: [
-                          BoxShadow(
-                            color: ChhayaColors.accentRed.withValues(alpha: 0.4),
-                            blurRadius: 20,
-                            spreadRadius: 2,
-                          ),
-                        ],
-                      ),
-                      child: const Icon(CupertinoIcons.phone_down_fill, color: ChhayaColors.labelPrimary, size: 32),
-                    ),
+                    child: const Icon(Icons.call_end, size: 32),
                   ),
                 ),
 
@@ -246,8 +239,9 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
     Color? activeColor,
   }) {
     final color = active ? (activeColor ?? ChhayaColors.accentBlue) : ChhayaColors.labelPrimary;
-    return GestureDetector(
+    return InkWell(
       onTap: onTap,
+      customBorder: const CircleBorder(),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

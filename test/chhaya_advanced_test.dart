@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:chaaya/core/crypto/Chhaya_crypto_engine.dart';
+import 'package:chaaya/core/crypto/chhaya_crypto_engine.dart';
 import 'package:chaaya/core/models/message.dart';
 import 'package:chaaya/services/network/onion_router_service.dart';
 

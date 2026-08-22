@@ -1,4 +1,4 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../theme/chhaya_theme.dart';
@@ -14,7 +14,6 @@ class VerificationScreen extends ConsumerStatefulWidget {
 }
 
 class _VerificationScreenState extends ConsumerState<VerificationScreen> with SingleTickerProviderStateMixin {
-  int _segmentIndex = 0;
   bool _verified = false;
   bool _scanning = false;
   late AnimationController _scanAnimCtrl;
@@ -55,40 +54,52 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> with Si
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
-    final myKey = user?.ChhayaId.publicKey ?? 'unknown';
+    final myKey = user?.chhayaId.publicKey ?? 'unknown';
+    final scheme = Theme.of(context).colorScheme;
 
-    return CupertinoPageScaffold(
+    return Scaffold(
       backgroundColor: ChhayaColors.primaryBackground,
-      navigationBar: CupertinoNavigationBar(
+      appBar: AppBar(
         backgroundColor: ChhayaColors.primaryBackground.withValues(alpha: 0.92),
-        border: null,
-        middle: Text('Verify Contact', style: ChhayaTypography.headline),
+        elevation: 0,
+        title: Text('Verify Contact', style: ChhayaTypography.headline),
       ),
-      child: SafeArea(
-        child: _verified ? _buildSuccess() : Column(
-          children: [
-            const SizedBox(height: 16),
-
-
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
-              child: CupertinoSlidingSegmentedControl<int>(
-                groupValue: _segmentIndex,
-                children: const {
-                  0: Text('My Code'),
-                  1: Text('Scan'),
-                },
-                onValueChanged: (v) => setState(() => _segmentIndex = v ?? 0),
+      body: SafeArea(
+        child: _verified
+            ? _buildSuccess()
+            : DefaultTabController(
+                length: 2,
+                child: Column(
+                  children: [
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 40),
+                      child: TabBar(
+                        tabs: const [
+                          Tab(text: 'My Code'),
+                          Tab(text: 'Scan'),
+                        ],
+                        labelColor: scheme.onPrimary,
+                        unselectedLabelColor: scheme.onSurfaceVariant,
+                        indicatorSize: TabBarIndicatorSize.tab,
+                        indicator: BoxDecoration(
+                          color: scheme.primary,
+                          borderRadius: BorderRadius.circular(ChhayaRadius.pill),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          _buildMyCode(myKey),
+                          _buildScan(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-
-            const SizedBox(height: 32),
-
-            Expanded(
-              child: _segmentIndex == 0 ? _buildMyCode(myKey) : _buildScan(),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -99,15 +110,19 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> with Si
         borderRadius: 24,
         padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: ChhayaColors.labelPrimary, borderRadius: BorderRadius.circular(16)),
-            child: QrImageView(
-              data: key,
-              version: QrVersions.auto,
-              size: 200,
-              eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.circle, color: ChhayaColors.primaryBackground),
-              dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.circle, color: ChhayaColors.primaryBackground),
+          Card(
+            color: ChhayaColors.labelPrimary,
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: QrImageView(
+                data: key,
+                version: QrVersions.auto,
+                size: 200,
+                eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.circle, color: ChhayaColors.primaryBackground),
+                dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.circle, color: ChhayaColors.primaryBackground),
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -135,11 +150,11 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> with Si
               color: ChhayaColors.tertiaryBackground,
             ),
             child: _scanning
-                ? const Center(child: CupertinoActivityIndicator(radius: 20))
+                ? const Center(child: CircularProgressIndicator())
                 : Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(CupertinoIcons.qrcode_viewfinder, size: 64, color: ChhayaColors.accentBlue.withValues(alpha: 0.5)),
+                      Icon(Icons.qr_code_scanner, size: 64, color: ChhayaColors.accentBlue.withValues(alpha: 0.5)),
                       const SizedBox(height: 12),
                       Text('Point camera at QR code', style: ChhayaTypography.footnote.copyWith(color: ChhayaColors.labelTertiary)),
                     ],
@@ -150,9 +165,7 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> with Si
         const SizedBox(height: 32),
 
 
-        CupertinoButton(
-          color: ChhayaColors.accentBlue,
-          borderRadius: BorderRadius.circular(12),
+        FilledButton(
           onPressed: _scanning ? null : _simulateScan,
           child: const Text('Simulate Scan'),
         ),
@@ -171,16 +184,14 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> with Si
               shape: BoxShape.circle,
               color: ChhayaColors.accentGreen.withValues(alpha: 0.15),
             ),
-            child: const Icon(CupertinoIcons.checkmark_circle_fill, size: 72, color: ChhayaColors.accentGreen),
+            child: const Icon(Icons.verified, size: 72, color: ChhayaColors.accentGreen),
           ),
           const SizedBox(height: 24),
           Text('Contact Verified!', style: ChhayaTypography.title1.copyWith(color: ChhayaColors.accentGreen)),
           const SizedBox(height: 8),
           Text('Verification level elevated to Level 3', style: ChhayaTypography.body.copyWith(color: ChhayaColors.labelSecondary)),
           const SizedBox(height: 32),
-          CupertinoButton(
-            color: ChhayaColors.accentBlue,
-            borderRadius: BorderRadius.circular(12),
+          FilledButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Done'),
           ),

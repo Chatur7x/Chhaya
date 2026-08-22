@@ -1,4 +1,4 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:chaaya/ui/screens/onboarding/onboarding_screen.dart';
 import 'package:chaaya/ui/screens/chat/chat_screen.dart';
 import 'package:chaaya/ui/screens/call/call_screen.dart';
@@ -21,18 +21,18 @@ class ChhayaRouter {
   static Route<dynamic> generateRoute(RouteSettings routeSettings) {
     switch (routeSettings.name) {
       case onboarding:
-        return _buildCupertinoRoute(
+        return _buildMaterialRoute(
           const OnboardingScreen(),
           routeSettings,
         );
       case home:
-        return _buildCupertinoRoute(
+        return _buildMaterialRoute(
           const HomeShell(),
           routeSettings,
         );
       case chat:
         final args = routeSettings.arguments as Map<String, dynamic>?;
-        return _buildCupertinoRoute(
+        return _buildMaterialRoute(
           ChatScreen(
             conversationId: args?['conversationId'] as String? ?? '',
             contactName: args?['contactName'] as String? ?? 'Unknown',
@@ -42,7 +42,7 @@ class ChhayaRouter {
         );
       case call:
         final args = routeSettings.arguments as Map<String, dynamic>?;
-        return _buildCupertinoRoute(
+        return _buildMaterialRoute(
           CallScreen(
             contactName: args?['contactName'] as String? ?? 'Unknown',
             contactAvatar: args?['contactAvatar'] as String?,
@@ -52,13 +52,13 @@ class ChhayaRouter {
           fullscreenDialog: true,
         );
       case settings:
-        return _buildCupertinoRoute(
+        return _buildMaterialRoute(
           const SettingsScreen(),
           routeSettings,
         );
       case profile:
         final args = routeSettings.arguments as Map<String, dynamic>?;
-        return _buildCupertinoRoute(
+        return _buildMaterialRoute(
           ProfileScreen(
             contactId: args?['contactId'] as String?,
           ),
@@ -66,7 +66,7 @@ class ChhayaRouter {
         );
       case verification:
         final args = routeSettings.arguments as Map<String, dynamic>?;
-        return _buildCupertinoRoute(
+        return _buildMaterialRoute(
           VerificationScreen(
             contactId: args?['contactId'] as String?,
           ),
@@ -74,20 +74,19 @@ class ChhayaRouter {
           fullscreenDialog: true,
         );
       default:
-        return _buildCupertinoRoute(
+        return _buildMaterialRoute(
           const OnboardingScreen(),
           routeSettings,
         );
     }
   }
 
-
-  static CupertinoPageRoute<T> _buildCupertinoRoute<T>(
+  static MaterialPageRoute<T> _buildMaterialRoute<T>(
     Widget page,
     RouteSettings settings, {
     bool fullscreenDialog = false,
   }) {
-    return CupertinoPageRoute<T>(
+    return MaterialPageRoute<T>(
       builder: (_) => page,
       settings: settings,
       fullscreenDialog: fullscreenDialog,

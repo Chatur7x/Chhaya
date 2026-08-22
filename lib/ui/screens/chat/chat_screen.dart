@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -65,7 +65,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
     _scrollCtrl.dispose();
     _focusNode.dispose();
     _typingDotCtrl.dispose();
-    for (final t in _ttlTimers.values) t.cancel();
+    for (final t in _ttlTimers.values) {
+      t.cancel();
+    }
     super.dispose();
   }
 
@@ -105,8 +107,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
   void _scrollToBottom({bool immediate = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollCtrl.hasClients) {
-        if (immediate) _scrollCtrl.jumpTo(_scrollCtrl.position.maxScrollExtent);
-        else _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent, duration: ChhayaAnimation.normal, curve: ChhayaAnimation.springCurve);
+        if (immediate) {
+          _scrollCtrl.jumpTo(_scrollCtrl.position.maxScrollExtent);
+        } else {
+          _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent, duration: ChhayaAnimation.normal, curve: ChhayaAnimation.springCurve);
+        }
       }
     });
   }
@@ -212,60 +217,90 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
       'Off': 0, '5 seconds': 5, '30 seconds': 30,
       '1 minute': 60, '1 hour': 3600, '1 day': 86400, '1 week': 604800,
     };
-    showCupertinoModalPopup(
+    final scheme = Theme.of(context).colorScheme;
+    showModalBottomSheet(
       context: context,
-      builder: (_) => CupertinoActionSheet(
-        title: const Text('Disappearing Messages'),
-        actions: options.entries.map((e) => CupertinoActionSheetAction(
-          onPressed: () async {
-            Navigator.pop(context);
-            final db = ref.read(localDatabaseProvider);
-            await db.setConversationTtl(widget.conversationId, e.value);
-            setState(() => _currentTtl = e.value == 0 ? null : Duration(seconds: e.value));
-            ChhayaHaptics.selection();
-          },
-          child: Text(e.key, style: TextStyle(color: e.value == (_currentTtl?.inSeconds ?? 0) ? ChhayaColors.accentBlue : ChhayaColors.labelPrimary)),
-        )).toList(),
-        cancelButton: CupertinoActionSheetAction(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
+      isScrollControlled: true,
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text('Disappearing Messages', style: ChhayaTypography.headline.copyWith(color: scheme.onSurface)),
+              ),
+              ...options.entries.map((e) => ListTile(
+                title: Text(e.key, style: TextStyle(
+                  color: e.value == (_currentTtl?.inSeconds ?? 0) ? ChhayaColors.accentBlue : scheme.onSurface,
+                )),
+                trailing: e.value == (_currentTtl?.inSeconds ?? 0)
+                    ? const Icon(Icons.check, color: ChhayaColors.accentBlue)
+                    : null,
+                onTap: () async {
+                  Navigator.pop(context);
+                  final db = ref.read(localDatabaseProvider);
+                  await db.setConversationTtl(widget.conversationId, e.value);
+                  setState(() => _currentTtl = e.value == 0 ? null : Duration(seconds: e.value));
+                  ChhayaHaptics.selection();
+                },
+              )),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   void _showAttachments() {
-    showCupertinoModalPopup(
+    final scheme = Theme.of(context).colorScheme;
+    showModalBottomSheet(
       context: context,
-      builder: (_) => CupertinoActionSheet(
-        actions: [
-          CupertinoActionSheetAction(
-            child: const Text('📷 Camera'),
-            onPressed: () { Navigator.pop(context); _sendGeneric('📷 Photo attached', MessageType.image); },
+      isScrollControlled: true,
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: ChhayaColors.accentBlue),
+                title: Text('Camera', style: TextStyle(color: scheme.onSurface)),
+                onTap: () { Navigator.pop(context); _sendGeneric('📷 Photo attached', MessageType.image); },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo, color: ChhayaColors.accentBlue),
+                title: Text('Photo Library', style: TextStyle(color: scheme.onSurface)),
+                onTap: () { Navigator.pop(context); _sendGeneric('🖼 Image from library', MessageType.image); },
+              ),
+              ListTile(
+                leading: const Icon(Icons.insert_drive_file, color: ChhayaColors.accentBlue),
+                title: Text('File', style: TextStyle(color: scheme.onSurface)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final result = await FilePicker.platform.pickFiles();
+                  if (result != null) _sendGeneric('📎 ${result.files.first.name}', MessageType.file);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.poll, color: ChhayaColors.accentBlue),
+                title: Text('Create Poll', style: TextStyle(color: scheme.onSurface)),
+                onTap: () { Navigator.pop(context); _showCreatePoll(); },
+              ),
+              ListTile(
+                leading: Icon(_steganoMode ? Icons.lock_open : Icons.lock, color: ChhayaColors.accentPurple),
+                title: Text(_steganoMode ? 'Stegano Mode: ON' : 'Stegano Mode: OFF', style: TextStyle(color: scheme.onSurface)),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() => _steganoMode = !_steganoMode);
+                  ChhayaHaptics.selection();
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
           ),
-          CupertinoActionSheetAction(
-            child: const Text('🖼 Photo Library'),
-            onPressed: () { Navigator.pop(context); _sendGeneric('🖼 Image from library', MessageType.image); },
-          ),
-          CupertinoActionSheetAction(
-            child: const Text('📎 File'),
-            onPressed: () async {
-              Navigator.pop(context);
-              final result = await FilePicker.platform.pickFiles();
-              if (result != null) _sendGeneric('📎 ${result.files.first.name}', MessageType.file);
-            },
-          ),
-          CupertinoActionSheetAction(
-            child: const Text('📊 Create Poll'),
-            onPressed: () { Navigator.pop(context); _showCreatePoll(); },
-          ),
-          CupertinoActionSheetAction(
-            child: Text(_steganoMode ? '🔓 Stegano Mode: ON' : '🔒 Stegano Mode: OFF'),
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() => _steganoMode = !_steganoMode);
-              ChhayaHaptics.selection();
-            },
-          ),
-        ],
-        cancelButton: CupertinoActionSheetAction(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
+        ),
       ),
     );
   }
@@ -274,23 +309,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
     final qCtrl = TextEditingController();
     final o1Ctrl = TextEditingController();
     final o2Ctrl = TextEditingController();
-    showCupertinoDialog(
+    final scheme = Theme.of(context).colorScheme;
+    showDialog(
       context: context,
-      builder: (_) => CupertinoAlertDialog(
-        title: const Text('Create Poll'),
+      builder: (_) => AlertDialog(
+        backgroundColor: scheme.surfaceContainerHigh,
+        title: Text('Create Poll', style: ChhayaTypography.headline.copyWith(color: scheme.onSurface)),
         content: Padding(
           padding: const EdgeInsets.only(top: 12),
-          child: Column(children: [
-            CupertinoTextField(controller: qCtrl, placeholder: 'Question'),
-            const SizedBox(height: 8),
-            CupertinoTextField(controller: o1Ctrl, placeholder: 'Option 1'),
-            const SizedBox(height: 8),
-            CupertinoTextField(controller: o2Ctrl, placeholder: 'Option 2'),
-          ]),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: qCtrl, decoration: const InputDecoration(hintText: 'Question')),
+              const SizedBox(height: 8),
+              TextField(controller: o1Ctrl, decoration: const InputDecoration(hintText: 'Option 1')),
+              const SizedBox(height: 8),
+              TextField(controller: o2Ctrl, decoration: const InputDecoration(hintText: 'Option 2')),
+            ],
+          ),
         ),
         actions: [
-          CupertinoDialogAction(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
-          CupertinoDialogAction(
+          TextButton(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
+          FilledButton(
             child: const Text('Send'),
             onPressed: () {
               Navigator.pop(context);
@@ -309,52 +349,64 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
   }
 
   void _showMessageActions(Message msg) {
-    showCupertinoModalPopup(
+    final scheme = Theme.of(context).colorScheme;
+    showModalBottomSheet(
       context: context,
-      builder: (_) => CupertinoActionSheet(
-        actions: [
-          CupertinoActionSheetAction(
-            child: const Text('👍 Agree'),
-            onPressed: () {
-              Navigator.pop(context);
-              _toggleReaction(msg, true);
-            },
+      isScrollControlled: true,
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.thumb_up, color: ChhayaColors.accentGreen),
+                title: Text('Agree', style: TextStyle(color: scheme.onSurface)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _toggleReaction(msg, true);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.thumb_down, color: ChhayaColors.accentRed),
+                title: Text('Disagree', style: TextStyle(color: scheme.onSurface)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _toggleReaction(msg, false);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.copy, color: scheme.onSurfaceVariant),
+                title: Text('Copy', style: TextStyle(color: scheme.onSurface)),
+                onTap: () {
+                  Navigator.pop(context);
+                  Clipboard.setData(ClipboardData(text: msg.content));
+                  ChhayaHaptics.selection();
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.reply, color: scheme.onSurfaceVariant),
+                title: Text('Reply', style: TextStyle(color: scheme.onSurface)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _msgCtrl.text = '↩️ ${msg.content.length > 30 ? msg.content.substring(0, 30) : msg.content}... ';
+                  _focusNode.requestFocus();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete, color: ChhayaColors.accentRed),
+                title: Text('Delete', style: TextStyle(color: ChhayaColors.accentRed)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await ref.read(localDatabaseProvider).deleteMessage(msg.id);
+                  setState(() => _messages.removeWhere((m) => m.id == msg.id));
+                  ChhayaHaptics.medium();
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
           ),
-          CupertinoActionSheetAction(
-            child: const Text('👎 Disagree'),
-            onPressed: () {
-              Navigator.pop(context);
-              _toggleReaction(msg, false);
-            },
-          ),
-          CupertinoActionSheetAction(
-            child: const Text('📋 Copy'),
-            onPressed: () {
-              Navigator.pop(context);
-              Clipboard.setData(ClipboardData(text: msg.content));
-              ChhayaHaptics.selection();
-            },
-          ),
-          CupertinoActionSheetAction(
-            child: const Text('↩️ Reply'),
-            onPressed: () {
-              Navigator.pop(context);
-              _msgCtrl.text = '↩️ ${msg.content.length > 30 ? msg.content.substring(0, 30) : msg.content}... ';
-              _focusNode.requestFocus();
-            },
-          ),
-          CupertinoActionSheetAction(
-            isDestructiveAction: true,
-            child: const Text('🗑 Delete'),
-            onPressed: () async {
-              Navigator.pop(context);
-              await ref.read(localDatabaseProvider).deleteMessage(msg.id);
-              setState(() => _messages.removeWhere((m) => m.id == msg.id));
-              ChhayaHaptics.medium();
-            },
-          ),
-        ],
-        cancelButton: CupertinoActionSheetAction(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
+        ),
       ),
     );
   }
@@ -366,12 +418,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
 
     if (isAgree) {
       disagree.remove('me');
-      if (agree.contains('me')) agree.remove('me');
-      else agree.add('me');
+      if (agree.contains('me')) {
+        agree.remove('me');
+      } else {
+        agree.add('me');
+      }
     } else {
       agree.remove('me');
-      if (disagree.contains('me')) disagree.remove('me');
-      else disagree.add('me');
+      if (disagree.contains('me')) {
+        disagree.remove('me');
+      } else {
+        disagree.add('me');
+      }
     }
 
     final updated = msg.copyWith(agreeUsers: agree, disagreeUsers: disagree);
@@ -387,13 +445,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
   Widget build(BuildContext context) {
     final db = ref.read(localDatabaseProvider);
     final readReceipts = db.getReadReceiptsEnabled();
+    final scheme = Theme.of(context).colorScheme;
 
-    return CupertinoPageScaffold(
+    return Scaffold(
       backgroundColor: ChhayaColors.primaryBackground,
-      navigationBar: CupertinoNavigationBar(
+      appBar: AppBar(
         backgroundColor: ChhayaColors.primaryBackground.withValues(alpha: 0.92),
-        border: null,
-        middle: GestureDetector(
+        elevation: 0,
+        title: GestureDetector(
           onTap: () => Navigator.of(context).pushNamed(ChhayaRouter.profile, arguments: {'contactId': null}),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             AvatarWidget(name: widget.contactName, size: 30),
@@ -401,34 +460,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
             Text(widget.contactName, style: ChhayaTypography.headline),
           ]),
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: _showTtlSelector,
-              child: Icon(
-                _currentTtl != null ? CupertinoIcons.clock_fill : CupertinoIcons.clock,
-                color: _currentTtl != null ? ChhayaColors.accentOrange : ChhayaColors.accentBlue,
-                size: 20,
-              ),
+        actions: [
+          IconButton(
+            onPressed: _showTtlSelector,
+            icon: Icon(
+              _currentTtl != null ? Icons.timer : Icons.timer_outlined,
+              color: _currentTtl != null ? ChhayaColors.accentOrange : ChhayaColors.accentBlue,
+              size: 20,
             ),
-            const SizedBox(width: 8),
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: () => Navigator.of(context).pushNamed(ChhayaRouter.call, arguments: {'contactName': widget.contactName, 'isVideo': false}),
-              child: const Icon(CupertinoIcons.phone_fill, color: ChhayaColors.accentBlue, size: 20),
-            ),
-            const SizedBox(width: 8),
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: () => Navigator.of(context).pushNamed(ChhayaRouter.call, arguments: {'contactName': widget.contactName, 'isVideo': true}),
-              child: const Icon(CupertinoIcons.videocam_fill, color: ChhayaColors.accentBlue, size: 20),
-            ),
-          ],
-        ),
+          ),
+          IconButton(
+            onPressed: () => Navigator.of(context).pushNamed(ChhayaRouter.call, arguments: {'contactName': widget.contactName, 'isVideo': false}),
+            icon: const Icon(Icons.phone, color: ChhayaColors.accentBlue, size: 20),
+          ),
+          IconButton(
+            onPressed: () => Navigator.of(context).pushNamed(ChhayaRouter.call, arguments: {'contactName': widget.contactName, 'isVideo': true}),
+            icon: const Icon(Icons.videocam, color: ChhayaColors.accentBlue, size: 20),
+          ),
+        ],
       ),
-      child: SafeArea(
+      body: SafeArea(
         child: Column(
           children: [
             if (_steganoMode)
@@ -440,7 +491,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
               ),
             Expanded(
               child: _loading
-                  ? const Center(child: CupertinoActivityIndicator())
+                  ? Center(child: CircularProgressIndicator(color: scheme.primary))
                   : ListView.builder(
                       controller: _scrollCtrl,
                       physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
@@ -503,19 +554,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
                       if (isMine) ...[
                         const SizedBox(width: 4),
                         Icon(
-                          CupertinoIcons.checkmark_alt,
-                          size: 12,
-                          color: (msg.isRead && readReceipts) ? ChhayaColors.accentBlue : ChhayaColors.labelTertiary,
-                        ),
-                        Icon(
-                          CupertinoIcons.checkmark_alt,
+                          Icons.done_all,
                           size: 12,
                           color: (msg.isRead && readReceipts) ? ChhayaColors.accentBlue : ChhayaColors.labelTertiary,
                         ),
                       ],
                       if (_currentTtl != null) ...[
                         const SizedBox(width: 4),
-                        Icon(CupertinoIcons.clock, size: 10, color: ChhayaColors.accentOrange.withValues(alpha: 0.7)),
+                        Icon(Icons.timer, size: 10, color: ChhayaColors.accentOrange.withValues(alpha: 0.7)),
                       ],
                     ],
                   ),
@@ -559,12 +605,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
         final encoded = msg.content.substring(5);
         try {
           final decoded = utf8.decode(base64Decode(encoded));
-          showCupertinoDialog(
+          final scheme = Theme.of(context).colorScheme;
+          showDialog(
             context: context,
-            builder: (_) => CupertinoAlertDialog(
-              title: const Text('🔓 Hidden Message'),
-              content: Text(decoded),
-              actions: [CupertinoDialogAction(child: const Text('Close'), onPressed: () => Navigator.pop(context))],
+            builder: (_) => AlertDialog(
+              backgroundColor: scheme.surfaceContainerHigh,
+              title: Text('🔓 Hidden Message', style: ChhayaTypography.headline.copyWith(color: scheme.onSurface)),
+              content: Text(decoded, style: TextStyle(color: scheme.onSurface)),
+              actions: [TextButton(child: const Text('Close'), onPressed: () => Navigator.pop(context))],
             ),
           );
         } catch (_) {}
@@ -585,7 +633,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(CupertinoIcons.lock_fill, size: 32, color: ChhayaColors.accentPurple),
+                  Icon(Icons.lock, size: 32, color: ChhayaColors.accentPurple),
                   SizedBox(height: 4),
                   Text('🔒 Steganographic', style: TextStyle(color: ChhayaColors.accentPurple, fontSize: 12)),
                   Text('Tap to reveal', style: TextStyle(color: ChhayaColors.labelTertiary, fontSize: 10)),
@@ -630,7 +678,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
                   ref.read(localDatabaseProvider).addMessage(updated);
                   setState(() {
                     final idx = _messages.indexWhere((m) => m.id == msg.id);
-                    if (idx != -1) _messages[idx] = updated;
+                    if (idx != -1) {
+                      _messages[idx] = updated;
+                    }
                   });
                   ChhayaHaptics.selection();
 
@@ -639,10 +689,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
                     votes[peerChoice]++;
                     final peerUpdated = msg.copyWith(content: jsonEncode({...poll, 'votes': votes}));
                     ref.read(localDatabaseProvider).addMessage(peerUpdated);
-                    if (mounted) setState(() {
-                      final idx = _messages.indexWhere((m) => m.id == msg.id);
-                      if (idx != -1) _messages[idx] = peerUpdated;
-                    });
+                    if (mounted) {
+                      setState(() {
+                        final idx = _messages.indexWhere((m) => m.id == msg.id);
+                        if (idx != -1) {
+                          _messages[idx] = peerUpdated;
+                        }
+                      });
+                    }
                   });
                 },
                 child: Container(
@@ -711,21 +765,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          CupertinoButton(
-            padding: const EdgeInsets.all(6),
-            minimumSize: Size.zero,
+          IconButton(
             onPressed: _showAttachments,
-            child: Icon(_hasText ? CupertinoIcons.plus : CupertinoIcons.camera_fill, color: ChhayaColors.accentBlue, size: 24),
+            icon: Icon(_hasText ? Icons.add : Icons.camera_alt, color: ChhayaColors.accentBlue, size: 24),
           ),
           Expanded(
-            child: CupertinoTextField(
+            child: TextField(
               controller: _msgCtrl,
               focusNode: _focusNode,
-              placeholder: 'Chhaya Message',
-              placeholderStyle: ChhayaTypography.body.copyWith(color: ChhayaColors.labelTertiary, fontSize: 16),
+              decoration: InputDecoration(
+                hintText: 'Chhaya Message',
+                hintStyle: ChhayaTypography.body.copyWith(color: ChhayaColors.labelTertiary, fontSize: 16),
+                filled: true,
+                fillColor: ChhayaColors.tertiaryBackground,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              ),
               style: ChhayaTypography.body.copyWith(fontSize: 16),
-              decoration: BoxDecoration(color: ChhayaColors.tertiaryBackground, borderRadius: BorderRadius.circular(18)),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               maxLines: 5,
               minLines: 1,
               textInputAction: TextInputAction.send,
@@ -737,23 +793,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
             duration: const Duration(milliseconds: 200),
             transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
             child: _hasText
-                ? CupertinoButton(
+                ? IconButton(
                     key: const ValueKey('send'),
-                    padding: const EdgeInsets.all(4),
-                    minimumSize: Size.zero,
                     onPressed: _sendMessage,
-                    child: Container(
+                    icon: Container(
                       width: 32, height: 32,
                       decoration: const BoxDecoration(color: ChhayaColors.accentBlue, shape: BoxShape.circle),
-                      child: const Icon(CupertinoIcons.arrow_up, color: CupertinoColors.white, size: 18),
+                      child: const Icon(Icons.arrow_upward, color: ChhayaColors.labelPrimary, size: 18),
                     ),
                   )
-                : CupertinoButton(
+                : IconButton(
                     key: const ValueKey('mic'),
-                    padding: const EdgeInsets.all(4),
-                    minimumSize: Size.zero,
                     onPressed: () => _sendGeneric("🎤 Voice message (0:08)", MessageType.voice),
-                    child: const Icon(CupertinoIcons.mic_fill, color: ChhayaColors.accentBlue, size: 24),
+                    icon: const Icon(Icons.mic, color: ChhayaColors.accentBlue, size: 24),
                   ),
           ),
         ],
