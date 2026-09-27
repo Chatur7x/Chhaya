@@ -1,7 +1,7 @@
 name: chaaya
 description: "Chhaya - The Ultimate Secure Messenger. Combining Threema + Session privacy with Apple-grade UI."
 publish_to: 'none'
-version: 2.0.0+1
+version: 13.0.0+15
 
 environment:
   sdk: ^3.7.0
@@ -10,50 +10,70 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  
   # State Management
   flutter_riverpod: ^2.6.1
-
-  # Cryptography
+  
+  # Cryptography - PRODUCTION (using pointycastle's built-in X25519/Ed25519)
+  encrypt: ^5.0.3
   pointycastle: ^3.9.1
+  cryptography: ^2.7.0
   crypto: ^3.0.6
   convert: ^3.1.2
-
-  # Local Database
-  hive: ^2.2.3
-  hive_flutter: ^1.1.0
-
+  
+  # Secure Storage
+  flutter_secure_storage: ^9.2.2
+  
+  # Local Database - ENCRYPTED
+  sqflite: ^2.4.2
+  sqflite_common_ffi: ^2.3.0
+  path: ^1.9.0
+  
   # Utilities
   uuid: ^4.5.1
   intl: ^0.19.0
   path_provider: ^2.1.5
-  shared_preferences: ^2.3.4
-
+  
   # UI Enhancements
   flutter_animate: ^4.5.2
   cached_network_image: ^3.4.1
   shimmer: ^3.0.0
-
+  
   # QR Code
   qr_flutter: ^4.1.0
-  mobile_scanner: ^7.0.1
-
+  mobile_scanner: 7.2.0 # pinned: 7.4.x has broken Android Kotlin build
+  
   # Permissions & Platform
   permission_handler: ^11.4.0
-
+  
   # WebRTC (Real P2P Voice/Video)
-  flutter_webrtc: ^0.12.5+hotfix.1
-
+  flutter_webrtc: ^0.12.12
+  
   # Biometric Authentication
   local_auth: ^2.3.0
-
+  
   # Notifications and File Pickers
   flutter_local_notifications: ^17.2.2
   file_picker: ^8.1.3
+  
+  # Networking
+  web_socket_channel: ^2.4.0
+  dio: ^5.4.0
+  
+  # Image Processing (Steganography)
+  image: ^4.1.7
+  flutter_sound: ^9.28.0
+  
+  # Background Tasks (disabled for V10 - use isolate)
+  # workmanager: ^0.5.2
+  # flutter_background_service: ^5.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  integration_test:
+    sdk: flutter
 
 flutter:
   uses-material-design: true
@@ -61,4 +81,3 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
-

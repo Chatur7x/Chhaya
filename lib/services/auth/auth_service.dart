@@ -35,11 +35,11 @@ class AuthService {
 
   Future<UserProfile> createAccount({String? displayName}) async {
 
-    final keyPair = _crypto.generateKeyPair();
+    final keyPair = await ChhayaCryptoEngine.generateKeyPair();
     await _keyManager.storeKeyPair(keyPair);
 
 
-    final recoveryPhrase = _crypto.generateRecoveryPhrase();
+    final recoveryPhrase = ChhayaCryptoEngine.generateRecoveryPhrase();
     await _keyManager.storeRecoveryPhrase(recoveryPhrase);
 
 
@@ -279,12 +279,12 @@ class AuthService {
     };
 
 
-    final encrypted = _crypto.encryptMessage(
+    final encrypted = await _crypto.encryptMessage(
       jsonEncode(payloadJson),
       derivedSecret,
     );
 
-    return encrypted.toBase64();
+    return encrypted;
   }
 
 
@@ -293,8 +293,7 @@ class AuthService {
       final seedBytes = recoveryPhrase.join(' ').codeUnits;
       final derivedSecret = _crypto.hashData(Uint8List.fromList(seedBytes));
 
-      final payload = EncryptedPayload.fromBase64(backupBase64);
-      final decryptedJsonString = _crypto.decryptMessage(payload, derivedSecret);
+      final decryptedJsonString = await _crypto.decryptMessage(backupBase64, derivedSecret);
 
       final data = jsonDecode(decryptedJsonString) as Map<String, dynamic>;
       final profileMap = data['profile'] as Map<String, dynamic>;
@@ -329,7 +328,7 @@ class AuthService {
       throw StateError('No user logged in to link devices');
     }
 
-    final linkKeyPair = _crypto.generateKeyPair();
+    final linkKeyPair = await ChhayaCryptoEngine.generateKeyPair();
     return 'Chhaya-link:${_currentUser!.chhayaId.publicKey}:${linkKeyPair.publicKeyHex}';
   }
 }

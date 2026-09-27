@@ -1,65 +1,33 @@
 import 'dart:convert';
-import 'dart:typed_data';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'chhaya_crypto_engine.dart';
 
 class KeyManager {
   static const _publicKeyKey = 'Chhaya_public_key';
   static const _privateKeyKey = 'Chhaya_private_key';
   static const _recoveryPhraseKey = 'Chhaya_recovery_phrase';
-
-  SharedPreferences? _prefs;
-
-  Future<SharedPreferences> get _preferences async {
-    _prefs ??= await SharedPreferences.getInstance();
-    return _prefs!;
-  }
-
+  static const _chhayaIdKey = 'Chhaya_chhaya_id';
+  final FlutterSecureStorage _storage;
+  KeyManager({FlutterSecureStorage? storage}) : _storage = storage ?? const FlutterSecureStorage(aOptions: AndroidOptions(encryptedSharedPreferences: true));
 
   Future<void> storeKeyPair(ChhayaKeyPair keyPair) async {
-    final prefs = await _preferences;
-    await prefs.setString(_publicKeyKey, base64Encode(keyPair.publicKey));
-    await prefs.setString(_privateKeyKey, base64Encode(keyPair.privateKey));
+    await _storage.write(key: _publicKeyKey, value: base64Encode(keyPair.publicKey));
+    await _storage.write(key: _privateKeyKey, value: base64Encode(keyPair.privateKey));
   }
-
-
   Future<ChhayaKeyPair?> getKeyPair() async {
-    final prefs = await _preferences;
-    final publicKeyB64 = prefs.getString(_publicKeyKey);
-    final privateKeyB64 = prefs.getString(_privateKeyKey);
-
-    if (publicKeyB64 == null || privateKeyB64 == null) return null;
-
-    return ChhayaKeyPair(
-      publicKey: Uint8List.fromList(base64Decode(publicKeyB64)),
-      privateKey: Uint8List.fromList(base64Decode(privateKeyB64)),
-    );
+    final pub = await _storage.read(key: _publicKeyKey);
+    final priv = await _storage.read(key: _privateKeyKey);
+    if (pub == null || priv == null) return null;
+    return ChhayaKeyPair(publicKey: base64Decode(pub), privateKey: base64Decode(priv));
   }
-
-
-  Future<void> storeRecoveryPhrase(List<String> phrase) async {
-    final prefs = await _preferences;
-    await prefs.setStringList(_recoveryPhraseKey, phrase);
-  }
-
-
+  Future<void> storeRecoveryPhrase(List<String> phrase) async => _storage.write(key: _recoveryPhraseKey, value: jsonEncode(phrase));
   Future<List<String>?> getRecoveryPhrase() async {
-    final prefs = await _preferences;
-    return prefs.getStringList(_recoveryPhraseKey);
+    final s = await _storage.read(key: _recoveryPhraseKey);
+    if (s == null) return null;
+    return (jsonDecode(s) as List).cast<String>();
   }
-
-
-  Future<bool> hasKeys() async {
-    final prefs = await _preferences;
-    return prefs.containsKey(_publicKeyKey) &&
-        prefs.containsKey(_privateKeyKey);
-  }
-
-
-  Future<void> clearAllKeys() async {
-    final prefs = await _preferences;
-    await prefs.remove(_publicKeyKey);
-    await prefs.remove(_privateKeyKey);
-    await prefs.remove(_recoveryPhraseKey);
-  }
+  Future<void> storeChhayaId(String id) async => _storage.write(key: _chhayaIdKey, value: id);
+  Future<String?> getChhayaId() async => _storage.read(key: _chhayaIdKey);
+  Future<bool> hasKeys() async { final p = await _storage.read(key: _publicKeyKey); final pr = await _storage.read(key: _privateKeyKey); return p != null && pr != null; }
+  Future<void> clearAllKeys() async { await _storage.delete(key: _publicKeyKey); await _storage.delete(key: _privateKeyKey); await _storage.delete(key: _recoveryPhraseKey); await _storage.delete(key: _chhayaIdKey); }
 }

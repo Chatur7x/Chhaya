@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:chaaya/ui/theme/chhaya_theme.dart';
 import 'package:chaaya/ui/widgets/avatar_widget.dart';
 
+/// NotificationOverlay — In-app notification banner
+/// Slide-down enter, swipe-up dismiss, auto-dismiss after 5s
+/// Glass morphism with 30px blur, surface-1 @ 82% opacity
 class NotificationOverlay extends StatefulWidget {
   final String senderName;
   final String messagePreview;
@@ -115,7 +118,9 @@ class _NotificationOverlayState extends State<NotificationOverlay>
     ));
 
     _controller.forward().then((_) {
-      ChhayaHaptics.light();
+      if (!MediaQuery.of(context).disableAnimations) {
+        ChhayaHaptics.light();
+      }
       _autoDismissTimer = Timer(_autoDismissDuration, () {
         _dismiss();
       });
@@ -142,20 +147,26 @@ class _NotificationOverlayState extends State<NotificationOverlay>
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final topPadding = mediaQuery.padding.top;
+    final disableAnimations = mediaQuery.disableAnimations;
 
     return Positioned(
-      top: topPadding + ChhayaSpacing.sm,
-      left: ChhayaSpacing.sm,
-      right: ChhayaSpacing.sm,
+      top: topPadding + ChhayaSpacing.space2,
+      left: ChhayaSpacing.space2,
+      right: ChhayaSpacing.space2,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onVerticalDragUpdate: (details) {
+          if (disableAnimations) return;
           setState(() {
             _dragOffsetY += details.primaryDelta!;
             if (_dragOffsetY > 0.0) _dragOffsetY = 0.0;
           });
         },
         onVerticalDragEnd: (details) {
+          if (disableAnimations) {
+            _dragOffsetY = 0.0;
+            return;
+          }
           if (_dragOffsetY < -20.0 ||
               details.primaryVelocity! < -_swipeVelocityThreshold) {
             _dismiss();
@@ -170,14 +181,18 @@ class _NotificationOverlayState extends State<NotificationOverlay>
         },
         child: AnimatedContainer(
           duration: _dragOffsetY == 0.0
-              ? ChhayaAnimation.fast
+              ? (disableAnimations ? Duration.zero : ChhayaAnimation.fast)
               : Duration.zero,
           curve: ChhayaAnimation.springCurve,
           transform: Matrix4.translationValues(0, _dragOffsetY, 0),
           child: SlideTransition(
-            position: _slideAnimation,
+            position: disableAnimations
+                ? AlwaysStoppedAnimation(Offset.zero)
+                : _slideAnimation,
             child: FadeTransition(
-              opacity: _fadeAnimation,
+              opacity: disableAnimations
+                  ? AlwaysStoppedAnimation(1.0)
+                  : _fadeAnimation,
               child: _buildBanner(context),
             ),
           ),
@@ -187,20 +202,24 @@ class _NotificationOverlayState extends State<NotificationOverlay>
   }
 
   Widget _buildBanner(BuildContext context) {
+    final disableAnimations = MediaQuery.of(context).disableAnimations;
+
     return Container(
       height: _bannerHeight,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(_borderRadius),
-        boxShadow: ChhayaShadows.notification,
+        boxShadow: disableAnimations ? null : ChhayaShadows.notification,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(_borderRadius),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: _blurSigma, sigmaY: _blurSigma),
+          filter: disableAnimations
+              ? ImageFilter.blur(sigmaX: 0, sigmaY: 0)
+              : ImageFilter.blur(sigmaX: _blurSigma, sigmaY: _blurSigma),
           child: Container(
             padding: const EdgeInsets.symmetric(
-              horizontal: ChhayaSpacing.lg,
-              vertical: ChhayaSpacing.md,
+              horizontal: ChhayaSpacing.space4,
+              vertical: ChhayaSpacing.space3,
             ),
             decoration: BoxDecoration(
               color: ChhayaColors.secondaryBackground.withValues(alpha: 0.82),
@@ -217,7 +236,7 @@ class _NotificationOverlayState extends State<NotificationOverlay>
                   imageUrl: widget.avatarUrl,
                   size: 42,
                 ),
-                const SizedBox(width: ChhayaSpacing.md),
+                const SizedBox(width: ChhayaSpacing.space3),
                 Expanded(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -229,7 +248,7 @@ class _NotificationOverlayState extends State<NotificationOverlay>
                           Expanded(
                             child: Text(
                               widget.senderName,
-                              style: ChhayaTypography.headline.copyWith(
+                              style: ChhayaTypography.headlineMedium.copyWith(
                                 color: ChhayaColors.labelPrimary,
                                 fontSize: 15,
                               ),
@@ -237,19 +256,19 @@ class _NotificationOverlayState extends State<NotificationOverlay>
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          const SizedBox(width: ChhayaSpacing.xs),
+                          const SizedBox(width: ChhayaSpacing.space1),
                           Text(
                             'now',
-                            style: ChhayaTypography.caption1.copyWith(
+                            style: ChhayaTypography.labelMedium.copyWith(
                               color: ChhayaColors.labelTertiary,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: ChhayaSpacing.xs),
+                      const SizedBox(height: ChhayaSpacing.space1),
                       Text(
                         widget.messagePreview,
-                        style: ChhayaTypography.subheadline.copyWith(
+                        style: ChhayaTypography.bodySmall.copyWith(
                           color: ChhayaColors.labelSecondary,
                           fontSize: 13,
                         ),

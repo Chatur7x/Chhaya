@@ -1,28 +1,23 @@
 import 'dart:async';
-import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
-import 'package:uuid/uuid.dart';
-import 'package:file_picker/file_picker.dart';
 import '../../theme/chhaya_theme.dart';
 import '../../widgets/avatar_widget.dart';
-import '../../widgets/glass_container.dart';
-import '../../../core/router/chhaya_router.dart';
-import '../../../core/providers/app_providers.dart';
+import '../../widgets/chhaya_button.dart';
+import '../../../core/models/conversation.dart';
 import '../../../core/models/message.dart';
+import '../../../core/providers/app_providers.dart';
+import '../../../core/router/chhaya_router.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String conversationId;
   final String contactName;
-  final String? contactAvatar;
 
   const ChatScreen({
     super.key,
     required this.conversationId,
     required this.contactName,
-    this.contactAvatar,
   });
 
   @override
@@ -30,786 +25,728 @@ class ChatScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStateMixin {
-  final TextEditingController _msgCtrl = TextEditingController();
-  final ScrollController _scrollCtrl = ScrollController();
-  final FocusNode _focusNode = FocusNode();
+  final _msgCtrl = TextEditingController();
+  final _scrollCtrl = ScrollController();
   List<Message> _messages = [];
   bool _loading = true;
   bool _isTyping = false;
-  bool _hasText = false;
+  bool _otherTyping = false;
   bool _steganoMode = false;
-  Duration? _currentTtl;
-  final Map<String, Timer> _ttlTimers = {};
+  int _ttlMinutes = 0;
+  Timer? _autoReplyTimer;
 
-  final Map<String, int> _pollVotes = {};
-  late AnimationController _typingDotCtrl;
+  late AnimationController _fabCtrl;
+  late Animation<double> _fabScale;
 
   @override
   void initState() {
     super.initState();
-    _loadMessages();
+    _fabCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
+    _fabScale = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _fabCtrl, curve: ChhayaAnimation.springCurve),
+    );
     _msgCtrl.addListener(() {
-      final ht = _msgCtrl.text.trim().isNotEmpty;
-      if (ht != _hasText) setState(() => _hasText = ht);
+      final hasText = _msgCtrl.text.trim().isNotEmpty;
+      if (hasText != _isTyping) {
+        setState(() => _isTyping = hasText);
+        if (hasText) _fabCtrl.forward();
+      }
     });
-    final db = ref.read(localDatabaseProvider);
-    final ttlSecs = db.getConversationTtl(widget.conversationId);
-    if (ttlSecs > 0) _currentTtl = Duration(seconds: ttlSecs);
+    _loadMessages();
+  }
 
-    _typingDotCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat();
+  Future<void> _loadMessages() async {
+    final db = ref.read(localDatabaseProvider);
+    final msgs = await db.getMessages(widget.conversationId);
+    if (!mounted) return;
+    setState(() {
+      _messages = msgs;
+      _loading = false;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
 
   @override
   void dispose() {
     _msgCtrl.dispose();
     _scrollCtrl.dispose();
-    _focusNode.dispose();
-    _typingDotCtrl.dispose();
-    for (final t in _ttlTimers.values) {
-      t.cancel();
-    }
+    _autoReplyTimer?.cancel();
+    _fabCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _loadMessages() async {
-    final db = ref.read(localDatabaseProvider);
-    final list = await db.getMessages(widget.conversationId);
-    final now = DateTime.now();
-    final active = <Message>[];
-    for (final m in list) {
-      if (m.ttl != null) {
-        final exp = m.timestamp.add(m.ttl!);
-        if (exp.isBefore(now)) {
-          await db.deleteMessage(m.id);
-        } else {
-          active.add(m);
-          _startTtl(m, exp.difference(now));
-        }
-      } else {
-        active.add(m);
-      }
-    }
-    if (mounted) {
-      setState(() { _messages = active; _loading = false; });
-      _scrollToBottom(immediate: true);
-    }
-  }
+  bool _isSent(Message m) => m.senderId == 'me';
 
-  void _startTtl(Message msg, Duration dur) {
-    _ttlTimers[msg.id]?.cancel();
-    _ttlTimers[msg.id] = Timer(dur, () async {
-      await ref.read(localDatabaseProvider).deleteMessage(msg.id);
-      if (mounted) setState(() => _messages.removeWhere((m) => m.id == msg.id));
-      _ttlTimers.remove(msg.id);
-    });
-  }
-
-  void _scrollToBottom({bool immediate = false}) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollCtrl.hasClients) {
-        if (immediate) {
-          _scrollCtrl.jumpTo(_scrollCtrl.position.maxScrollExtent);
-        } else {
-          _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent, duration: ChhayaAnimation.normal, curve: ChhayaAnimation.springCurve);
-        }
-      }
-    });
+  void _scrollToBottom() {
+    if (!_scrollCtrl.hasClients) return;
+    _scrollCtrl.animateTo(
+      _scrollCtrl.position.maxScrollExtent,
+      duration: ChhayaAnimation.normal,
+      curve: ChhayaAnimation.springCurve,
+    );
   }
 
   Future<void> _sendMessage() async {
     final text = _msgCtrl.text.trim();
     if (text.isEmpty) return;
-    _msgCtrl.clear();
-    if (_steganoMode) {
-      await _sendGeneric('STEG:${base64Encode(utf8.encode(text))}', MessageType.image);
-    } else {
-      await _sendGeneric(text, MessageType.text);
-    }
-  }
-
-  Future<void> _sendGeneric(String content, MessageType type) async {
-    ChhayaHaptics.light();
-    final db = ref.read(localDatabaseProvider);
-    final router = ref.read(onionRouterProvider);
 
     final msg = Message(
-      id: const Uuid().v4(),
+      id: 'm_${DateTime.now().millisecondsSinceEpoch}',
       conversationId: widget.conversationId,
       senderId: 'me',
-      content: content,
-      type: type,
+      content: text,
       timestamp: DateTime.now(),
       isSent: true,
-      isDelivered: false,
-      isRead: false,
-      ttl: _currentTtl,
+      isDelivered: true,
+      ttl: _ttlMinutes > 0 ? Duration(minutes: _ttlMinutes) : null,
     );
 
-    setState(() => _messages.add(msg));
-    _scrollToBottom();
+    final db = ref.read(localDatabaseProvider);
     await db.addMessage(msg);
 
-
-    final convos = ref.read(conversationsProvider);
-    final idx = convos.indexWhere((c) => c.id == widget.conversationId);
-    if (idx != -1) {
-      final updated = convos[idx].copyWith(lastMessage: msg, unreadCount: 0);
-      ref.read(conversationsProvider.notifier).updateConversation(updated);
-      await db.updateConversation(updated);
-    }
-
-    if (_currentTtl != null) _startTtl(msg, _currentTtl!);
-
-
-    final success = await router.routeMessage(msg, Uint8List.fromList([1, 2, 3]));
-    if (success) {
-      final delivered = msg.copyWith(isDelivered: true, isRead: true);
-      await db.addMessage(delivered);
-      if (mounted) {
-        setState(() {
-          final i = _messages.indexWhere((m) => m.id == msg.id);
-          if (i != -1) _messages[i] = delivered;
-        });
-      }
-      _triggerReply();
-    }
+    setState(() => _messages = [..._messages, msg]);
+    _msgCtrl.clear();
+    setState(() => _isTyping = false);
+    _fabCtrl.reverse();
+    ChhayaHaptics.medium();
+    _scrollToBottom();
+    _scheduleAutoReply();
   }
 
-  void _triggerReply() {
-    Timer(const Duration(milliseconds: 1500), () {
-      if (mounted) { setState(() => _isTyping = true); _scrollToBottom(); }
-      Timer(const Duration(seconds: 2), () async {
-        if (mounted) setState(() => _isTyping = false);
-        final replies = [
-          "Onion routing confirmed ✅ Tunnel secure.",
-          "Layer 1 decrypted. Double Ratchet keys advanced. 🔑",
-          "File chunks distributed across 3 swarm nodes.",
-          "Message will self-destruct shortly ⏱️",
-          "Received! Verifying signature... ✅",
-        ];
-        final reply = Message(
-          id: const Uuid().v4(),
-          conversationId: widget.conversationId,
-          senderId: 'contact',
-          content: replies[DateTime.now().second % replies.length],
-          timestamp: DateTime.now(),
-          isSent: true, isDelivered: true, isRead: true,
-          ttl: _currentTtl,
-        );
+  void _scheduleAutoReply() {
+    _autoReplyTimer?.cancel();
+    _autoReplyTimer = Timer(const Duration(milliseconds: 1400), () {
+      if (!mounted) return;
+      setState(() => _otherTyping = true);
+      _scrollToBottom();
 
+      _autoReplyTimer = Timer(const Duration(milliseconds: 2200), () async {
+        if (!mounted) return;
+        setState(() => _otherTyping = false);
+        final contactId = _contactId();
+        final reply = Message(
+          id: 'm_${DateTime.now().millisecondsSinceEpoch}',
+          conversationId: widget.conversationId,
+          senderId: contactId,
+          content: _autoReplyText(),
+          timestamp: DateTime.now(),
+          isRead: true,
+          isDelivered: true,
+        );
         final db = ref.read(localDatabaseProvider);
         await db.addMessage(reply);
-        final convos = ref.read(conversationsProvider);
-        final idx = convos.indexWhere((c) => c.id == widget.conversationId);
-        if (idx != -1) {
-          final updated = convos[idx].copyWith(lastMessage: reply);
-          ref.read(conversationsProvider.notifier).updateConversation(updated);
-          await db.updateConversation(updated);
-        }
-        if (_currentTtl != null) _startTtl(reply, _currentTtl!);
-        if (mounted) { setState(() => _messages.add(reply)); _scrollToBottom(); ChhayaHaptics.medium(); }
+        if (!mounted) return;
+        setState(() => _messages = [..._messages, reply]);
+        _scrollToBottom();
       });
     });
   }
 
-  void _showTtlSelector() {
-    final options = {
-      'Off': 0, '5 seconds': 5, '30 seconds': 30,
-      '1 minute': 60, '1 hour': 3600, '1 day': 86400, '1 week': 604800,
-    };
-    final scheme = Theme.of(context).colorScheme;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text('Disappearing Messages', style: ChhayaTypography.headline.copyWith(color: scheme.onSurface)),
-              ),
-              ...options.entries.map((e) => ListTile(
-                title: Text(e.key, style: TextStyle(
-                  color: e.value == (_currentTtl?.inSeconds ?? 0) ? ChhayaColors.accentBlue : scheme.onSurface,
-                )),
-                trailing: e.value == (_currentTtl?.inSeconds ?? 0)
-                    ? const Icon(Icons.check, color: ChhayaColors.accentBlue)
-                    : null,
-                onTap: () async {
-                  Navigator.pop(context);
-                  final db = ref.read(localDatabaseProvider);
-                  await db.setConversationTtl(widget.conversationId, e.value);
-                  setState(() => _currentTtl = e.value == 0 ? null : Duration(seconds: e.value));
-                  ChhayaHaptics.selection();
-                },
-              )),
-            ],
-          ),
-        ),
-      ),
-    );
+  String _contactId() {
+    final convos = ref.read(conversationsProvider);
+    final convo = convos.where((c) => c.id == widget.conversationId).firstOrNull;
+    if (convo != null && convo.participants.isNotEmpty) return convo.participants.first.id;
+    return 'contact';
   }
 
-  void _showAttachments() {
-    final scheme = Theme.of(context).colorScheme;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.camera_alt, color: ChhayaColors.accentBlue),
-                title: Text('Camera', style: TextStyle(color: scheme.onSurface)),
-                onTap: () { Navigator.pop(context); _sendGeneric('📷 Photo attached', MessageType.image); },
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo, color: ChhayaColors.accentBlue),
-                title: Text('Photo Library', style: TextStyle(color: scheme.onSurface)),
-                onTap: () { Navigator.pop(context); _sendGeneric('🖼 Image from library', MessageType.image); },
-              ),
-              ListTile(
-                leading: const Icon(Icons.insert_drive_file, color: ChhayaColors.accentBlue),
-                title: Text('File', style: TextStyle(color: scheme.onSurface)),
-                onTap: () async {
-                  Navigator.pop(context);
-                  final result = await FilePicker.platform.pickFiles();
-                  if (result != null) _sendGeneric('📎 ${result.files.first.name}', MessageType.file);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.poll, color: ChhayaColors.accentBlue),
-                title: Text('Create Poll', style: TextStyle(color: scheme.onSurface)),
-                onTap: () { Navigator.pop(context); _showCreatePoll(); },
-              ),
-              ListTile(
-                leading: Icon(_steganoMode ? Icons.lock_open : Icons.lock, color: ChhayaColors.accentPurple),
-                title: Text(_steganoMode ? 'Stegano Mode: ON' : 'Stegano Mode: OFF', style: TextStyle(color: scheme.onSurface)),
-                onTap: () {
-                  Navigator.pop(context);
-                  setState(() => _steganoMode = !_steganoMode);
-                  ChhayaHaptics.selection();
-                },
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showCreatePoll() {
-    final qCtrl = TextEditingController();
-    final o1Ctrl = TextEditingController();
-    final o2Ctrl = TextEditingController();
-    final scheme = Theme.of(context).colorScheme;
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: scheme.surfaceContainerHigh,
-        title: Text('Create Poll', style: ChhayaTypography.headline.copyWith(color: scheme.onSurface)),
-        content: Padding(
-          padding: const EdgeInsets.only(top: 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: qCtrl, decoration: const InputDecoration(hintText: 'Question')),
-              const SizedBox(height: 8),
-              TextField(controller: o1Ctrl, decoration: const InputDecoration(hintText: 'Option 1')),
-              const SizedBox(height: 8),
-              TextField(controller: o2Ctrl, decoration: const InputDecoration(hintText: 'Option 2')),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
-          FilledButton(
-            child: const Text('Send'),
-            onPressed: () {
-              Navigator.pop(context);
-              if (qCtrl.text.trim().isEmpty) return;
-              final pollJson = jsonEncode({
-                'question': qCtrl.text.trim(),
-                'options': [o1Ctrl.text.trim().isEmpty ? 'Yes' : o1Ctrl.text.trim(), o2Ctrl.text.trim().isEmpty ? 'No' : o2Ctrl.text.trim()],
-                'votes': [0, 0],
-              });
-              _sendGeneric(pollJson, MessageType.poll);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showMessageActions(Message msg) {
-    final scheme = Theme.of(context).colorScheme;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.thumb_up, color: ChhayaColors.accentGreen),
-                title: Text('Agree', style: TextStyle(color: scheme.onSurface)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _toggleReaction(msg, true);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.thumb_down, color: ChhayaColors.accentRed),
-                title: Text('Disagree', style: TextStyle(color: scheme.onSurface)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _toggleReaction(msg, false);
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.copy, color: scheme.onSurfaceVariant),
-                title: Text('Copy', style: TextStyle(color: scheme.onSurface)),
-                onTap: () {
-                  Navigator.pop(context);
-                  Clipboard.setData(ClipboardData(text: msg.content));
-                  ChhayaHaptics.selection();
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.reply, color: scheme.onSurfaceVariant),
-                title: Text('Reply', style: TextStyle(color: scheme.onSurface)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _msgCtrl.text = '↩️ ${msg.content.length > 30 ? msg.content.substring(0, 30) : msg.content}... ';
-                  _focusNode.requestFocus();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.delete, color: ChhayaColors.accentRed),
-                title: Text('Delete', style: TextStyle(color: ChhayaColors.accentRed)),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await ref.read(localDatabaseProvider).deleteMessage(msg.id);
-                  setState(() => _messages.removeWhere((m) => m.id == msg.id));
-                  ChhayaHaptics.medium();
-                },
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _toggleReaction(Message msg, bool isAgree) async {
-    final db = ref.read(localDatabaseProvider);
-    List<String> agree = List.from(msg.agreeUsers);
-    List<String> disagree = List.from(msg.disagreeUsers);
-
-    if (isAgree) {
-      disagree.remove('me');
-      if (agree.contains('me')) {
-        agree.remove('me');
-      } else {
-        agree.add('me');
-      }
-    } else {
-      agree.remove('me');
-      if (disagree.contains('me')) {
-        disagree.remove('me');
-      } else {
-        disagree.add('me');
-      }
-    }
-
-    final updated = msg.copyWith(agreeUsers: agree, disagreeUsers: disagree);
-    await db.addMessage(updated);
-    setState(() {
-      final i = _messages.indexWhere((m) => m.id == msg.id);
-      if (i != -1) _messages[i] = updated;
-    });
-    ChhayaHaptics.selection();
+  String _autoReplyText() {
+    const replies = [
+      'Got it, thanks!',
+      'Sounds good to me.',
+      'Onion-routed and received 👍',
+      'Let me check and get back to you.',
+      'Agreed.',
+      'Perfect.',
+      'Can we talk about this later?',
+      'Interesting — tell me more.',
+    ];
+    return replies[Random().nextInt(replies.length)];
   }
 
   @override
   Widget build(BuildContext context) {
-    final db = ref.read(localDatabaseProvider);
-    final readReceipts = db.getReadReceiptsEnabled();
-    final scheme = Theme.of(context).colorScheme;
+    final disableAnimations = MediaQuery.of(context).disableAnimations;
+    final conversations = ref.watch(conversationsProvider);
+    final convo = conversations.where((c) => c.id == widget.conversationId).firstOrNull;
 
     return Scaffold(
       backgroundColor: ChhayaColors.primaryBackground,
-      appBar: AppBar(
-        backgroundColor: ChhayaColors.primaryBackground.withValues(alpha: 0.92),
-        elevation: 0,
-        title: GestureDetector(
-          onTap: () => Navigator.of(context).pushNamed(ChhayaRouter.profile, arguments: {'contactId': null}),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            AvatarWidget(name: widget.contactName, size: 30),
-            const SizedBox(width: 8),
-            Text(widget.contactName, style: ChhayaTypography.headline),
-          ]),
-        ),
-        actions: [
-          IconButton(
-            onPressed: _showTtlSelector,
-            icon: Icon(
-              _currentTtl != null ? Icons.timer : Icons.timer_outlined,
-              color: _currentTtl != null ? ChhayaColors.accentOrange : ChhayaColors.accentBlue,
-              size: 20,
-            ),
-          ),
-          IconButton(
-            onPressed: () => Navigator.of(context).pushNamed(ChhayaRouter.call, arguments: {'contactName': widget.contactName, 'isVideo': false}),
-            icon: const Icon(Icons.phone, color: ChhayaColors.accentBlue, size: 20),
-          ),
-          IconButton(
-            onPressed: () => Navigator.of(context).pushNamed(ChhayaRouter.call, arguments: {'contactName': widget.contactName, 'isVideo': true}),
-            icon: const Icon(Icons.videocam, color: ChhayaColors.accentBlue, size: 20),
-          ),
-        ],
-      ),
       body: SafeArea(
         child: Column(
           children: [
-            if (_steganoMode)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                color: ChhayaColors.accentPurple.withValues(alpha: 0.2),
-                child: Text('🔒 Steganographic Mode Active', textAlign: TextAlign.center, style: ChhayaTypography.caption1.copyWith(color: ChhayaColors.accentPurple)),
-              ),
+            _buildAppBar(context, convo),
+            if (_steganoMode) _buildSteganoBanner(disableAnimations),
             Expanded(
               child: _loading
-                  ? Center(child: CircularProgressIndicator(color: scheme.primary))
-                  : ListView.builder(
-                      controller: _scrollCtrl,
-                      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      itemCount: _messages.length + (_isTyping ? 1 : 0),
-                      itemBuilder: (ctx, i) {
-                        if (i == _messages.length && _isTyping) return _buildTypingIndicator();
-                        return _buildBubble(_messages[i], readReceipts);
-                      },
-                    ),
+                  ? const Center(child: CircularProgressIndicator(color: ChhayaColors.accent))
+                  : _messages.isEmpty
+                      ? _buildEmptyChat()
+                      : ListView.builder(
+                          controller: _scrollCtrl,
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(
+                            ChhayaSpacing.space4,
+                            ChhayaSpacing.space3,
+                            ChhayaSpacing.space4,
+                            ChhayaSpacing.space4,
+                          ),
+                          itemCount: _messages.length + (_otherTyping ? 1 : 0),
+                          itemBuilder: (ctx, i) {
+                            if (i == _messages.length) return _buildTypingIndicator(disableAnimations);
+                            return _buildMessageBubble(_messages[i], i);
+                          },
+                        ),
             ),
-            _buildInputBar(),
+            _buildInputBar(disableAnimations),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildBubble(Message msg, bool readReceipts) {
-    final isMine = msg.senderId == 'me';
+  Widget _buildAppBar(BuildContext context, Conversation? convo) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: ChhayaSpacing.space3,
+        vertical: ChhayaSpacing.space2,
+      ),
+      decoration: BoxDecoration(
+        color: ChhayaColors.primaryBackground.withValues(alpha: 0.82),
+        border: const Border(
+          bottom: BorderSide(color: ChhayaColors.separator, width: 0.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          ChhayaIconButton(
+            icon: Icons.arrow_back_rounded,
+            onPressed: () => Navigator.of(context).pop(),
+            size: 38,
+            background: ChhayaColors.cardSurface,
+          ),
+          const SizedBox(width: ChhayaSpacing.space2),
+          AvatarWidget(
+            name: widget.contactName,
+            size: 36,
+            statusColor: convo?.participants.firstOrNull?.isOnline == true
+                ? ChhayaColors.online
+                : null,
+          ),
+          const SizedBox(width: ChhayaSpacing.space3),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.contactName,
+                  style: ChhayaTypography.headlineMedium.copyWith(fontSize: 15),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  _ttlMinutes > 0
+                      ? 'Disappearing · $_ttlLabel'
+                      : 'Onion-secured',
+                  style: ChhayaTypography.labelSmall.copyWith(
+                    color: _ttlMinutes > 0
+                        ? ChhayaColors.warning
+                        : ChhayaColors.accent,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ChhayaIconButton(
+            icon: Icons.timer_outlined,
+            onPressed: _showTtlSheet,
+            size: 36,
+            background: _ttlMinutes > 0
+                ? ChhayaColors.warning.withValues(alpha: 0.15)
+                : ChhayaColors.cardSurface,
+            color: _ttlMinutes > 0 ? ChhayaColors.warning : ChhayaColors.labelPrimary,
+          ),
+          const SizedBox(width: ChhayaSpacing.space1),
+          ChhayaIconButton(
+            icon: Icons.call_rounded,
+            onPressed: () => Navigator.of(context).pushNamed(
+              ChhayaRouter.call,
+              arguments: {'contactName': widget.contactName, 'isVideo': false},
+            ),
+            size: 36,
+            background: ChhayaColors.cardSurface,
+          ),
+          const SizedBox(width: ChhayaSpacing.space1),
+          ChhayaIconButton(
+            icon: Icons.videocam_rounded,
+            onPressed: () => Navigator.of(context).pushNamed(
+              ChhayaRouter.call,
+              arguments: {'contactName': widget.contactName, 'isVideo': true},
+            ),
+            size: 36,
+            background: ChhayaColors.cardSurface,
+          ),
+        ],
+      ),
+    );
+  }
 
+  String get _ttlLabel {
+    if (_ttlMinutes >= 1440) return '${_ttlMinutes ~/ 1440}d';
+    if (_ttlMinutes >= 60) return '${_ttlMinutes ~/ 60}h';
+    return '$_ttlMinutes min';
+  }
 
-    if (msg.type == MessageType.image && msg.content.startsWith('STEG:')) {
-      return _buildStegBubble(msg, isMine);
-    }
+  Widget _buildSteganoBanner(bool disableAnimations) {
+    return AnimatedContainer(
+      duration: disableAnimations ? Duration.zero : ChhayaAnimation.normal,
+      curve: ChhayaAnimation.springCurve,
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: ChhayaSpacing.space4,
+        vertical: ChhayaSpacing.space2,
+      ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            ChhayaColors.accent.withValues(alpha: 0.18),
+            ChhayaColors.info.withValues(alpha: 0.12),
+          ],
+        ),
+        border: const Border(
+          bottom: BorderSide(color: Color(0x3338BDF8), width: 0.5),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.visibility_off_rounded, size: 14, color: ChhayaColors.accent),
+          const SizedBox(width: ChhayaSpacing.space1),
+          Text(
+            'STEGANO MODE — messages hidden in images',
+            style: ChhayaTypography.labelSmall.copyWith(
+              color: ChhayaColors.accent,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-
-    if (msg.type == MessageType.poll) {
-      return _buildPollCard(msg);
-    }
-
-    return GestureDetector(
-      onLongPress: () => _showMessageActions(msg),
+  Widget _buildEmptyChat() {
+    return Center(
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.all(ChhayaSpacing.space8),
         child: Column(
-          crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              width: 80,
+              height: 80,
               decoration: BoxDecoration(
-                color: isMine ? ChhayaColors.bubbleSent : ChhayaColors.bubbleReceived,
+                color: ChhayaColors.cardSurface,
+                borderRadius: BorderRadius.circular(ChhayaRadius.xxl),
+                border: Border.all(color: ChhayaColors.glassBorder.withValues(alpha: 0.12)),
+              ),
+              child: Icon(
+                Icons.lock_outline_rounded,
+                size: 36,
+                color: ChhayaColors.accent.withValues(alpha: 0.7),
+              ),
+            ),
+            const SizedBox(height: ChhayaSpacing.space5),
+            Text(
+              'End-to-End Encrypted',
+              style: ChhayaTypography.headlineMedium.copyWith(fontSize: 15),
+            ),
+            const SizedBox(height: ChhayaSpacing.space1),
+            Text(
+              'Messages are onion-routed and encrypted\nwith AES-256-GCM + Double Ratchet.',
+              textAlign: TextAlign.center,
+              style: ChhayaTypography.bodySmall.copyWith(
+                color: ChhayaColors.labelTertiary,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMessageBubble(Message msg, int index) {
+    final isSent = _isSent(msg);
+    final showTail = index == 0 || _isSent(_messages[index - 1]) != isSent;
+    final timeStr = _formatTime(msg.timestamp);
+    final isStegano = _steganoMode && isSent && index == _messages.length - 1;
+
+    return Align(
+      alignment: isSent ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: EdgeInsets.only(
+          top: showTail ? ChhayaSpacing.space3 : ChhayaSpacing.space1,
+          left: isSent ? ChhayaSpacing.space8 : 0,
+          right: isSent ? 0 : ChhayaSpacing.space8,
+        ),
+        child: Column(
+          crossAxisAlignment: isSent ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: ChhayaSpacing.space4,
+                vertical: ChhayaSpacing.space3,
+              ),
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.74,
+              ),
+              decoration: BoxDecoration(
+                gradient: isSent && !isStegano ? ChhayaColors.accentGradient : null,
+                color: isSent ? (isStegano ? ChhayaColors.cardSurfaceElevated : null) : ChhayaColors.bubbleReceived,
                 borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(18),
-                  topRight: const Radius.circular(18),
-                  bottomLeft: Radius.circular(isMine ? 18 : 4),
-                  bottomRight: Radius.circular(isMine ? 4 : 18),
+                  topLeft: const Radius.circular(ChhayaRadius.lg),
+                  topRight: const Radius.circular(ChhayaRadius.lg),
+                  bottomLeft: Radius.circular(isSent ? ChhayaRadius.lg : ChhayaRadius.sm),
+                  bottomRight: Radius.circular(isSent ? ChhayaRadius.sm : ChhayaRadius.lg),
                 ),
+                border: isSent && !isStegano
+                    ? null
+                    : Border.all(
+                        color: isStegano
+                            ? ChhayaColors.info.withValues(alpha: 0.3)
+                            : ChhayaColors.separator,
+                        width: 0.6,
+                      ),
+                boxShadow: isSent && !isStegano && !disableAnimationsSafe
+                    ? ChhayaShadows.glowBlue
+                    : null,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(msg.content, style: ChhayaTypography.body.copyWith(fontSize: 16)),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(DateFormat.Hm().format(msg.timestamp), style: ChhayaTypography.caption2.copyWith(color: isMine ? ChhayaColors.labelPrimary.withValues(alpha: 0.6) : ChhayaColors.labelTertiary)),
-                      if (isMine) ...[
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.done_all,
-                          size: 12,
-                          color: (msg.isRead && readReceipts) ? ChhayaColors.accentBlue : ChhayaColors.labelTertiary,
-                        ),
-                      ],
-                      if (_currentTtl != null) ...[
-                        const SizedBox(width: 4),
-                        Icon(Icons.timer, size: 10, color: ChhayaColors.accentOrange.withValues(alpha: 0.7)),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            if (msg.agreeUsers.isNotEmpty || msg.disagreeUsers.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (msg.agreeUsers.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: ChhayaColors.accentGreen.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(10)),
-                        child: Text('👍 ${msg.agreeUsers.length}', style: const TextStyle(fontSize: 11)),
+                  if (isStegano)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: ChhayaSpacing.space1),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.visibility_off_rounded, size: 12, color: ChhayaColors.accent),
+                          SizedBox(width: 4),
+                          Text(
+                            'STEGANO',
+                            style: TextStyle(
+                              color: ChhayaColors.accent,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
                       ),
-                    if (msg.disagreeUsers.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: ChhayaColors.accentRed.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(10)),
-                          child: Text('👎 ${msg.disagreeUsers.length}', style: const TextStyle(fontSize: 11)),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStegBubble(Message msg, bool isMine) {
-    return GestureDetector(
-      onTap: () {
-        final encoded = msg.content.substring(5);
-        try {
-          final decoded = utf8.decode(base64Decode(encoded));
-          final scheme = Theme.of(context).colorScheme;
-          showDialog(
-            context: context,
-            builder: (_) => AlertDialog(
-              backgroundColor: scheme.surfaceContainerHigh,
-              title: Text('🔓 Hidden Message', style: ChhayaTypography.headline.copyWith(color: scheme.onSurface)),
-              content: Text(decoded, style: TextStyle(color: scheme.onSurface)),
-              actions: [TextButton(child: const Text('Close'), onPressed: () => Navigator.pop(context))],
-            ),
-          );
-        } catch (_) {}
-      },
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Align(
-          alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            width: 180,
-            height: 120,
-            decoration: BoxDecoration(
-              color: ChhayaColors.tertiaryBackground,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: ChhayaColors.accentPurple.withValues(alpha: 0.3)),
-            ),
-            child: const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.lock, size: 32, color: ChhayaColors.accentPurple),
-                  SizedBox(height: 4),
-                  Text('🔒 Steganographic', style: TextStyle(color: ChhayaColors.accentPurple, fontSize: 12)),
-                  Text('Tap to reveal', style: TextStyle(color: ChhayaColors.labelTertiary, fontSize: 10)),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPollCard(Message msg) {
-    Map<String, dynamic> poll;
-    try {
-      poll = jsonDecode(msg.content) as Map<String, dynamic>;
-    } catch (_) {
-      return const SizedBox.shrink();
-    }
-    final question = poll['question'] as String? ?? '';
-    final options = (poll['options'] as List<dynamic>?)?.cast<String>() ?? [];
-    final votes = (poll['votes'] as List<dynamic>?)?.cast<int>() ?? List.filled(options.length, 0);
-    final totalVotes = votes.fold<int>(0, (a, b) => a + b);
-    final myVote = _pollVotes[msg.id];
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: GlassContainer(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('📊 $question', style: ChhayaTypography.headline),
-            const SizedBox(height: 12),
-            ...List.generate(options.length, (i) {
-              final pct = totalVotes > 0 ? (votes[i] / totalVotes * 100).round() : 0;
-              final selected = myVote == i;
-              return GestureDetector(
-                onTap: myVote != null ? null : () {
-                  votes[i]++;
-                  _pollVotes[msg.id] = i;
-                  final updated = msg.copyWith(content: jsonEncode({...poll, 'votes': votes}));
-                  ref.read(localDatabaseProvider).addMessage(updated);
-                  setState(() {
-                    final idx = _messages.indexWhere((m) => m.id == msg.id);
-                    if (idx != -1) {
-                      _messages[idx] = updated;
-                    }
-                  });
-                  ChhayaHaptics.selection();
-
-                  Timer(const Duration(seconds: 2), () {
-                    final peerChoice = (i + 1) % options.length;
-                    votes[peerChoice]++;
-                    final peerUpdated = msg.copyWith(content: jsonEncode({...poll, 'votes': votes}));
-                    ref.read(localDatabaseProvider).addMessage(peerUpdated);
-                    if (mounted) {
-                      setState(() {
-                        final idx = _messages.indexWhere((m) => m.id == msg.id);
-                        if (idx != -1) {
-                          _messages[idx] = peerUpdated;
-                        }
-                      });
-                    }
-                  });
-                },
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: selected ? ChhayaColors.accentBlue.withValues(alpha: 0.15) : ChhayaColors.fillTertiary,
-                    borderRadius: BorderRadius.circular(10),
-                    border: selected ? Border.all(color: ChhayaColors.accentBlue, width: 1) : null,
-                  ),
-                  child: Row(children: [
-                    Expanded(child: Text(options[i], style: ChhayaTypography.body)),
-                    if (myVote != null) Text('$pct%', style: ChhayaTypography.caption1.copyWith(color: ChhayaColors.accentBlue)),
-                  ]),
-                ),
-              );
-            }),
-            if (totalVotes > 0)
-              Text('$totalVotes vote${totalVotes > 1 ? 's' : ''}', style: ChhayaTypography.caption1),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTypingIndicator() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: ChhayaColors.bubbleReceived,
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            for (int i = 0; i < 3; i++)
-              AnimatedBuilder(
-                animation: _typingDotCtrl,
-                builder: (_, __) {
-                  final offset = ((_typingDotCtrl.value * 3 - i).clamp(0.0, 1.0) * 3.14159);
-                  return Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 2),
-                    width: 8, height: 8,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: ChhayaColors.labelTertiary.withValues(alpha: 0.4 + 0.6 * (offset > 1.5 ? 0 : offset / 1.5)),
                     ),
-                  );
-                },
+                  Text(
+                    msg.content,
+                    style: ChhayaTypography.bodyMedium.copyWith(
+                      color: isSent && !isStegano ? ChhayaColors.bubbleSentText : ChhayaColors.bubbleReceivedText,
+                      fontSize: 14.5,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
               ),
-          ]),
+            ),
+            const SizedBox(height: ChhayaSpacing.space1),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (msg.ttl != null)
+                  const Padding(
+                    padding: EdgeInsets.only(right: ChhayaSpacing.space1),
+                    child: Icon(Icons.timer_outlined, size: 11, color: ChhayaColors.labelQuaternary),
+                  ),
+                Text(
+                  timeStr,
+                  style: ChhayaTypography.labelSmall.copyWith(
+                    color: isSent
+                        ? ChhayaColors.labelPrimary.withValues(alpha: 0.6)
+                        : ChhayaColors.labelTertiary,
+                    fontSize: 10,
+                  ),
+                ),
+                if (isSent) ...[
+                  const SizedBox(width: 3),
+                  Icon(
+                    msg.isRead ? Icons.done_all_rounded : Icons.done_rounded,
+                    size: 13,
+                    color: msg.isRead
+                        ? ChhayaColors.accent
+                        : ChhayaColors.labelPrimary.withValues(alpha: 0.5),
+                  ),
+                ],
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildInputBar() {
+  bool get disableAnimationsSafe =>
+      WidgetsBinding.instance.platformDispatcher.accessibilityFeatures.disableAnimations;
+
+  Widget _buildTypingIndicator(bool disableAnimations) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(top: ChhayaSpacing.space3),
+        padding: const EdgeInsets.symmetric(
+          horizontal: ChhayaSpacing.space4,
+          vertical: ChhayaSpacing.space3,
+        ),
+        decoration: BoxDecoration(
+          color: ChhayaColors.bubbleReceived,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(ChhayaRadius.lg),
+            topRight: Radius.circular(ChhayaRadius.lg),
+            bottomRight: Radius.circular(ChhayaRadius.lg),
+            bottomLeft: Radius.circular(ChhayaRadius.sm),
+          ),
+          border: Border.all(color: ChhayaColors.separator, width: 0.6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(3, (i) {
+            return AnimatedContainer(
+              duration: disableAnimations
+                  ? Duration.zero
+                  : const Duration(milliseconds: 500),
+              margin: EdgeInsets.only(right: i < 2 ? 5 : 0),
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                color: ChhayaColors.accent.withValues(alpha: 0.3 + (i * 0.25)),
+                shape: BoxShape.circle,
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInputBar(bool disableAnimations) {
     return Container(
-      padding: EdgeInsets.fromLTRB(8, 8, 8, MediaQuery.of(context).padding.bottom + 8),
-      decoration: BoxDecoration(
-        color: ChhayaColors.secondaryBackground.withValues(alpha: 0.85),
-        border: Border(top: BorderSide(color: ChhayaColors.separator, width: 0.3)),
+      padding: EdgeInsets.only(
+        left: ChhayaSpacing.space3,
+        right: ChhayaSpacing.space3,
+        top: ChhayaSpacing.space2,
+        bottom: MediaQuery.of(context).viewInsets.bottom + ChhayaSpacing.space3,
+      ),
+      decoration: const BoxDecoration(
+        color: ChhayaColors.secondaryBackground,
+        border: Border(
+          top: BorderSide(color: ChhayaColors.separator, width: 0.5),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          IconButton(
-            onPressed: _showAttachments,
-            icon: Icon(_hasText ? Icons.add : Icons.camera_alt, color: ChhayaColors.accentBlue, size: 24),
+          ChhayaIconButton(
+            icon: Icons.add_rounded,
+            onPressed: _showAttachmentSheet,
+            size: 42,
+            background: ChhayaColors.cardSurface,
           ),
+          const SizedBox(width: ChhayaSpacing.space2),
           Expanded(
-            child: TextField(
-              controller: _msgCtrl,
-              focusNode: _focusNode,
-              decoration: InputDecoration(
-                hintText: 'Chhaya Message',
-                hintStyle: ChhayaTypography.body.copyWith(color: ChhayaColors.labelTertiary, fontSize: 16),
-                filled: true,
-                fillColor: ChhayaColors.tertiaryBackground,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Container(
+              constraints: const BoxConstraints(maxHeight: 120),
+              decoration: BoxDecoration(
+                color: ChhayaColors.inputSurface,
+                borderRadius: BorderRadius.circular(ChhayaRadius.xl),
+                border: Border.all(
+                  color: _isTyping
+                      ? ChhayaColors.accent.withValues(alpha: 0.4)
+                      : ChhayaColors.glassBorder.withValues(alpha: 0.12),
+                  width: _isTyping ? 1.2 : 1,
+                ),
               ),
-              style: ChhayaTypography.body.copyWith(fontSize: 16),
-              maxLines: 5,
-              minLines: 1,
-              textInputAction: TextInputAction.send,
-              onSubmitted: (_) => _sendMessage(),
+              child: TextField(
+                controller: _msgCtrl,
+                maxLines: 4,
+                minLines: 1,
+                textCapitalization: TextCapitalization.sentences,
+                style: ChhayaTypography.bodyMedium.copyWith(fontSize: 14.5),
+                decoration: InputDecoration(
+                  hintText: _steganoMode ? 'Hidden message…' : 'Message…',
+                  hintStyle: ChhayaTypography.bodyMedium.copyWith(
+                    color: ChhayaColors.labelQuaternary,
+                  ),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: ChhayaSpacing.space4,
+                    vertical: ChhayaSpacing.space3,
+                  ),
+                ),
+              ),
             ),
           ),
-          const SizedBox(width: 4),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
-            child: _hasText
-                ? IconButton(
-                    key: const ValueKey('send'),
-                    onPressed: _sendMessage,
-                    icon: Container(
-                      width: 32, height: 32,
-                      decoration: const BoxDecoration(color: ChhayaColors.accentBlue, shape: BoxShape.circle),
-                      child: const Icon(Icons.arrow_upward, color: ChhayaColors.labelPrimary, size: 18),
-                    ),
-                  )
-                : IconButton(
-                    key: const ValueKey('mic'),
-                    onPressed: () => _sendGeneric("🎤 Voice message (0:08)", MessageType.voice),
-                    icon: const Icon(Icons.mic, color: ChhayaColors.accentBlue, size: 24),
-                  ),
+          const SizedBox(width: ChhayaSpacing.space2),
+          AnimatedBuilder(
+            animation: _fabScale,
+            builder: (context, child) {
+              return Transform.scale(
+                scale: disableAnimations ? 1.0 : _fabScale.value,
+                child: child!,
+              );
+            },
+            child: ChhayaIconButton(
+              icon: _isTyping ? Icons.arrow_upward_rounded : Icons.mic_rounded,
+              onPressed: _isTyping ? _sendMessage : () {},
+              size: 42,
+              background: ChhayaColors.accent,
+              color: ChhayaColors.onAccent,
+            ),
           ),
         ],
       ),
     );
+  }
+
+  void _showTtlSheet() {
+    const options = [0, 1, 5, 30, 60, 1440];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: ChhayaColors.sheetBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(ChhayaRadius.xxl)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(ChhayaSpacing.space5),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Disappearing Messages', style: ChhayaTypography.displaySmall.copyWith(fontSize: 18)),
+            const SizedBox(height: ChhayaSpacing.space1),
+            Text('Auto-delete after timer expires', style: ChhayaTypography.labelMedium),
+            const SizedBox(height: ChhayaSpacing.space4),
+            ...options.map((m) {
+              final label = m == 0
+                  ? 'Off'
+                  : m == 1440
+                      ? '24 hours'
+                      : '$m minute${m > 1 ? 's' : ''}';
+              final selected = _ttlMinutes == m;
+              return ListTile(
+                dense: true,
+                title: Text(label, style: ChhayaTypography.bodyMedium),
+                trailing: selected
+                    ? const Icon(Icons.check_circle_rounded, color: ChhayaColors.accent, size: 20)
+                    : null,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ChhayaRadius.md)),
+                onTap: () {
+                  setState(() => _ttlMinutes = m);
+                  ChhayaHaptics.selection();
+                  Navigator.pop(context);
+                },
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAttachmentSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: ChhayaColors.sheetBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(ChhayaRadius.xxl)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: const EdgeInsets.all(ChhayaSpacing.space5),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Attach', style: ChhayaTypography.headlineMedium),
+              const SizedBox(height: ChhayaSpacing.space4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _attachAction(Icons.camera_alt_rounded, 'Camera', ChhayaColors.accent, () {}),
+                  _attachAction(Icons.photo_rounded, 'Gallery', ChhayaColors.success, () {}),
+                  _attachAction(Icons.insert_drive_file_rounded, 'File', ChhayaColors.info, () {}),
+                  _attachAction(Icons.how_to_vote_rounded, 'Poll', ChhayaColors.warning, () {}),
+                ],
+              ),
+              const SizedBox(height: ChhayaSpacing.space4),
+              Container(
+                decoration: BoxDecoration(
+                  color: ChhayaColors.cardSurface,
+                  borderRadius: BorderRadius.circular(ChhayaRadius.lg),
+                  border: Border.all(color: ChhayaColors.separator),
+                ),
+                child: SwitchListTile(
+                  secondary: const Icon(Icons.visibility_off_rounded, color: ChhayaColors.accent, size: 20),
+                  title: Text('Stegano Mode', style: ChhayaTypography.bodyMedium),
+                  subtitle: Text(
+                    'Hide messages inside images',
+                    style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.labelTertiary),
+                  ),
+                  value: _steganoMode,
+                  onChanged: (v) {
+                    setSheetState(() => _steganoMode = v);
+                    setState(() => _steganoMode = v);
+                    ChhayaHaptics.selection();
+                  },
+                  activeTrackColor: ChhayaColors.accent.withValues(alpha: 0.3),
+                  activeThumbColor: ChhayaColors.accent,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _attachAction(IconData icon, String label, Color color, VoidCallback onTap) {
+    return Column(
+      children: [
+        InkWell(
+          onTap: () {
+            ChhayaHaptics.light();
+            Navigator.pop(context);
+            onTap();
+          },
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
+              border: Border.all(color: color.withValues(alpha: 0.22)),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+        ),
+        const SizedBox(height: ChhayaSpacing.space1),
+        Text(label, style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.labelTertiary)),
+      ],
+    );
+  }
+
+  String _formatTime(DateTime time) {
+    final h = time.hour.toString().padLeft(2, '0');
+    final m = time.minute.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 }

@@ -79,56 +79,81 @@ class _SplashScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final disableAnimations = MediaQuery.of(context).disableAnimations;
+
     return Scaffold(
       backgroundColor: ChhayaColors.primaryBackground,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: ChhayaColors.accentGradient,
-                boxShadow: [
-                  BoxShadow(
-                    color: ChhayaColors.accentBlue.withValues(alpha: 0.3),
-                    blurRadius: 30,
-                    spreadRadius: 5,
+      body: Stack(
+        children: [
+          Positioned(
+            top: -80, left: -60, right: -60, height: 420,
+            child: Container(decoration: const BoxDecoration(gradient: ChhayaColors.glowGradient)),
+          ),
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 110, height: 110,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(ChhayaRadius.xl),
+                    color: ChhayaColors.cardSurface,
+                    border: Border.all(
+                      color: ChhayaColors.accent.withValues(alpha: 0.5),
+                      width: 1.5,
+                    ),
                   ),
-                ],
-              ),
-              child: const Icon(
-                Icons.shield_rounded,
-                size: 48,
-                color: ChhayaColors.labelPrimary,
-              ),
-            ),
-            const SizedBox(height: ChhayaSpacing.xl),
-            Text(
-              'Chhaya',
-              style: ChhayaTypography.largeTitle.copyWith(letterSpacing: 1.0),
-            ),
-            const SizedBox(height: ChhayaSpacing.md),
-            if (errorMessage != null)
-              Text(
-                errorMessage!,
-                style: ChhayaTypography.footnote.copyWith(
-                  color: ChhayaColors.accentRed,
+                  child: const Icon(Icons.shield_outlined, size: 48, color: ChhayaColors.accent),
                 ),
-              )
-            else
-              const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  color: ChhayaColors.labelSecondary,
+                const SizedBox(height: ChhayaSpacing.space5),
+                Text(
+                  'CHHAYA',
+                  style: ChhayaTypography.displayHero.copyWith(
+                    color: ChhayaColors.accent,
+                    fontFamily: 'JetBrains Mono',
+                    fontSize: 40,
+                    letterSpacing: 6.0,
+                  ),
                 ),
-              ),
-          ],
-        ),
+                const SizedBox(height: 6),
+                Text(
+                  'PRIVACY • SPEED • TRUST',
+                  style: ChhayaTypography.labelSmall.copyWith(
+                    letterSpacing: 2.0,
+                    color: ChhayaColors.labelTertiary,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 10,
+                  ),
+                ),
+                const SizedBox(height: ChhayaSpacing.space12),
+                if (errorMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Text(
+                      errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.error),
+                    ),
+                  )
+                else
+                  Column(children: [
+                    SizedBox(
+                      width: 28, height: 28,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.8,
+                        color: ChhayaColors.accent,
+                        valueColor: disableAnimations
+                            ? const AlwaysStoppedAnimation<Color>(ChhayaColors.accent)
+                            : null,
+                      ),
+                    ),
+                    const SizedBox(height: ChhayaSpacing.space3),
+                    Text('Securing tunnel…', style: ChhayaTypography.code.copyWith(color: ChhayaColors.labelTertiary, fontSize: 12)),
+                  ]),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -231,6 +256,7 @@ class _AppStartupGateState extends ConsumerState<AppStartupGate> {
           context: context,
           builder: (_) => AlertDialog(
             backgroundColor: ChhayaColors.cardSurface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ChhayaRadius.xl)),
             title: const Text('Data Erased'),
             content: const Text('All data has been permanently destroyed.'),
             actions: [
@@ -271,125 +297,126 @@ class _AppStartupGateState extends ConsumerState<AppStartupGate> {
 
   @override
   Widget build(BuildContext context) {
+    final disableAnimations = MediaQuery.of(context).disableAnimations;
+
     if (!_showPinPad) {
       return const _SplashScreen();
     }
 
     return Scaffold(
       backgroundColor: ChhayaColors.primaryBackground,
-      body: SafeArea(
-        child: Column(
-          children: [
-            const Spacer(flex: 2),
-            const Icon(
-              Icons.lock_person_rounded,
-              size: 56,
-              color: ChhayaColors.accentBlue,
-            ),
-            const SizedBox(height: ChhayaSpacing.lg),
-            Text('Enter Passcode', style: ChhayaTypography.title2),
-            const SizedBox(height: ChhayaSpacing.xxl),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 100),
-              transform: _shakeError
-                  ? Matrix4.translationValues(10.0, 0.0, 0.0)
-                  : Matrix4.identity(),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(4, (i) {
-                  final filled = i < _enteredPin.length;
-                  return AnimatedContainer(
-                    duration: ChhayaAnimation.fast,
-                    margin: const EdgeInsets.symmetric(horizontal: 10),
-                    width: 14,
-                    height: 14,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: filled ? ChhayaColors.accentBlue : ChhayaColors.fillTertiary,
-                      border: Border.all(
-                        color: filled ? ChhayaColors.accentBlue : ChhayaColors.labelTertiary,
-                        width: 1.5,
-                      ),
+      body: Stack(
+        children: [
+          Positioned(
+            top: -80, left: -80, right: -80, height: 320,
+            child: Container(decoration: const BoxDecoration(gradient: ChhayaColors.glowGradient)),
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+                const Spacer(flex: 2),
+                Container(
+                  width: 72, height: 72,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(ChhayaRadius.lg),
+                    color: ChhayaColors.cardSurface,
+                    border: Border.all(
+                      color: ChhayaColors.accent.withValues(alpha: 0.5),
+                      width: 1.5,
                     ),
-                  );
-                }),
-              ),
-            ),
-            const Spacer(flex: 1),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 60),
-              child: Column(
-                children: [
-                  for (final row in [
-                    ['1', '2', '3'],
-                    ['4', '5', '6'],
-                    ['7', '8', '9'],
-                    ['', '0', '⌫']
-                  ])
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: row.map((digit) {
-                          if (digit.isEmpty) {
-                            return const SizedBox(width: 72, height: 72);
-                          }
-                          if (digit == '⌫') {
-                            return SizedBox(
-                              width: 72,
-                              height: 72,
-                              child: IconButton(
-                                onPressed: _onPinDelete,
-                                icon: const Icon(
-                                  Icons.backspace_outlined,
-                                  color: ChhayaColors.labelPrimary,
-                                  size: 24,
-                                ),
-                              ),
-                            );
-                          }
-                          return InkWell(
-                            customBorder: const CircleBorder(),
-                            onTap: () {
-                              ChhayaHaptics.light();
-                              _onPinDigit(digit);
-                            },
-                            child: Container(
-                              width: 72,
-                              height: 72,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: ChhayaColors.fillTertiary,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  digit,
-                                  style: ChhayaTypography.title1.copyWith(
-                                    fontWeight: FontWeight.w300,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: ChhayaSpacing.lg),
-            TextButton(
-              onPressed: _checkAuth,
-              child: Text(
-                'Use Biometrics',
-                style: ChhayaTypography.body.copyWith(
-                  color: ChhayaColors.accentBlue,
+                  ),
+                  child: const Icon(Icons.lock_person_outlined, size: 34, color: ChhayaColors.accent),
                 ),
-              ),
+                const SizedBox(height: ChhayaSpacing.space4),
+                Text('Enter Passcode', style: ChhayaTypography.displaySmall.copyWith(fontSize: 22)),
+                const SizedBox(height: ChhayaSpacing.space1),
+                Text('Biometric failed • Use PIN', style: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.labelTertiary)),
+                const SizedBox(height: ChhayaSpacing.space5),
+                AnimatedContainer(
+                  duration: disableAnimations ? Duration.zero : const Duration(milliseconds: 100),
+                  transform: _shakeError
+                      ? Matrix4.translationValues(10.0, 0.0, 0.0)
+                      : Matrix4.identity(),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(4, (i) {
+                      final filled = i < _enteredPin.length;
+                      return AnimatedContainer(
+                        duration: disableAnimations ? Duration.zero : ChhayaAnimation.fast,
+                        margin: const EdgeInsets.symmetric(horizontal: 10),
+                        width: 16, height: 16,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: filled ? ChhayaColors.accent : ChhayaColors.cardSurface,
+                          border: Border.all(
+                            color: filled ? ChhayaColors.accent : ChhayaColors.opaqueSeparator,
+                            width: 1.5,
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+                const Spacer(flex: 1),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 48),
+                  child: Column(
+                    children: [
+                      for (final row in [['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9'], ['', '0', '⌫']])
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: row.map((digit) {
+                              if (digit.isEmpty) return const SizedBox(width: 76, height: 76);
+                              if (digit == '⌫') {
+                                return SizedBox(
+                                  width: 76, height: 76,
+                                  child: IconButton(
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: ChhayaColors.cardSurface,
+                                      shape: const CircleBorder(),
+                                      side: BorderSide(color: ChhayaColors.glassBorder.withValues(alpha: 0.12)),
+                                    ),
+                                    onPressed: _onPinDelete,
+                                    icon: const Icon(Icons.backspace_outlined, color: ChhayaColors.labelPrimary, size: 22),
+                                  ),
+                                );
+                              }
+                              return InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: () {
+                                  if (!disableAnimations) ChhayaHaptics.light();
+                                  _onPinDigit(digit);
+                                },
+                                child: Container(
+                                  width: 76, height: 76,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: ChhayaColors.cardSurface,
+                                    border: Border.all(color: ChhayaColors.glassBorder.withValues(alpha: 0.14)),
+                                    boxShadow: disableAnimations ? null : ChhayaShadows.subtle,
+                                  ),
+                                  child: Center(child: Text(digit, style: ChhayaTypography.displaySmall.copyWith(fontWeight: FontWeight.w300, fontSize: 26))),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: ChhayaSpacing.space4),
+                TextButton.icon(
+                  onPressed: _checkAuth,
+                  icon: const Icon(Icons.fingerprint_rounded, size: 18, color: ChhayaColors.accent),
+                  label: Text('Try Biometrics Again', style: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.accent, fontWeight: FontWeight.w600, fontSize: 14)),
+                ),
+                const Spacer(flex: 1),
+              ],
             ),
-            const Spacer(flex: 1),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

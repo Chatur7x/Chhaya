@@ -1,17 +1,17 @@
-import 'dart:math';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../theme/chhaya_theme.dart';
-import '../../widgets/avatar_widget.dart';
-import '../../widgets/glass_container.dart';
-import '../../../core/router/chhaya_router.dart';
-import '../../../core/providers/app_providers.dart';
-import '../../../core/models/contact.dart';
+import 'package:chaaya/ui/theme/chhaya_theme.dart';
+import 'package:chaaya/ui/widgets/avatar_widget.dart';
+import 'package:chaaya/ui/widgets/chhaya_button.dart';
+import 'package:chaaya/core/providers/app_providers.dart';
+import 'package:chaaya/core/models/contact.dart';
+import 'package:chaaya/core/models/conversation.dart';
+import 'package:chaaya/core/router/chhaya_router.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   final String? contactId;
+
   const ProfileScreen({super.key, this.contactId});
 
   @override
@@ -19,435 +19,286 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-
-  int _ratchetEpoch = 1;
-  int _msgCount = 14;
-  String _rootKey = '';
-  String _sendChainKey = '';
-  String _recvChainKey = '';
-  String _dhEphemeral = '';
-
-
-  bool _verifying = false;
-  List<bool> _chunkStatus = List.filled(5, false);
-
-  String _shortId(String id, int max) => id.length > max ? '${id.substring(0, max)}…' : id;
+  Contact? _contact;
+  bool _blocked = false;
+  final int _msgCount = 0;
+  final int _ratchetEpoch = 0;
+  final String _sharedSecretPreview = '';
 
   @override
   void initState() {
     super.initState();
-    _generateRatchetKeys();
+    if (widget.contactId != null) {
+      _loadContact();
+    }
   }
 
-  void _generateRatchetKeys() {
-    final rng = Random();
-    String hex(int len) => List.generate(len, (_) => '0123456789abcdef'[rng.nextInt(16)]).join();
-    _rootKey = hex(16);
-    _sendChainKey = hex(16);
-    _recvChainKey = hex(16);
-    _dhEphemeral = hex(32);
-  }
-
-  Contact? _getContact() {
-    if (widget.contactId == null) return null;
-    final contacts = ref.read(contactsProvider);
-    final matches = contacts.where((c) => c.id == widget.contactId).toList();
-    return matches.isNotEmpty ? matches.first : null;
+  Future<void> _loadContact() async {
+    final db = ref.read(localDatabaseProvider);
+    _contact = await db.getContact(widget.contactId!);
+    if (mounted) setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    final contact = _getContact();
+    final isOwnProfile = widget.contactId == null;
     final user = ref.watch(currentUserProvider);
-    final isSelf = contact == null;
-
-    final name = isSelf ? (user?.displayName ?? 'Chhaya User') : contact.displayName;
-    final chhayaIdText = isSelf ? (user?.chhayaId.publicKey ?? '') : contact.chhayaId.publicKey;
-    final verLevel = isSelf ? 3 : contact.verificationLevel;
-    final verColor = verLevel == 3 ? ChhayaColors.verifiedLevel3 : verLevel == 2 ? ChhayaColors.verifiedLevel2 : ChhayaColors.verifiedLevel1;
-    final verLabel = verLevel == 3 ? 'Verified' : verLevel == 2 ? 'Matched' : 'Unverified';
+    final displayName = _contact?.displayName ?? user?.displayName ?? 'Chhaya User';
+    final chhayaIdText = _contact?.chhayaId.publicKey ?? user?.chhayaId.publicKey ?? '—';
+    final verificationLevel = _contact?.verificationLevel ?? 3;
 
     return Scaffold(
       backgroundColor: ChhayaColors.primaryBackground,
-      appBar: AppBar(
-        backgroundColor: ChhayaColors.primaryBackground.withValues(alpha: 0.92),
-        elevation: 0,
-        title: Text(isSelf ? 'My Profile' : 'Contact', style: ChhayaTypography.headline),
-      ),
-      body: SafeArea(
-        child: ListView(
-          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-          padding: const EdgeInsets.all(16),
-          children: [
-            const SizedBox(height: 16),
-
-
-            Center(child: AvatarWidget(name: name, size: 100, showGradientRing: true)),
-            const SizedBox(height: 16),
-            Center(child: Text(name, style: ChhayaTypography.title1)),
-            const SizedBox(height: 4),
-
-
-            Center(
-              child: GestureDetector(
-                onTap: () { Clipboard.setData(ClipboardData(text: chhayaIdText)); ChhayaHaptics.selection(); },
-                child: Text(_shortId(chhayaIdText, 16), style: ChhayaTypography.caption1.copyWith(color: ChhayaColors.accentBlue)),
-              ),
-            ),
-            const SizedBox(height: 8),
-
-
-            Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(color: verColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Container(width: 8, height: 8, decoration: BoxDecoration(color: verColor, shape: BoxShape.circle)),
-                  const SizedBox(width: 6),
-                  Text(verLabel, style: ChhayaTypography.caption1.copyWith(color: verColor)),
-                ]),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            if (contact != null) ...[
-              Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-                _actionBtn(Icons.chat_bubble, 'Message', ChhayaColors.accentBlue, () {
-                  final convos = ref.read(conversationsProvider);
-                  final existing = convos.where((c) => c.participants.any((p) => p.id == contact.id)).toList();
-                  if (existing.isNotEmpty) {
-                    Navigator.of(context).pushNamed(ChhayaRouter.chat, arguments: {'conversationId': existing.first.id, 'contactName': contact.displayName});
-                  }
-                }),
-                _actionBtn(Icons.phone, 'Audio', ChhayaColors.accentGreen, () {
-                  Navigator.of(context).pushNamed(ChhayaRouter.call, arguments: {'contactName': contact.displayName, 'isVideo': false});
-                }),
-                _actionBtn(Icons.videocam, 'Video', ChhayaColors.accentPurple, () {
-                  Navigator.of(context).pushNamed(ChhayaRouter.call, arguments: {'contactName': contact.displayName, 'isVideo': true});
-                }),
-                _actionBtn(Icons.qr_code, 'Verify', ChhayaColors.accentOrange, () {
-                  Navigator.of(context).pushNamed(ChhayaRouter.verification, arguments: {'contactId': contact.id});
-                }),
-              ]),
-              const SizedBox(height: 24),
-            ],
-
-
-            GestureDetector(
-              onTap: _showRatchetVisualizer,
-              child: GlassContainer(
-                child: Row(children: [
-                  const Icon(Icons.shield, color: ChhayaColors.accentGreen, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('End-to-End Encrypted', style: ChhayaTypography.headline),
-                    Text('Tap to view key rotation', style: ChhayaTypography.caption1.copyWith(color: ChhayaColors.labelTertiary)),
-                  ])),
-                  const Icon(Icons.chevron_right, color: ChhayaColors.labelTertiary, size: 14),
-                ]),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-
-            Text('Shared Media', style: ChhayaTypography.headline),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 80,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: 5,
-                itemBuilder: (_, i) {
-                  final colors = [ChhayaColors.accentBlue, ChhayaColors.accentPurple, ChhayaColors.accentIndigo, ChhayaColors.accentTeal, ChhayaColors.accentOrange];
-                  return GestureDetector(
-                    onTap: () => _showSwarmChunks('file_${i + 1}.enc'),
-                    child: Container(
-                      width: 80, height: 80,
-                      margin: const EdgeInsets.only(right: 8),
-                      decoration: BoxDecoration(
-                        color: colors[i].withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: colors[i].withValues(alpha: 0.3)),
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 220,
+            pinned: true,
+            backgroundColor: ChhayaColors.primaryBackground,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                decoration: BoxDecoration(gradient: ChhayaColors.heroGradient),
+                child: SafeArea(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      AvatarWidget(
+                        name: displayName,
+                        size: 72,
+                        showGradientRing: true,
+                        showShadow: true,
                       ),
-                      child: Icon(Icons.insert_drive_file, color: colors[i], size: 28),
+                      const SizedBox(height: ChhayaSpacing.space3),
+                      Text(displayName, style: ChhayaTypography.displaySmall.copyWith(fontSize: 20)),
+                      const SizedBox(height: ChhayaSpacing.space1),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (!isOwnProfile)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: ChhayaSpacing.space2, vertical: ChhayaSpacing.space1),
+                              decoration: BoxDecoration(
+                                color: _verificationColor(verificationLevel).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(ChhayaRadius.pill),
+                                border: Border.all(color: _verificationColor(verificationLevel).withValues(alpha: 0.3)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.verified_rounded, size: 12, color: _verificationColor(verificationLevel)),
+                                  const SizedBox(width: 4),
+                                  Text(_verificationLabel(verificationLevel), style: ChhayaTypography.labelSmall.copyWith(color: _verificationColor(verificationLevel), fontWeight: FontWeight.w800, fontSize: 10)),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(ChhayaSpacing.space4),
+              child: Column(
+                children: [
+                  // Chhaya ID
+                  if (!isOwnProfile)
+                    _buildInfoCard(
+                      title: 'Chhaya ID',
+                      child: Row(
+                        children: [
+                          Expanded(child: Text(_shortId(chhayaIdText, 16), style: ChhayaTypography.code.copyWith(color: ChhayaColors.accent, fontSize: 11))),
+                          ChhayaIconButton(icon: Icons.copy_rounded, onPressed: () {
+                            Clipboard.setData(ClipboardData(text: chhayaIdText));
+                            ChhayaHaptics.selection();
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied')));
+                          }, size: 36, background: ChhayaColors.cardSurface),
+                        ],
+                      ),
                     ),
-                  );
-                },
+                  if (isOwnProfile) ...[
+                    _buildInfoCard(
+                      title: 'Your Chhaya ID',
+                      child: Row(
+                        children: [
+                          Expanded(child: Text(_shortId(chhayaIdText, 16), style: ChhayaTypography.code.copyWith(color: ChhayaColors.accent, fontSize: 11))),
+                          ChhayaIconButton(icon: Icons.copy_rounded, onPressed: () {
+                            Clipboard.setData(ClipboardData(text: chhayaIdText));
+                            ChhayaHaptics.selection();
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied')));
+                          }, size: 36, background: ChhayaColors.cardSurface),
+                        ],
+                      ),
+                    ),
+                    _buildInfoCard(
+                      title: 'Recovery Phrase',
+                      child: ChhayaPrimaryButton(label: 'View Phrase', icon: Icons.key_rounded, onPressed: _showRecoveryPhrase),
+                    ),
+                  ],
+                  if (!isOwnProfile) ...[
+                    _buildActionRow([
+                      _actionBtn(Icons.chat_bubble_rounded, 'Message', ChhayaColors.accent, () {
+                        _startChat();
+                      }),
+                      _actionBtn(Icons.call_rounded, 'Audio Call', ChhayaColors.success, () {
+                        Navigator.of(context).pushNamed(ChhayaRouter.call, arguments: {'contactName': displayName, 'isVideo': false});
+                      }),
+                      _actionBtn(Icons.videocam_rounded, 'Video Call', ChhayaColors.info, () {
+                        Navigator.of(context).pushNamed(ChhayaRouter.call, arguments: {'contactName': displayName, 'isVideo': true});
+                      }),
+                      _actionBtn(Icons.qr_code_rounded, 'Verify', ChhayaColors.warning, () {
+                        Navigator.of(context).pushNamed(ChhayaRouter.verification);
+                      }),
+                    ]),
+                    _buildInfoCard(
+                      title: 'Security Details',
+                      child: Column(
+                        children: [
+                          _detailRow('Messages', '$_msgCount'),
+                          _detailRow('Ratchet Epoch', '$_ratchetEpoch'),
+                          _detailRow('Shared Key', _sharedSecretPreview.isEmpty ? 'Loading\u2026' : _sharedSecretPreview),
+                        ],
+                      ),
+                    ),
+                    _buildActionRow([
+                      _actionBtn(_blocked ? Icons.check_circle_rounded : Icons.block_rounded, _blocked ? 'Unblock' : 'Block', _blocked ? ChhayaColors.success : ChhayaColors.error, () {
+                        setState(() => _blocked = !_blocked);
+                        ChhayaHaptics.warning();
+                      }, bgColor: (_blocked ? ChhayaColors.success : ChhayaColors.error).withValues(alpha: 0.1), textColor: _blocked ? ChhayaColors.success : ChhayaColors.error),
+                    ]),
+                  ],
+                ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
 
-            const SizedBox(height: 24),
+  Color _verificationColor(int level) {
+    switch (level) {
+      case 3: return ChhayaColors.verifiedLevel3;
+      case 2: return ChhayaColors.verifiedLevel2;
+      default: return ChhayaColors.verifiedLevel1;
+    }
+  }
 
+  String _verificationLabel(int level) {
+    switch (level) {
+      case 3: return 'Verified';
+      case 2: return 'Matched';
+      default: return 'Unverified';
+    }
+  }
 
-            GestureDetector(
-              onTap: _showShamirKeys,
-              child: GlassContainer(
-                child: Row(children: [
-                  const Icon(Icons.group, color: ChhayaColors.accentIndigo, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Group Key Shards', style: ChhayaTypography.headline),
-                    Text('Shamir\'s Secret Sharing (3-of-5)', style: ChhayaTypography.caption1.copyWith(color: ChhayaColors.labelTertiary)),
-                  ])),
-                  const Icon(Icons.chevron_right, color: ChhayaColors.labelTertiary, size: 14),
-                ]),
-              ),
+  String _shortId(String id, int max) => id.length > max ? '${id.substring(0, max)}\u2026' : id;
+
+  void _showRecoveryPhrase() async {
+    final auth = ref.read(authServiceProvider);
+    final phrase = await auth.getRecoveryPhrase() ?? ['anchor','brave','castle','diamond','eagle','frost','garden','harbor','ivory','jasmine','knight','lantern'];
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: ChhayaColors.sheetBackground,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(ChhayaRadius.xxl))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(ChhayaSpacing.space5),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Recovery Phrase', style: ChhayaTypography.displaySmall.copyWith(fontSize: 20)),
+            const SizedBox(height: ChhayaSpacing.space3),
+            Text('Write these down. They restore your account.', style: ChhayaTypography.bodySmall.copyWith(color: ChhayaColors.labelTertiary)),
+            const SizedBox(height: ChhayaSpacing.space4),
+            Wrap(
+              spacing: ChhayaSpacing.space2, runSpacing: ChhayaSpacing.space2,
+              children: List.generate(phrase.length, (i) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: ChhayaSpacing.space3, vertical: ChhayaSpacing.space2),
+                decoration: BoxDecoration(
+                  color: ChhayaColors.fillTertiary,
+                  borderRadius: BorderRadius.circular(ChhayaRadius.md),
+                  border: Border.all(color: ChhayaColors.separator),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('${i + 1}.', style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.accent, fontWeight: FontWeight.w700)),
+                    const SizedBox(width: ChhayaSpacing.space2),
+                    Text(phrase[i], style: ChhayaTypography.bodyMedium.copyWith(fontSize: 13, fontFamily: 'JetBrains Mono')),
+                  ],
+                ),
+              )),
             ),
-
-            const SizedBox(height: 24),
-
-
-            if (contact != null) ...[
-              _blockUnblockTile(contact),
-            ],
-
-            const SizedBox(height: 40),
           ],
         ),
       ),
     );
   }
 
-  Widget _actionBtn(IconData icon, String label, Color color, VoidCallback onTap) {
-    return InkWell(
-      onTap: () { ChhayaHaptics.light(); onTap(); },
-      customBorder: const CircleBorder(),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(
-          width: 52, height: 52,
-          decoration: BoxDecoration(color: color.withValues(alpha: 0.15), shape: BoxShape.circle),
-          child: Icon(icon, color: color, size: 24),
-        ),
-        const SizedBox(height: 6),
-        Text(label, style: ChhayaTypography.caption1),
-      ]),
-    );
+  void _startChat() {
+    if (_contact == null) return;
+    final convoId = 'convo_${_contact!.id}';
+    final newConvo = Conversation(id: convoId, participants: [_contact!], createdAt: DateTime.now());
+    ref.read(localDatabaseProvider).addConversation(newConvo);
+    ref.read(conversationsProvider.notifier).addConversation(newConvo);
+    Navigator.of(context).pushNamed(ChhayaRouter.chat, arguments: {'conversationId': convoId, 'contactName': _contact!.displayName});
   }
 
-  Widget _blockUnblockTile(Contact contact) {
-    final db = ref.read(localDatabaseProvider);
-    final blocked = db.getBlockedContacts().contains(contact.id);
-    return FilledButton.icon(
-      onPressed: () async {
-        if (blocked) {
-          await db.unblockContact(contact.id);
-        } else {
-          await db.blockContact(contact.id);
-        }
-        setState(() {});
-        ChhayaHaptics.medium();
-      },
-      icon: Icon(blocked ? Icons.check_circle : Icons.block, color: blocked ? ChhayaColors.accentGreen : ChhayaColors.accentRed, size: 20),
-      label: Text(blocked ? 'Unblock Contact' : 'Block Contact', style: ChhayaTypography.headline.copyWith(color: blocked ? ChhayaColors.accentGreen : ChhayaColors.accentRed)),
-      style: FilledButton.styleFrom(
-        backgroundColor: blocked
-            ? ChhayaColors.accentGreen.withValues(alpha: 0.1)
-            : ChhayaColors.accentRed.withValues(alpha: 0.1),
-        foregroundColor: blocked ? ChhayaColors.accentGreen : ChhayaColors.accentRed,
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        padding: const EdgeInsets.all(14),
+  Widget _buildInfoCard({required String title, required Widget child}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: ChhayaSpacing.space3),
+      padding: const EdgeInsets.all(ChhayaSpacing.space4),
+      decoration: BoxDecoration(
+        color: ChhayaColors.cardSurface,
+        borderRadius: BorderRadius.circular(ChhayaRadius.lg),
+        border: Border.all(color: ChhayaColors.opaqueSeparator.withValues(alpha: 0.45), width: 0.7),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: ChhayaTypography.labelSmall.copyWith(letterSpacing: 1.0, color: ChhayaColors.labelTertiary, fontWeight: FontWeight.w700)),
+          const SizedBox(height: ChhayaSpacing.space3),
+          child,
+        ],
       ),
     );
   }
 
-
-  void _showRatchetVisualizer() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setSt) => _bottomSheet(
-          title: '🔑 Double Ratchet Visualizer',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _keyRow('DH Ephemeral', _dhEphemeral),
-              _keyRow('Root Key', _rootKey),
-              _keyRow('Sending Chain', _sendChainKey),
-              _keyRow('Receiving Chain', _recvChainKey),
-              const SizedBox(height: 12),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text('Epoch: $_ratchetEpoch', style: ChhayaTypography.body.copyWith(color: ChhayaColors.accentBlue)),
-                Text('Messages: $_msgCount', style: ChhayaTypography.body.copyWith(color: ChhayaColors.accentGreen)),
-              ]),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: () {
-                  _ratchetEpoch++;
-                  _msgCount = 0;
-                  _generateRatchetKeys();
-                  setSt(() {});
-                  setState(() {});
-                  ChhayaHaptics.success();
-                },
-                icon: const Icon(Icons.sync, size: 18),
-                label: const Text('Simulate Key Exchange'),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 48),
-                ),
-              ),
-            ],
-          ),
-        ),
+  Widget _buildActionRow(List<Widget> children) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: ChhayaSpacing.space3),
+      child: Row(
+        children: children.map((c) => Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: ChhayaSpacing.space1), child: c))).toList(),
       ),
     );
   }
 
-  Widget _keyRow(String label, String hex) {
+  Widget _actionBtn(IconData icon, String label, Color color, VoidCallback onTap, {Color? bgColor, Color? textColor}) {
+    return ChhayaIconButton(
+      icon: icon,
+      onPressed: onTap,
+      size: 48,
+      background: bgColor ?? color.withValues(alpha: 0.12),
+      color: textColor ?? color,
+      tooltip: label,
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: ChhayaTypography.caption1.copyWith(color: ChhayaColors.labelTertiary)),
-        const SizedBox(height: 2),
-        Text('0x${hex.substring(0, min(hex.length, 24))}…', style: ChhayaTypography.body.copyWith(fontFamily: 'Courier', color: ChhayaColors.accentGreen, fontSize: 14)),
-      ]),
-    );
-  }
-
-
-  void _showSwarmChunks(String fileName) {
-    _chunkStatus = List.filled(5, false);
-    _verifying = false;
-    final rng = Random();
-    String sha() => List.generate(16, (_) => '0123456789abcdef'[rng.nextInt(16)]).join();
-    final chunks = List.generate(5, (i) => {
-      'index': i,
-      'node': ['US-East', 'EU-West', 'ASIA-South', 'US-West', 'EU-North'][i],
-      'hash': sha(),
-    });
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setSt) => _bottomSheet(
-          title: '📦 Swarm Chunk Manager',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('File: $fileName', style: ChhayaTypography.headline),
-              Text('Size: 2.4 MB  |  5 chunks', style: ChhayaTypography.caption1.copyWith(color: ChhayaColors.labelTertiary)),
-              const SizedBox(height: 12),
-              ...chunks.map((c) {
-                final i = c['index'] as int;
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 6),
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: Row(children: [
-                      Icon(
-                        _chunkStatus[i] ? Icons.check_circle : Icons.circle_outlined,
-                        color: _chunkStatus[i] ? ChhayaColors.accentGreen : ChhayaColors.labelTertiary,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text('Chunk ${i + 1}', style: ChhayaTypography.body),
-                      const Spacer(),
-                      Text(c['node'] as String, style: ChhayaTypography.caption2.copyWith(color: ChhayaColors.accentBlue)),
-                      const SizedBox(width: 8),
-                      Text('${(c['hash'] as String).substring(0, 8)}…', style: ChhayaTypography.caption2.copyWith(fontFamily: 'Courier')),
-                    ]),
-                  ),
-                );
-              }),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: _verifying ? null : () async {
-                  setSt(() => _verifying = true);
-                  for (int i = 0; i < 5; i++) {
-                    await Future.delayed(const Duration(milliseconds: 600));
-                    _chunkStatus[i] = true;
-                    setSt(() {});
-                    ChhayaHaptics.light();
-                  }
-                  _verifying = false;
-                  ChhayaHaptics.success();
-                },
-                icon: Icon(_verifying ? Icons.sync : Icons.verified_user, size: 18),
-                label: Text(_verifying ? 'Verifying…' : 'Verify Integrity'),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 48),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-
-  void _showShamirKeys() {
-    final members = ['Priya', 'Arjun', 'Neha', 'Rahul', 'You'];
-    final colors = [ChhayaColors.accentBlue, ChhayaColors.accentPurple, ChhayaColors.accentOrange, ChhayaColors.accentTeal, ChhayaColors.accentGreen];
-    bool reconstructed = false;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setSt) => _bottomSheet(
-          title: '🔐 Shamir\'s Secret Sharing',
-          child: Column(children: [
-            Text('Threshold: 3 of 5 shards required', style: ChhayaTypography.body.copyWith(color: ChhayaColors.labelSecondary)),
-            const SizedBox(height: 16),
-
-            ...List.generate(5, (i) => Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Row(children: [
-                  Container(width: 12, height: 12, decoration: BoxDecoration(color: colors[i], shape: BoxShape.circle)),
-                  const SizedBox(width: 10),
-                  Text(members[i], style: ChhayaTypography.body),
-                  const Spacer(),
-                  Text('Shard ${i + 1}', style: ChhayaTypography.caption1.copyWith(color: colors[i])),
-                ]),
-              ),
-            )),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () async {
-                setSt(() => reconstructed = false);
-                await Future.delayed(const Duration(milliseconds: 800));
-                setSt(() => reconstructed = true);
-                ChhayaHaptics.success();
-              },
-              icon: Icon(reconstructed ? Icons.check_circle : Icons.lock_open, size: 18),
-              label: Text(reconstructed ? 'Key Reconstructed ✅' : 'Reconstruct Key'),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(double.infinity, 48),
-              ),
-            ),
-          ]),
-        ),
-      ),
-    );
-  }
-
-  Widget _bottomSheet({required String title, required Widget child}) {
-    return ClipRRect(
-      borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-        child: Container(
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: ChhayaColors.secondaryBackground.withValues(alpha: 0.92),
-            borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
-          ),
-          child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Center(child: Container(width: 36, height: 5, decoration: BoxDecoration(color: ChhayaColors.fillPrimary, borderRadius: BorderRadius.circular(3)))),
-            const SizedBox(height: 16),
-            Text(title, style: ChhayaTypography.title2),
-            const SizedBox(height: 16),
-            child,
-          ])),
-        ),
+      padding: const EdgeInsets.symmetric(vertical: ChhayaSpacing.space2),
+      child: Row(
+        children: [
+          Text(label, style: ChhayaTypography.bodySmall.copyWith(color: ChhayaColors.labelTertiary)),
+          const Spacer(),
+          Text(value, style: ChhayaTypography.bodyMedium.copyWith(fontFamily: 'JetBrains Mono', fontSize: 13)),
+        ],
       ),
     );
   }
