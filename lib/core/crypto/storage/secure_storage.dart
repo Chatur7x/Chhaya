@@ -6,6 +6,7 @@
 // interface. Use [SecureStorages.platformDefault] to get the right
 // adapter; use [SecureStorageMock] (mock file) in tests.
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'secure_storage_android.dart';
 import 'secure_storage_ios.dart';
@@ -119,6 +120,31 @@ class FlutterSecureStorageAdapter implements SecureStorage {
   @override
   Future<HardwareSecurityLevel> securityLevel() async {
     return HardwareSecurityLevel.unknown;
+  }
+}
+
+/// Queries `getStorageLevel()` on the native `chhaya/security` channel.
+///
+/// Returns null when the native handler is missing, outdated, or errors —
+/// callers must fall back to their boolean probes. Never throws.
+Future<HardwareSecurityLevel?> queryNativeStorageLevel(
+    MethodChannel channel) async {
+  try {
+    final level = await channel.invokeMethod<String>('getStorageLevel');
+    switch (level) {
+      case 'strongbox':
+        return HardwareSecurityLevel.strongBox;
+      case 'secure-enclave':
+        return HardwareSecurityLevel.secureEnclave;
+      case 'tee':
+        return HardwareSecurityLevel.tee;
+      case 'software':
+        return HardwareSecurityLevel.software;
+      default:
+        return null;
+    }
+  } catch (_) {
+    return null;
   }
 }
 
