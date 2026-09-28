@@ -3,7 +3,9 @@ package com.chaaya.app.chaaya
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyInfo
+import android.security.keystore.KeyProperties
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.security.KeyStore
@@ -57,12 +59,12 @@ class ChhayaSecurityPlugin(engine: FlutterEngine, private val context: Context) 
         val alias = "chhaya_probe_${System.currentTimeMillis()}"
         return try {
             val generator = KeyGenerator.getInstance("AES", "AndroidKeyStore")
-            val spec = android.security.keystore.KeyGenParameterSpec.Builder(
+            val spec = KeyGenParameterSpec.Builder(
                 alias,
-                android.security.keystore.KeyProperties.PURPOSE_ENCRYPT or
-                    android.security.keystore.KeyProperties.PURPOSE_DECRYPT
-            ).setBlockModes(android.security.keystore.KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(android.security.keystore.KeyProperties.ENCRYPTION_PADDING_NONE)
+                KeyProperties.PURPOSE_ENCRYPT or
+                    KeyProperties.PURPOSE_DECRYPT
+            ).setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .setRandomizedEncryptionRequired(false)
                 .build()
             generator.init(spec)

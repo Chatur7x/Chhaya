@@ -1,4 +1,5 @@
 import Flutter
+import Foundation
 import Security
 
 // Reports the hardware backing level of Apple key storage.
