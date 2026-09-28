@@ -1,7 +1,7 @@
 name: chaaya
 description: "Chhaya - The Ultimate Secure Messenger. Combining Threema + Session privacy with Apple-grade UI."
 publish_to: 'none'
-version: 13.0.0+15
+version: 14.0.0+1
 
 environment:
   sdk: ^3.7.0
@@ -34,6 +34,9 @@ dependencies:
   intl: ^0.19.0
   path_provider: ^2.1.5
   http: ^1.2.0
+  # PINNED 2.2.0 — do NOT bump: 2.4.x breaks Android release builds
+  # (Kotlin incremental-cache failure, verified V13). Working release
+  # build matters more than the version number.
   shared_preferences: 2.2.0
   
   # UI Enhancements
