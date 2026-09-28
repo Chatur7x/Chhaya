@@ -411,8 +411,12 @@ class KeyManager with WidgetsBindingObserver {
   // ---- V14: diagnostics (no secrets) ----
 
   /// Redacted summary for diagnostics. Contains key NAMES and counts
-  /// only — never key material. Safe to log.
+  /// only — never key material. Debug builds only: throws in release
+  /// so even redacted metadata cannot be probed in production.
   Future<String> debugDescribe() async {
+    if (!kDebugMode) {
+      throw StateError('debugDescribe is debug-only');
+    }
     const names = [
       _publicKeyKey,
       _privateKeyKey,
@@ -434,8 +438,14 @@ class KeyManager with WidgetsBindingObserver {
 
   /// Number of session keys currently in memory. Test-only probe used
   /// to verify background zeroization actually empties the cache.
+  /// Debug builds only: throws in release.
   @visibleForTesting
-  int get debugCachedSessionKeyCount => _sessionCache.length;
+  int get debugCachedSessionKeyCount {
+    if (!kDebugMode) {
+      throw StateError('debug-only probe');
+    }
+    return _sessionCache.length;
+  }
 
   static final RegExp _pathPattern = RegExp(r'^[A-Za-z0-9][A-Za-z0-9/_-]*$');
 
