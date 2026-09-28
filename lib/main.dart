@@ -8,7 +8,9 @@ import 'core/providers/app_providers.dart';
 final appInitializationProvider = FutureProvider<bool>((ref) async {
   final authService = ref.read(authServiceProvider);
   final db = ref.read(localDatabaseProvider);
+  final apiService = ref.read(apiServiceProvider);
 
+  await apiService.init();
   await authService.init();
   await ref.read(notificationServiceProvider).init();
 
@@ -20,6 +22,31 @@ final appInitializationProvider = FutureProvider<bool>((ref) async {
     final contacts = await db.getAllContacts();
     ref.read(conversationsProvider.notifier).setConversations(convos);
     ref.read(contactsProvider.notifier).setContacts(contacts);
+
+    // Sync with backend if online
+    try {
+      final backendConvos = await apiService.getConversations();
+      final backendContacts = await apiService.getContacts();
+      
+      // Merge with local (backend wins for conflicts)
+      for (final c in backendConvos) {
+        await db.addConversation(c);
+      }
+      for (final c in backendContacts) {
+        await db.addContact(c);
+      }
+      
+      ref.read(conversationsProvider.notifier).setConversations(
+        [...backendConvos, ...(convos.where((c) => !backendConvos.any((bc) => bc.id == c.id)))]
+      );
+      ref.read(contactsProvider.notifier).setContacts(
+        [...backendContacts, ...(contacts.where((c) => !backendContacts.any((bc) => bc.id == c.id)))]
+      );
+    } catch (e) {
+      // Offline mode - use local data
+      // ignore: avoid_print
+      print('Backend sync failed, using local data: $e');
+    }
   }
 
   return currentUser != null;

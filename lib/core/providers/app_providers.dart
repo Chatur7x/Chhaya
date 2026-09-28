@@ -10,6 +10,7 @@ import '../../services/network/onion_router_service.dart';
 import '../../services/network/p2p_tunnel_service.dart';
 import '../../services/network/decentralized_file_client.dart';
 import '../../services/notification/notification_service.dart';
+import '../../services/api/api_service.dart';
 
 
 
@@ -21,6 +22,7 @@ final OnionRouterService _onionSingleton = OnionRouterService();
 final P2PTunnelService _p2pSingleton = P2PTunnelService();
 final DecentralizedFileClient _fileSingleton = DecentralizedFileClient();
 final NotificationService _notifSingleton = NotificationService();
+final ApiService _apiSingleton = ApiService();
 
 
 
@@ -52,6 +54,10 @@ final p2pTunnelProvider = Provider<P2PTunnelService>((ref) {
 
 final fileClientProvider = Provider<DecentralizedFileClient>((ref) {
   return _fileSingleton;
+});
+
+final apiServiceProvider = Provider<ApiService>((ref) {
+  return _apiSingleton;
 });
 
 
