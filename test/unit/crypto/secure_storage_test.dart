@@ -91,6 +91,63 @@ void main() {
     });
   });
 
+  group('Native getStorageLevel wiring', () {
+    void stubLevel(String? level, {bool booleanProbe = false}) {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        if (call.method == 'getStorageLevel') {
+          return level;
+        }
+        return booleanProbe;
+      });
+    }
+
+    test('android prefers native strongbox level', () async {
+      stubLevel('strongbox');
+      final android = AndroidSecureStorage(
+        delegate: SecureStorageMock(),
+        channel: channel,
+      );
+      expect(
+        await android.securityLevel(),
+        HardwareSecurityLevel.strongBox,
+      );
+    });
+
+    test('android accepts native tee level', () async {
+      stubLevel('tee');
+      final android = AndroidSecureStorage(
+        delegate: SecureStorageMock(),
+        channel: channel,
+      );
+      expect(await android.securityLevel(), HardwareSecurityLevel.tee);
+    });
+
+    test('unknown native level falls back to boolean probe', () async {
+      stubLevel('bogus-future-level', booleanProbe: true);
+      final android = AndroidSecureStorage(
+        delegate: SecureStorageMock(),
+        channel: channel,
+      );
+      expect(
+        await android.securityLevel(),
+        HardwareSecurityLevel.strongBox,
+      );
+    });
+
+    test('ios prefers native secure-enclave level', () async {
+      stubLevel('secure-enclave');
+      final ios = IOSSecureStorage(
+        delegate: SecureStorageMock(),
+        channel: channel,
+      );
+      expect(
+        await ios.securityLevel(),
+        HardwareSecurityLevel.secureEnclave,
+      );
+    });
+  });
+
   group('IOSSecureStorage', () {
     test('reads/writes through delegate without platform calls', () async {
       final ios = IOSSecureStorage(delegate: SecureStorageMock());

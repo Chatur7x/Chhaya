@@ -59,6 +59,10 @@ class AndroidSecureStorage implements SecureStorage {
 
   @override
   Future<HardwareSecurityLevel> securityLevel() async {
+    final native = await queryNativeStorageLevel(_channel);
+    if (native != null) {
+      return native;
+    }
     try {
       final available =
           await _channel.invokeMethod<bool>('isStrongBoxAvailable');
