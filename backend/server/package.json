@@ -1,6 +1,6 @@
 {
   "name": "chhaya-backend",
-  "version": "13.0.0",
+  "version": "14.0.0",
   "description": "Chhaya Secure Messenger - Backend Server",
   "main": "dist/index.js",
   "scripts": {

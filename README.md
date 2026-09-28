@@ -1,186 +1,184 @@
-# Chhaya 🛡️
+# Chhaya
 
-> **Privacy Redefined. Speed Perfected. Material Design.**
-
-Chhaya is a privacy-first, end-to-end encrypted messenger inspired by Threema and Session. No phone number, no email, no central server — just a 66-character anonymous identity and military-grade encryption.
+> **Privacy-first, end-to-end encrypted messenger. Open source.**
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.29%2B-blue?logo=flutter)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.7%2B-0175C2?logo=dart)](https://dart.dev)
+[![Version](https://img.shields.io/badge/Version-14.0.0-green)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![CI](https://github.com/Chatur7x/Chhaya/actions/workflows/ci.yml/badge.svg)](https://github.com/Chatur7x/Chhaya/actions/workflows/ci.yml)
+
+Chhaya is an open-source, end-to-end encrypted messenger. No phone number,
+no email, no central identity — a 66-character anonymous identity with
+audited cryptography, onion-routed transport, and a coercion-resistant
+design. This project is community open source: free to use, modify, and
+distribute under the MIT license.
 
 ---
 
-## ✨ Features
+## Features
 
-### 🔒 Privacy & Security
+### Privacy & Security
 - **Anonymous identity** — no phone number or email required
-- **End-to-end encryption** via AES-256-GCM + Double Ratchet
-- **Onion routing** through 3 anonymous hops to hide your IP
-- **Biometric lock** with fingerprint / face unlock
-- **Panic PIN** — enter a special code to instantly wipe all data
-- **Disappearing messages** with configurable timers
-- **QR code verification** to confirm contacts in person
+- **End-to-end encryption** — X25519 + AES-256-GCM + Double Ratchet
+- **Post-quantum hybrid key exchange** — X25519 + ML-KEM-1024 (V14)
+- **Onion routing** — 3-hop circuits hide origin IP
+- **Mesh networking** — BLE + Wi-Fi Aware offline messaging (V14)
+- **Biometric lock** — fingerprint / face unlock, StrongBox-backed keys
+- **Duress PIN** — decoy vault under coercion (V14)
+- **Disappearing messages** — configurable timers
+- **QR verification** — confirm contacts in person
 
-### 💬 Communication
-- Encrypted 1:1 and group text chats
-- HD voice and **peer-to-peer video calls** via WebRTC
+### Communication
+- Encrypted 1:1 and group chats
+- Voice and peer-to-peer video calls (WebRTC)
 - File sharing with decentralized chunk storage
-- In-chat polls and reactions
 - Typing indicators and read receipts
-
-### 🎨 Design
-- Clean **Material 3** dark UI with true-black background
-- Frosted-glass cards and spring-physics animations
-- 120 Hz-friendly motion and haptic feedback
+- Push notifications (FCM + APNs)
 
 ---
 
-## 📸 Screenshots
-
-> *Add your screenshots inside `assets/screenshots/` and update the paths below.*
-
-| Onboarding | Chats | Call | Settings |
-|---|---|---|---|
-| ![Onboarding](assets/screenshots/onboarding.png) | ![Chats](assets/screenshots/chats.png) | ![Call](assets/screenshots/call.png) | ![Settings](assets/screenshots/settings.png) |
-
----
-
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────┐
 │  UI Layer (Flutter + Riverpod)          │
 ├─────────────────────────────────────────┤
-│  Services (Auth, Network, Calls, Files) │
+│  Services (Auth, API, Network, Vault)   │
 ├─────────────────────────────────────────┤
-│  Core (Crypto, Database, Models)        │
+│  Core (Crypto, Database, Models, Log)   │
 ├─────────────────────────────────────────┤
-│  Local Storage (Hive) + Key Store       │
+│  Secure Storage (Keystore / Keychain)   │
+│  Encrypted DB (SQLCipher)               │
+└─────────────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│  Backend (Node.js + TypeScript)         │
+│  REST API :8443 / Signaling :8444       │
+│  Onion Relay :8445 / PostgreSQL / Redis │
 └─────────────────────────────────────────┘
 ```
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Layer | Technology |
 |-------|------------|
-| Framework | Flutter 3.29+ |
-| State Management | Riverpod |
-| Local Database | Hive |
-| Cryptography | PointyCastle / `crypto` |
-| Voice/Video Calls | WebRTC (`flutter_webrtc`) |
-| QR Codes | `qr_flutter` / `mobile_scanner` |
-| Biometrics | `local_auth` |
-| Notifications | `flutter_local_notifications` |
+| Framework | Flutter 3.29+, Dart 3.7+ |
+| State | Riverpod 2.6 |
+| Crypto (classical) | `cryptography` (X25519, Ed25519), `pointycastle` (AES-GCM, HKDF, PBKDF2) |
+| Crypto (post-quantum) | ML-KEM-1024, ML-DSA-87 (V14) |
+| Secure storage | `flutter_secure_storage` (Keystore / Keychain) |
+| Local database | SQLCipher-encrypted SQLite |
+| Calls | WebRTC (`flutter_webrtc`) |
+| QR | `qr_flutter` / `mobile_scanner` (pinned 7.2.0) |
+| Backend | Node.js 20, TypeScript 5.3, Express, PostgreSQL 16, Redis 7 |
+| Push | `firebase-admin` (FCM + APNs) |
+| Deploy | Docker + docker-compose |
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 lib/
-├── main.dart                     # App entry point
+├── main.dart                  # App entry point
 ├── core/
-│   ├── crypto/                   # Encryption engine & key manager
-│   ├── database/                 # Hive local database
-│   ├── models/                   # ChhayaId, Contact, Message, etc.
-│   ├── providers/                # Riverpod state providers
-│   └── router/                   # Route definitions
+│   ├── log.dart               # Structured app logger
+│   ├── crypto/                # Engine facade + key manager
+│   │   └── primitives/        # x25519, ed25519, aes_gcm, hkdf,
+│   │                          # pbkdf2, sha, rng, bip39
+│   ├── database/              # SQLCipher database + migrations
+│   ├── models/                # ChhayaId, Contact, Message, ...
+│   ├── providers/             # Riverpod providers
+│   └── router/                # Route definitions
 ├── services/
-│   ├── auth/                     # Account creation / restore / backup
-│   └── network/                  # Onion routing, P2P calls, file client
+│   ├── auth/                  # Account create / restore / backup
+│   ├── api/                   # Backend REST client + sync
+│   └── network/               # Onion routing, P2P, mesh (V14)
 └── ui/
-    ├── screens/                  # Onboarding, Chat, Calls, Settings, etc.
-    ├── theme/                    # Colors, typography, components
-    └── widgets/                  # Reusable buttons, avatars, glass cards
+    ├── theme/                 # Claude Light design tokens (V14)
+    ├── widgets/               # Design-system components
+    └── screens/               # Onboarding, Chat, Calls, Settings, ...
 
-backend/
-├── node/                         # Go onion-routing relay
-└── relay/                        # Rust decentralized file relay
+backend/server/
+├── src/
+│   ├── index.ts, config.ts, log.ts, db.ts
+│   ├── routes/                # auth, users, contacts, conversations,
+│   │                          # messages, devices, push, onion (V14)
+│   ├── middleware/            # auth, rateLimit, error (V14)
+│   ├── signaling.ts           # WebRTC signaling :8444
+│   ├── onion-relay.ts         # Onion relay :8445
+│   └── push/                  # fcm, apns, tokens, topics (V14)
+└── Dockerfile
+
+test/
+├── unit/crypto/               # Primitive vectors + engine tests
+├── widget/                    # Widget + golden tests (V14)
+└── integration/               # End-to-end flows (V14)
 ```
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
-- Flutter SDK **3.29+**
-- Dart SDK **3.7+**
+- Flutter SDK **3.29+**, Dart SDK **3.7+**
 - Android Studio / VS Code with Flutter extension
-- JDK 17+ (for Android builds)
+- JDK 17+ (Android builds)
+- Node.js 20+ (backend only), Docker (backend deploy)
 
-### Install & Run
+### Run the app
 
 ```bash
-# Clone the repo
 git clone https://github.com/Chatur7x/Chhaya.git
 cd Chhaya
-
-# Install dependencies
 flutter pub get
-
-# Run on a connected device or emulator
 flutter run
 ```
 
-### Build APK
+### Build release APK
 
 ```bash
-# Debug APK
-flutter build apk --debug
-
-# Release APK
 flutter build apk --release
+# build/app/outputs/flutter-apk/app-release.apk
 ```
 
-The release APK will be generated at:
-
-```
-build/app/outputs/flutter-apk/app-release.apk
-```
-
----
-
-## 🖥️ Backend Servers (Optional)
+### Run the backend
 
 ```bash
-# Decentralized file relay (Rust)
-cd backend/relay
-cargo run
+cd backend/server
+npm install
+cp .env.example .env   # configure secrets (never commit .env)
+npm run dev
+```
 
-# Onion routing node (Go)
-cd backend/node
-go run main.go
+### Deploy with Docker
+
+```bash
+docker-compose up -d
 ```
 
 ---
 
-## 🔐 Security Checklist
+## Security
 
-| Feature | Description |
-|---------|-------------|
-| Zero-Knowledge Identity | No phone/email tied to your account |
-| End-to-End Encryption | Only sender and recipient can read messages |
-| Forward Secrecy | Keys rotate with every message |
-| Onion Routing | Hides origin IP across 3 hops |
-| Biometric Lock | Require fingerprint/face to open the app |
-| Panic PIN | Instantly wipe local data |
-| Disappearing Messages | Auto-delete after a set duration |
-| QR Verification | Confirm contacts in person |
+See [SECURITY.md](SECURITY.md) for the threat model, audit status, and how
+to report vulnerabilities. Do not open public issues for security bugs.
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-Contributions are welcome. Please open an issue or pull request on [GitHub](https://github.com/Chatur7x/Chhaya).
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+See [CONTRIBUTING.md](CONTRIBUTING.md). All contributions go through
+pull requests against `main`. One logical change per commit.
 
 ---
 
-<p align="center">Built with privacy in mind. Your data belongs to you.</p>
+## License
+
+MIT — see [LICENSE](LICENSE). Free to use, modify, and distribute.
+
+---
+
+<p align="center">Your data belongs to you.</p>

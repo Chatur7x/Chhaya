@@ -1,39 +1,42 @@
+// Chhaya Crypto Engine v14 — facade over audited primitives.
+//
+// Purpose: stable public crypto API for the app. All algorithms live in
+// `primitives/`; this file only delegates, wraps bytes in [ChhayaKeyPair] /
+// [EncryptedPayload], and owns session types until Part 4 extracts the
+// ratchet. Public method signatures are unchanged from V13.
 import 'dart:convert';
-import 'dart:math';
 import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
-import 'package:pointycastle/export.dart' as pc;
+import 'primitives/aes_gcm.dart' as aes_gcm;
+import 'primitives/bip39.dart';
+import 'primitives/ed25519.dart';
+import 'primitives/hkdf.dart' as hkdf;
+import 'primitives/pbkdf2.dart' as pbkdf2;
+import 'primitives/rng.dart';
+import 'primitives/sha.dart';
+import 'primitives/x25519.dart';
 
-/// Chhaya Crypto Engine v12 — Production-grade E2EE
+/// Application-facing cryptographic operations (E2EE).
 ///
-/// - X25519 ECDH via `cryptography` package (audited, constant-time)
-/// - AES-256-GCM via PointyCastle (authenticated encryption)
-/// - HKDF-SHA256 (RFC 5869) for key derivation
-/// - Ed25519 signatures via `cryptography` package
-/// - Secure random via Dart's Random.secure()
+/// - Key agreement: X25519 (RFC 7748), constant-time
+/// - Signatures: Ed25519 (RFC 8032)
+/// - Encryption: AES-256-GCM (AEAD)
+/// - Key derivation: HKDF-SHA256 (RFC 5869), PBKDF2-HMAC-SHA256
+/// - Recovery phrases: BIP-39 (128-bit entropy, 12 words)
 class ChhayaCryptoEngine {
-  final pc.SecureRandom _secureRandom;
-  ChhayaCryptoEngine() : _secureRandom = _createSecureRandom();
+  /// Creates an engine backed by [rng] (defaults to the shared instance).
+  ChhayaCryptoEngine({Csprng? rng}) : _rng = rng ?? Csprng.instance;
 
-  static pc.SecureRandom _createSecureRandom() {
-    final secureRandom = pc.FortunaRandom();
-    final random = Random.secure();
-    final seeds = List<int>.generate(32, (_) => random.nextInt(256));
-    secureRandom.seed(pc.KeyParameter(Uint8List.fromList(seeds)));
-    return secureRandom;
-  }
+  final Csprng _rng;
 
   // ---- X25519 Key Agreement ----
 
   /// Generate a new X25519 key pair.
   static Future<ChhayaKeyPair> generateKeyPair() async {
-    final algorithm = X25519();
-    final keyPair = await algorithm.newKeyPair();
-    final publicKey = await keyPair.extractPublicKey();
-    final privateKeyBytes = await keyPair.extractPrivateKeyBytes();
+    final keyPair = await X25519Kex.generateKeyPair();
     return ChhayaKeyPair(
-      privateKey: Uint8List.fromList(privateKeyBytes),
-      publicKey: Uint8List.fromList(publicKey.bytes),
+      publicKey: keyPair.publicKey,
+      privateKey: keyPair.privateKey,
     );
   }
 
@@ -41,35 +44,23 @@ class ChhayaCryptoEngine {
   static Future<Uint8List> deriveSharedSecret(
     List<int> privateKeyBytes,
     List<int> publicKeyBytes,
-  ) async {
-    final algorithm = X25519();
-    final keyPair = await algorithm.newKeyPairFromSeed(privateKeyBytes);
-    final remotePublicKey = SimplePublicKey(publicKeyBytes, type: KeyPairType.x25519);
-    final sharedSecret = await algorithm.sharedSecretKey(
-      keyPair: keyPair,
-      remotePublicKey: remotePublicKey,
-    );
-    final bytes = await sharedSecret.extractBytes();
-    return Uint8List.fromList(bytes);
+  ) {
+    return X25519Kex.sharedSecret(privateKeyBytes, publicKeyBytes);
   }
 
   // ---- Ed25519 Signatures ----
 
   /// Generate a new Ed25519 signing key pair.
-  static Future<SimpleKeyPair> generateSigningKeyPair() async {
-    final algorithm = Ed25519();
-    return algorithm.newKeyPair();
+  static Future<SimpleKeyPair> generateSigningKeyPair() {
+    return Ed25519Sign.generateKeyPair();
   }
 
   /// Sign a message with an Ed25519 private key.
   static Future<Uint8List> sign(
     List<int> message,
     List<int> privateKeyBytes,
-  ) async {
-    final algorithm = Ed25519();
-    final keyPair = await algorithm.newKeyPairFromSeed(privateKeyBytes);
-    final signature = await algorithm.sign(message, keyPair: keyPair);
-    return Uint8List.fromList(signature.bytes);
+  ) {
+    return Ed25519Sign.sign(message, privateKeyBytes);
   }
 
   /// Verify an Ed25519 signature.
@@ -77,11 +68,8 @@ class ChhayaCryptoEngine {
     List<int> message,
     List<int> signatureBytes,
     List<int> publicKeyBytes,
-  ) async {
-    final algorithm = Ed25519();
-    final publicKey = SimplePublicKey(publicKeyBytes, type: KeyPairType.ed25519);
-    final signature = Signature(signatureBytes, publicKey: publicKey);
-    return algorithm.verify(message, signature: signature);
+  ) {
+    return Ed25519Sign.verify(message, signatureBytes, publicKeyBytes);
   }
 
   // ---- AES-256-GCM ----
@@ -89,42 +77,19 @@ class ChhayaCryptoEngine {
   /// Encrypt a plaintext string with AES-256-GCM.
   /// Returns base64(nonce || ciphertext || tag).
   Future<String> encryptMessage(String plaintext, Uint8List key) async {
-    final nonce = _secureRandom.nextBytes(12);
-    final cipher = pc.GCMBlockCipher(pc.AESEngine())
-      ..init(
-        true,
-        pc.AEADParameters(
-          pc.KeyParameter(key),
-          128, // tag bits
-          nonce,
-          Uint8List(0), // no AAD
-        ),
-      );
-    final plaintextBytes = Uint8List.fromList(utf8.encode(plaintext));
-    final ciphertext = cipher.process(plaintextBytes);
-    final combined = Uint8List(nonce.length + ciphertext.length);
-    combined.setRange(0, nonce.length, nonce);
-    combined.setRange(nonce.length, combined.length, ciphertext);
+    final combined = aes_gcm.AesGcm.encryptBytes(
+      key,
+      Uint8List.fromList(utf8.encode(plaintext)),
+      nonce: _rng.bytes(aes_gcm.AesGcm.nonceLength),
+    );
     return base64Encode(combined);
   }
 
   /// Decrypt a base64-encoded AES-256-GCM ciphertext.
-  /// Returns the original plaintext string.
+  /// Returns the original plaintext string. Throws on tampering.
   Future<String> decryptMessage(String encryptedBase64, Uint8List key) async {
     final combined = base64Decode(encryptedBase64);
-    final nonce = combined.sublist(0, 12);
-    final ciphertext = combined.sublist(12);
-    final cipher = pc.GCMBlockCipher(pc.AESEngine())
-      ..init(
-        false,
-        pc.AEADParameters(
-          pc.KeyParameter(key),
-          128,
-          nonce,
-          Uint8List(0),
-        ),
-      );
-    final decrypted = cipher.process(Uint8List.fromList(ciphertext));
+    final decrypted = aes_gcm.AesGcm.decryptBytes(key, combined);
     return utf8.decode(decrypted);
   }
 
@@ -137,101 +102,95 @@ class ChhayaCryptoEngine {
     Uint8List? salt,
     Uint8List? info,
   }) {
-    final hkdf = pc.HKDFKeyDerivator(pc.SHA256Digest())
-      ..init(pc.HkdfParameters(inputKeyMaterial, length, salt, info));
-    final output = Uint8List(length);
-    hkdf.deriveKey(Uint8List(0), 0, output, 0);
-    return output;
+    return hkdf.Hkdf.deriveKey(
+      inputKeyMaterial: inputKeyMaterial,
+      length: length,
+      salt: salt,
+      info: info,
+    );
   }
 
   // ---- Hashing ----
 
   /// SHA-256 hash of input bytes.
-  Uint8List hashData(Uint8List data) {
-    final digest = pc.SHA256Digest();
-    return digest.process(data);
-  }
+  Uint8List hashData(Uint8List data) => Sha.hash256(data);
 
   /// SHA-256 hash of a string, returned as hex.
-  String hashString(String input) {
-    final bytes = Uint8List.fromList(utf8.encode(input));
-    final hash = hashData(bytes);
-    return hash.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-  }
+  String hashString(String input) => Sha.hashStringHex(input);
 
   // ---- Random ----
 
   /// Generate cryptographically secure random bytes.
-  Uint8List generateNonce(int length) => _secureRandom.nextBytes(length);
+  Uint8List generateNonce(int length) => _rng.bytes(length);
 
   /// Generate a random hex string of the given byte length.
-  String generateRandomHex(int byteLength) {
-    final bytes = _secureRandom.nextBytes(byteLength);
-    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-  }
+  String generateRandomHex(int byteLength) => _rng.hex(byteLength);
 
   // ---- Key Derivation for Account ----
 
   /// Derive an encryption key from a recovery phrase using PBKDF2.
   static Uint8List keyFromRecoveryPhrase(String phrase, {Uint8List? salt}) {
-    final effectiveSalt = salt ?? Uint8List.fromList(utf8.encode('chhaya-salt-v1'));
-    final derivator = pc.PBKDF2KeyDerivator(pc.HMac(pc.SHA256Digest(), 64))
-      ..init(pc.Pbkdf2Parameters(effectiveSalt, 100000, 32));
-    final output = Uint8List(32);
-    derivator.deriveKey(Uint8List.fromList(utf8.encode(phrase)), 0, output, 0);
-    return output;
+    final effectiveSalt =
+        salt ?? Uint8List.fromList(utf8.encode('chhaya-salt-v1'));
+    return pbkdf2.Pbkdf2.deriveKey(
+      password: Uint8List.fromList(utf8.encode(phrase)),
+      salt: effectiveSalt,
+    );
   }
 
-  /// Generate a 12-word BIP-39 recovery phrase.
+  /// Generate a 12-word BIP-39 recovery phrase (128-bit entropy).
   static List<String> generateRecoveryPhrase() {
-    const wordlist = ['abandon','ability','able','about','above','absent','absorb','abstract','absurd','abuse','access','accident','account','accuse','achieve','acid','acoustic','acquire','across','act','action','actor','actress','actual','adapt','add','addict','address','adjust','admit','adult','advance','advice','aerobic','affair','afford','afraid','again','age','agent','agree','ahead','aim','air','airport','aisle','alarm','album','alcohol','alert','alien','all','alley','allow','almost','alone','alpha','already','also','alter','always','amateur','amazing','among','amount','amused','analyst','anchor','ancient','anger','angle','angry','animal','ankle','announce','annual','another','answer','antenna','antique','anxiety','any','apart','apology','appear','apple','approve','april','arch','arctic','area','arena','argue','arm','armed','armor','army','around','arrange','arrest','arrive','arrow','art','artefact','artist','artwork','ask','aspect','assault','asset','assist','assume','asthma','athlete','atom','attack','attend','attitude','attract','auction','audit','august','aunt','author','auto','autumn','average','avocado','avoid','awake','aware','awesome','awful','awkward','axis','baby','bachelor','bacon','badge','bag','balance','balcony','ball','bamboo','banana','banner','bar','barely','bargain','barrel','base','basic','basket','battle','beach','bean','beauty','because','become','beef','before','begin','behave','behind','believe','below','belt','bench','benefit','best','betray','better','between','beyond','bicycle','bid','bike','bind','biology','bird','birth','bitter','black','blade','blame','blanket','blast','bleak','bless','blind','blood','blossom','blow','blue','blur','blush','board','boat','body','boil','bomb','bone','bonus','book','boost','border','boring','borrow','boss','bottom','bounce','box','boy','bracket','brain','brand','brass','brave','bread','breeze','brick','bridge','brief','bright','bring','brisk','broccoli','broken','bronze','broom','brother','brown','brus...'];
-    final random = Random.secure();
-    return List.generate(12, (_) => wordlist[random.nextInt(wordlist.length)]);
+    return Bip39.generateMnemonic();
   }
 
-  // helpers for V10: recovery seed
-  Uint8List recoveryPhraseToSeed(List<String> phrase) => hashData(Uint8List.fromList(utf8.encode(phrase.join(' '))));
+  /// Derive a deterministic seed from a recovery phrase.
+  Uint8List recoveryPhraseToSeed(List<String> phrase) =>
+      hashData(Uint8List.fromList(utf8.encode(phrase.join(' '))));
 
   /// HKDF-Expand (RFC 5869) using HMAC-SHA256.
   /// Used to derive per-message keys from the Double Ratchet chain key.
   Uint8List hkdfExpand(Uint8List prk, Uint8List info, int outputLength) {
-    final hmac = pc.HMac(pc.SHA256Digest(), 64);
-    hmac.init(pc.KeyParameter(prk));
-
-    final output = <int>[];
-    var previous = <int>[];
-    var counter = 1;
-
-    while (output.length < outputLength) {
-      final input = Uint8List.fromList([...previous, ...info, counter]);
-      previous = hmac.process(input);
-      output.addAll(previous);
-      counter++;
-    }
-
-    return Uint8List.fromList(output.sublist(0, outputLength));
+    return hkdf.Hkdf.expand(prk, info, outputLength);
   }
 
   /// HKDF-Extract + Expand (RFC 5869) for Double Ratchet key derivation.
   static Uint8List _hkdfDerive(Uint8List ikm, Uint8List salt) {
-    final hkdf = pc.HKDFKeyDerivator(pc.SHA256Digest())
-      ..init(pc.HkdfParameters(ikm, 64, salt, null));
-    final output = Uint8List(64);
-    hkdf.deriveKey(Uint8List(0), 0, output, 0);
-    return output;
+    return hkdf.Hkdf.derive64(ikm, salt);
   }
 }
 
+/// An X25519 key pair.
+///
+/// Call [dispose] to zeroize key material when the pair is no longer
+/// needed. After disposal the hex getters return zeros.
 class ChhayaKeyPair {
-  final Uint8List publicKey;
-  final Uint8List privateKey;
+  /// Creates a key pair from raw public and private key bytes.
   ChhayaKeyPair({required this.publicKey, required this.privateKey});
-  String get publicKeyHex => publicKey.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-  String get privateKeyHex => privateKey.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-  factory ChhayaKeyPair.fromHex(String publicHex, String privateHex) => ChhayaKeyPair(
+
+  /// 32-byte X25519 public key.
+  final Uint8List publicKey;
+
+  /// 32-byte X25519 private key. Wiped by [dispose].
+  final Uint8List privateKey;
+
+  /// Public key as lowercase hex.
+  String get publicKeyHex => Sha.hexOf(publicKey);
+
+  /// Private key as lowercase hex. Zeros after [dispose].
+  String get privateKeyHex => Sha.hexOf(privateKey);
+
+  /// Rebuild a pair from hex strings.
+  factory ChhayaKeyPair.fromHex(String publicHex, String privateHex) =>
+      ChhayaKeyPair(
         publicKey: _hexToBytes(publicHex),
         privateKey: _hexToBytes(privateHex),
       );
+
+  /// Overwrites the private key bytes with zeros in place.
+  void dispose() {
+    Csprng.wipe(privateKey);
+  }
+
   static Uint8List _hexToBytes(String hex) {
     final result = Uint8List(hex.length ~/ 2);
     for (int i = 0; i < hex.length; i += 2) {
@@ -243,10 +202,20 @@ class ChhayaKeyPair {
 
 /// Encrypted payload with nonce, ciphertext, and authentication tag.
 class EncryptedPayload {
+  /// Creates a payload from its three parts.
+  EncryptedPayload(
+      {required this.nonce, required this.ciphertext, required this.tag});
+
+  /// 12-byte nonce.
   final Uint8List nonce;
+
+  /// Ciphertext bytes (without tag).
   final Uint8List ciphertext;
+
+  /// 16-byte authentication tag.
   final Uint8List tag;
-  EncryptedPayload({required this.nonce, required this.ciphertext, required this.tag});
+
+  /// Serializes as base64(nonce || tag || ciphertext).
   String toBase64() {
     final combined = Uint8List(nonce.length + tag.length + ciphertext.length);
     combined.setAll(0, nonce);
@@ -254,6 +223,9 @@ class EncryptedPayload {
     combined.setAll(nonce.length + tag.length, ciphertext);
     return base64Encode(combined);
   }
+
+  /// Parses a payload previously produced by [AesGcm] wire format
+  /// (nonce || ciphertext || tag, with the tag appended by GCM).
   factory EncryptedPayload.fromBase64(String encoded) {
     final combined = base64Decode(encoded);
     // Format: nonce (12) + ciphertext_with_tag (rest)
@@ -261,20 +233,21 @@ class EncryptedPayload {
     final nonce = Uint8List.fromList(combined.sublist(0, 12));
     final ciphertextWithTag = Uint8List.fromList(combined.sublist(12));
     // Last 16 bytes are the GCM tag
-    final tag = Uint8List.fromList(ciphertextWithTag.sublist(ciphertextWithTag.length - 16));
-    final ciphertext = Uint8List.fromList(ciphertextWithTag.sublist(0, ciphertextWithTag.length - 16));
+    final tag = Uint8List.fromList(ciphertextWithTag
+        .sublist(ciphertextWithTag.length - aes_gcm.AesGcm.tagLength));
+    final ciphertext = Uint8List.fromList(ciphertextWithTag.sublist(
+        0, ciphertextWithTag.length - aes_gcm.AesGcm.tagLength));
     return EncryptedPayload(nonce: nonce, ciphertext: ciphertext, tag: tag);
   }
 }
 
 /// Double Ratchet session state for a single peer.
+///
+/// NOTE (Part 4): this type moves to `lib/core/crypto/ratchet/` with the
+/// Triple Ratchet upgrade. Kept here in Part 1 so existing callers and
+/// tests keep compiling.
 class DoubleRatchetSession {
-  final String peerId;
-  Uint8List rootKey;
-  Uint8List? sendingChainKey;
-  Uint8List? receivingChainKey;
-  ChhayaKeyPair dhrsKeyPair;
-  Uint8List? dhriPublicKey;
+  /// Creates a session for [peerId] with a shared [rootKey].
   DoubleRatchetSession({
     required this.peerId,
     required this.rootKey,
@@ -283,8 +256,30 @@ class DoubleRatchetSession {
     this.receivingChainKey,
     this.dhriPublicKey,
   });
+
+  /// Remote peer identifier.
+  final String peerId;
+
+  /// Current root key (32 bytes).
+  Uint8List rootKey;
+
+  /// Active sending chain key, if established.
+  Uint8List? sendingChainKey;
+
+  /// Active receiving chain key, if established.
+  Uint8List? receivingChainKey;
+
+  /// Our current DH ratchet key pair.
+  ChhayaKeyPair dhrsKeyPair;
+
+  /// Their current DH ratchet public key, if known.
+  Uint8List? dhriPublicKey;
+
+  /// Advances the sending chain and returns the message key.
   ({Uint8List messageKey, Uint8List newChainKey}) ratchetSendChain() {
-    if (sendingChainKey == null) throw StateError('Sending chain key not initialized');
+    if (sendingChainKey == null) {
+      throw StateError('Sending chain key not initialized');
+    }
     final hmacInput = Uint8List.fromList([0x01, ...sendingChainKey!]);
     final derived = ChhayaCryptoEngine._hkdfDerive(sendingChainKey!, hmacInput);
     final messageKey = derived.sublist(0, 32);
@@ -292,45 +287,43 @@ class DoubleRatchetSession {
     sendingChainKey = newChainKey;
     return (messageKey: messageKey, newChainKey: newChainKey);
   }
+
+  /// Advances the receiving chain and returns the message key.
   ({Uint8List messageKey, Uint8List newChainKey}) ratchetReceiveChain() {
-    if (receivingChainKey == null) throw StateError('Receiving chain key not initialized');
+    if (receivingChainKey == null) {
+      throw StateError('Receiving chain key not initialized');
+    }
     final hmacInput = Uint8List.fromList([0x01, ...receivingChainKey!]);
-    final derived = ChhayaCryptoEngine._hkdfDerive(receivingChainKey!, hmacInput);
+    final derived =
+        ChhayaCryptoEngine._hkdfDerive(receivingChainKey!, hmacInput);
     final messageKey = derived.sublist(0, 32);
     final newChainKey = derived.sublist(32, 64);
     receivingChainKey = newChainKey;
     return (messageKey: messageKey, newChainKey: newChainKey);
   }
-  Future<void> performDhRatchetStep(Uint8List newRemoteDhPublicKey, ChhayaCryptoEngine engine) async {
+
+  /// Performs a DH ratchet step against a new remote public key.
+  Future<void> performDhRatchetStep(
+      Uint8List newRemoteDhPublicKey, ChhayaCryptoEngine engine) async {
     dhriPublicKey = newRemoteDhPublicKey;
-    final sharedSecret = await ChhayaCryptoEngine.deriveSharedSecret(dhrsKeyPair.privateKey, dhriPublicKey!);
+    final sharedSecret = await ChhayaCryptoEngine.deriveSharedSecret(
+        dhrsKeyPair.privateKey, dhriPublicKey!);
     final derived = ChhayaCryptoEngine._hkdfDerive(rootKey, sharedSecret);
     rootKey = derived.sublist(0, 32);
     receivingChainKey = derived.sublist(32, 64);
     dhrsKeyPair = await ChhayaCryptoEngine.generateKeyPair();
-    final newSharedSecret = await ChhayaCryptoEngine.deriveSharedSecret(dhrsKeyPair.privateKey, dhriPublicKey!);
+    final newSharedSecret = await ChhayaCryptoEngine.deriveSharedSecret(
+        dhrsKeyPair.privateKey, dhriPublicKey!);
     final derivedSend = ChhayaCryptoEngine._hkdfDerive(rootKey, newSharedSecret);
     rootKey = derivedSend.sublist(0, 32);
     sendingChainKey = derivedSend.sublist(32, 64);
+    Csprng.wipe(sharedSecret);
+    Csprng.wipe(newSharedSecret);
   }
 
   /// HKDF-Expand (RFC 5869) using HMAC-SHA256.
   /// Used to derive per-message keys from the Double Ratchet chain key.
   Uint8List hkdfExpand(Uint8List prk, Uint8List info, int outputLength) {
-    final hmac = pc.HMac(pc.SHA256Digest(), 64);
-    hmac.init(pc.KeyParameter(prk));
-
-    final output = <int>[];
-    var previous = <int>[];
-    var counter = 1;
-
-    while (output.length < outputLength) {
-      final input = Uint8List.fromList([...previous, ...info, counter]);
-      previous = hmac.process(input);
-      output.addAll(previous);
-      counter++;
-    }
-
-    return Uint8List.fromList(output.sublist(0, outputLength));
+    return hkdf.Hkdf.expand(prk, info, outputLength);
   }
 }
