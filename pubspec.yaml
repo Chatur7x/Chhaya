@@ -24,9 +24,11 @@ dependencies:
   # Secure Storage
   flutter_secure_storage: ^9.2.2
   
-  # Local Database - ENCRYPTED
-  sqflite: ^2.4.2
-  sqflite_common_ffi: ^2.3.0
+  # Local Database - SQLCipher ENCRYPTED (Part 3).
+  # Replaces plain sqflite + the weak app-level envelope (V13 used
+  # DateTime.microsecond entropy — broken by design). Whole-file
+  # encryption via SQLCipher; field-level AES-GCM retained on content.
+  sqflite_sqlcipher: ^3.0.0
   path: ^1.9.0
   
   # Utilities
@@ -79,6 +81,10 @@ dev_dependencies:
   flutter_lints: ^5.0.0
   integration_test:
     sdk: flutter
+  # Desktop/in-memory SQLite for unit tests (Part 3). Production uses
+  # SQLCipher on-device; tests inject an ffi factory (see
+  # test/unit/database/). No SQLCipher native libs exist for test hosts.
+  sqflite_common_ffi: ^2.3.0
 
 flutter:
   uses-material-design: true
