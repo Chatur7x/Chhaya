@@ -10,6 +10,9 @@ final appInitializationProvider = FutureProvider<bool>((ref) async {
   final db = ref.read(localDatabaseProvider);
   final apiService = ref.read(apiServiceProvider);
 
+  // Part 2: wipe in-memory session keys when the app backgrounds.
+  ref.read(keyManagerProvider).startObserving();
+
   await apiService.init();
   await authService.init();
   await ref.read(notificationServiceProvider).init();
