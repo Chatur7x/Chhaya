@@ -10,6 +10,12 @@
 // Linux CI) have none, so the test SKIPS with an explicit reason there
 // instead of faking a pass. It executes fully on SQLCipher-capable
 // hosts (on-device runs).
+//
+// NOTE (A2 headless-CI status): the automated test skips in flutter
+// test — no SQLCipher native bindings on test hosts. Manual proof:
+// SQLCipher 4.x file + plain-sqlite open -> "file is not a database"
+// (verified locally, see A2-PROOF report). Headless CI test tracked
+// as follow-up.
 import 'dart:io';
 
 import 'package:flutter/services.dart';
