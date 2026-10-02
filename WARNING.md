@@ -33,7 +33,7 @@ If you used any affected version:
 
 ## Contact
 
-Security: <YOUR_ACTUAL_EMAIL_HERE>
+Security: chatur7x-security@proton.me
 Response time: We aim to respond within 72 hours.
 Process: See SECURITY.md for full disclosure process.
 Note: Report vulnerabilities privately. Do not open public issues.
