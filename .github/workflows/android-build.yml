@@ -41,8 +41,8 @@ jobs:
           java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
-          # PINNED 3.29.0 — keep in sync with ci.yml (see pin note there).
-          flutter-version: '3.29.0'
+          # Pinned to match local dev SDK. Update BOTH files when bumping.
+          flutter-version: '3.47.1'
           channel: stable
           cache: true
       - uses: actions/cache@v4
