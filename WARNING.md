@@ -33,5 +33,9 @@ If you used any affected version:
 
 ## Contact
 
-security@<YOUR-REAL-DOMAIN> — replace with the confirmed address before publishing.
+Contact us at <REAL_EMAIL>.
+
+We aim to respond within 72 hours.
+
+See SECURITY.md for the full disclosure process.
 Report vulnerabilities privately; do not open public issues for them.
