@@ -33,9 +33,7 @@ If you used any affected version:
 
 ## Contact
 
-Contact us at <REAL_EMAIL>.
-
-We aim to respond within 72 hours.
-
-See SECURITY.md for the full disclosure process.
-Report vulnerabilities privately; do not open public issues for them.
+Security: <YOUR_ACTUAL_EMAIL_HERE>
+Response time: We aim to respond within 72 hours.
+Process: See SECURITY.md for full disclosure process.
+Note: Report vulnerabilities privately. Do not open public issues.
