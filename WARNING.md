@@ -33,5 +33,5 @@ If you used any affected version:
 
 ## Contact
 
-security@<your-domain> — replace with the real contact before publishing.
+security@<YOUR-REAL-DOMAIN> — replace with the confirmed address before publishing.
 Report vulnerabilities privately; do not open public issues for them.
