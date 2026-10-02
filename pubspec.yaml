@@ -85,6 +85,9 @@ dev_dependencies:
   # SQLCipher on-device; tests inject an ffi factory (see
   # test/unit/database/). No SQLCipher native libs exist for test hosts.
   sqflite_common_ffi: ^2.3.0
+  # A2-authorized: plain-sqlite open attempt for the at-rest proof
+  # (test/integration/database_encryption_test.dart). Test-only.
+  sqlite3: ^3.7.0
 
 flutter:
   uses-material-design: true

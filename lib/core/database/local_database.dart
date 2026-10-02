@@ -187,6 +187,20 @@ class LocalDatabase {
 
   bool get isUnlockedWithBiometrics => _biometricUnlocked;
 
+  /// Closes the database and wipes the in-memory key. Needed by the
+  /// at-rest encryption proof (TASK A2) and any clean shutdown path.
+  Future<void> close() async {
+    await _db?.close();
+    _db = null;
+    if (_dbKey != null) {
+      Csprng.wipe(_dbKey!);
+      _dbKey = null;
+    }
+    _initialized = false;
+    _settingsCache = null;
+    _deviceCache = null;
+  }
+
   void _ensureInitialized() {
     if (!_initialized || _db == null || _dbKey == null) {
       throw StateError('LocalDatabase not initialized. Call init() first.');
