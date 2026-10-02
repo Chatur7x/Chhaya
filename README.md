@@ -5,14 +5,12 @@
 [![Flutter](https://img.shields.io/badge/Flutter-3.29%2B-blue?logo=flutter)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.7%2B-0175C2?logo=dart)](https://dart.dev)
 [![Version](https://img.shields.io/badge/Version-14.0.0-green)](CHANGELOG.md)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![CI](https://github.com/Chatur7x/Chhaya/actions/workflows/ci.yml/badge.svg)](https://github.com/Chatur7x/Chhaya/actions/workflows/ci.yml)
 
 Chhaya is an open-source, end-to-end encrypted messenger. No phone number,
 no email, no central identity — a 66-character anonymous identity with
 audited cryptography, onion-routed transport, and a coercion-resistant
-design. This project is community open source: free to use, modify, and
-distribute under the MIT license.
+design. This project is community open source: free to use, modify.
 
 ---
 
@@ -174,10 +172,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). All contributions go through
 pull requests against `main`. One logical change per commit.
 
 ---
-
-## License
-
-MIT — see [LICENSE](LICENSE). Free to use, modify, and distribute.
 
 ---
 
