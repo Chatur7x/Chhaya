@@ -11,6 +11,11 @@ class Contact {
   final DateTime? lastSeen;
   final bool isOnline;
 
+  /// True once the peer's key is verified (QR scan or Arke handshake,
+  /// Part 12). Defaults false: unverified and demo keys are rejected
+  /// at session start (Part 4 TripleRatchet.startSession).
+  final bool isVerified;
+
   Contact({
     required this.id,
     required this.chhayaId,
@@ -21,6 +26,7 @@ class Contact {
     this.isPinned = false,
     this.lastSeen,
     this.isOnline = false,
+    this.isVerified = false,
   });
 
   Contact copyWith({
@@ -33,6 +39,7 @@ class Contact {
     bool? isPinned,
     DateTime? lastSeen,
     bool? isOnline,
+    bool? isVerified,
   }) {
     return Contact(
       id: id ?? this.id,
@@ -44,6 +51,7 @@ class Contact {
       isPinned: isPinned ?? this.isPinned,
       lastSeen: lastSeen ?? this.lastSeen,
       isOnline: isOnline ?? this.isOnline,
+      isVerified: isVerified ?? this.isVerified,
     );
   }
 
@@ -60,6 +68,7 @@ class Contact {
           ? DateTime.parse(json['lastSeen'] as String)
           : null,
       isOnline: json['isOnline'] as bool? ?? false,
+      isVerified: json['isVerified'] as bool? ?? false,
     );
   }
 
@@ -73,5 +82,6 @@ class Contact {
     'isPinned': isPinned,
     'lastSeen': lastSeen?.toIso8601String(),
     'isOnline': isOnline,
+    'isVerified': isVerified,
   };
 }

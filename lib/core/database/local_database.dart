@@ -342,6 +342,47 @@ class LocalDatabase {
     );
   }
 
+  // ---- Ratchet sessions (persisted by Part 4 session_store.dart).
+  //
+  // Blobs are AES-GCM field envelopes under `ratchet_session/<peerId>`
+  // in the kv table — encrypted at rest like every other secret.
+  static const String _sessionKeyPrefix = 'ratchet_session/';
+
+  /// Stores an enveloped session blob for [peerId].
+  Future<void> saveSessionBlob(String peerId, String json) async {
+    _ensureInitialized();
+    await DbQueries.upsert(_db!, DbTables.kv, {
+      DbCols.key: '$_sessionKeyPrefix$peerId',
+      DbCols.value: _enc(json),
+    });
+  }
+
+  /// Loads and de-envelopes the session blob. Null when absent or
+  /// tampered — callers treat that as "no session".
+  Future<String?> loadSessionBlob(String peerId) async {
+    _ensureInitialized();
+    final rows = await DbQueries.find(
+      _db!,
+      DbTables.kv,
+      equals: {DbCols.key: '$_sessionKeyPrefix$peerId'},
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      return null;
+    }
+    return _dec(rows.first[DbCols.value] as String?);
+  }
+
+  /// Deletes the session blob for [peerId].
+  Future<void> deleteSessionBlob(String peerId) async {
+    _ensureInitialized();
+    await DbQueries.deleteWhere(
+      _db!,
+      DbTables.kv,
+      {DbCols.key: '$_sessionKeyPrefix$peerId'},
+    );
+  }
+
   Future<Contact?> getContact(String contactId) async {
     _ensureInitialized();
     final rows = await DbQueries.find(
