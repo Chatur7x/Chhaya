@@ -316,7 +316,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
           ],
         ),
         border: const Border(
-          bottom: BorderSide(color: Color(0x3338BDF8), width: 0.5),
+          bottom: BorderSide(color: ChhayaColors.borderMed, width: 0.5),
         ),
       ),
       child: Row(
