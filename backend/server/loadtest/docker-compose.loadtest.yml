@@ -1,0 +1,139 @@
+version: '3.8'
+
+services:
+  # Chhaya Backend
+  backend:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      - "8443:8443"
+      - "8444:8444"
+      - "8445:8445"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://chhaya:chhaya@db:5432/chhaya
+      - REDIS_URL=redis://redis:6379
+      - PORT=8443
+      - SIGNALING_PORT=8444
+      - ONION_PORT=8445
+      - LOG_LEVEL=info
+      - API_RATE_LIMIT=1000
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - chhaya-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8443/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=chhaya
+      - POSTGRES_PASSWORD=chhaya
+      - POSTGRES_DB=chhaya
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # NOTE: the schema is owned by backend/server/src/db.ts, which runs
+      # CREATE TABLE IF NOT EXISTS on boot. There is no migrations/
+      # directory in this repo, so nothing is mounted at
+      # docker-entrypoint-initdb.d -- mounting an empty/nonexistent path
+      # here would mask the fact that the DB starts empty.
+    ports:
+      - "5432:5432"
+    networks:
+      - chhaya-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chhaya -d chhaya"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - chhaya-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Load Test Runner (k6)
+  load-test:
+    image: grafana/k6:latest
+    volumes:
+      - ./k6-load-test.js:/scripts/k6-load-test.js
+    environment:
+      - BASE_URL=http://backend:8443
+      - K6_WEB_DASHBOARD=true
+      - K6_WEB_DASHBOARD_PORT=5665
+    ports:
+      - "5665:5665"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - chhaya-network
+    command: run --vus 100 --duration 60s /scripts/k6-load-test.js
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+
+  # Optional: Prometheus for metrics
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - chhaya-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+
+  # Optional: Grafana for dashboards
+  grafana:
+    image: grafana/grafana:latest
+    volumes:
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=chhaya
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus
+    networks:
+      - chhaya-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  chhaya-network:
+    driver: bridge

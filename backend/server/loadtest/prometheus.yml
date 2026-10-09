@@ -1,0 +1,43 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'chhaya-loadtest'
+    environment: 'development'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files: []
+
+scrape_configs:
+  # Scrape Chhaya Backend metrics
+  - job_name: 'chhaya-backend'
+    static_configs:
+      - targets: ['backend:8443']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Scrape k6 metrics (if k6 outputs Prometheus format)
+  - job_name: 'k6'
+    static_configs:
+      - targets: ['load-test:6565']
+    metrics_path: '/metrics'
+    scrape_interval: 5s
+
+  # Scrape PostgreSQL
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  # Scrape Redis
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  # Scrape Node.js process metrics
+  - job_name: 'node'
+    static_configs:
+      - targets: ['backend:8443']
