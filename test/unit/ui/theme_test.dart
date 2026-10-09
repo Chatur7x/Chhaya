@@ -79,7 +79,10 @@ void main() {
           if (src.contains('Color(0x')) {
             offenders.add('${e.path} uses Color(0x…)');
           }
-          for (final m in RegExp(r'Colors\.(white|black)\b')
+          // Leading \b so `ChhayaColors.white` is not mistaken for
+          // Material's `Colors.white`. Only the bare Material palette
+          // counts as an offender; the token file itself is exempt.
+          for (final m in RegExp(r'\bColors\.(white|black|transparent)\b')
               .allMatches(src)) {
             offenders.add('${e.path} uses Colors.${m.group(1)}');
           }

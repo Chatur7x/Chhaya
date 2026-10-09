@@ -82,7 +82,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with TickerProviderStat
             child: Image.asset(
               'assets/images/noise.png',
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(color: Colors.transparent),
+              errorBuilder: (_, __, ___) => Container(color: ChhayaColors.transparent),
             ),
           ),
         ),
