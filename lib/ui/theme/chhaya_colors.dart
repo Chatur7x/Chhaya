@@ -31,6 +31,11 @@ class ChhayaColors {
   static const Color cream = Color(0xFFF5F4EF);
   static const Color surface = Color(0xFFFAF9F5);
   static const Color white = Color(0xFFFFFFFF);
+
+  /// Fully transparent. Exists so widgets never need Material's
+  /// `Colors.transparent` (see `test/unit/ui/theme_test.dart`, which
+  /// rejects `Colors.white|black` and `Color(0x…)` outside this file).
+  static const Color transparent = Color(0x00000000);
   static const Color warmGray = Color(0xFFEDEBE4);
   static const Color hoverCream = Color(0xFFEFEDE6);
   static const Color ink = Color(0xFF1F1E1B);

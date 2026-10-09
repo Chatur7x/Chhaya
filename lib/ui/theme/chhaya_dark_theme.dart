@@ -1,7 +1,7 @@
 // V13 hacker-terminal theme, preserved as the optional dark theme
 // (V14 Part 6). Signal Green (#4ADE80) on near-black. Values below are
 // verbatim V13 — only the class name changed (ChhayaColors →
-/// ChhayaDarkColors) so the light theme owns the canonical names.
+// ChhayaDarkColors) so the light theme owns the canonical names.
 // NOTE: radius/spacing/typography scale are shared with the light
 // theme (unified design language); this file preserves the dark
 // COLOR posture and a working dark Material scheme.

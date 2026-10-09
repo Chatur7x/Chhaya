@@ -3,7 +3,7 @@ import 'package:chaaya/ui/theme/chhaya_theme.dart';
 import 'package:chaaya/ui/widgets/pressable.dart';
 
 /// ChhayaPrimaryButton — Main CTA button
-/// Gradient accent, pill radius, glow shadow, haptic feedback
+/// Coral fill, white text, pill radius, haptic feedback.
 class ChhayaPrimaryButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
@@ -26,18 +26,15 @@ class ChhayaPrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final disableAnimations = MediaQuery.of(context).disableAnimations;
+    final double buttonHeight = height < 44.0 ? 44.0 : height;
 
-    final child = isLoading
-        ? SizedBox(
+    final Widget child = isLoading
+        ? const SizedBox(
             width: 20,
             height: 20,
             child: CircularProgressIndicator(
               strokeWidth: 2.5,
-              color: ChhayaColors.onAccent,
-              valueColor: disableAnimations
-                  ? const AlwaysStoppedAnimation<Color>(ChhayaColors.onAccent)
-                  : null,
+              color: ChhayaColors.white,
             ),
           )
         : Row(
@@ -45,45 +42,54 @@ class ChhayaPrimaryButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 18, color: ChhayaColors.onAccent),
+                Icon(icon, size: 18, color: ChhayaColors.white),
                 const SizedBox(width: ChhayaSpacing.space1),
               ],
-              Text(
-                label,
-                style: ChhayaTypography.headlineMedium.copyWith(
-                  color: ChhayaColors.onAccent,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.1,
+              Flexible(
+                child: Text(
+                  label,
+                  style: ChhayaTypography.headlineMedium.copyWith(
+                    color: ChhayaColors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.1,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           );
 
     return PressableScale(
       haptic: false, // inner button already haptics on commit
-      child: SizedBox(
-        height: height,
-        width: expanded ? double.infinity : width,
-        child: DecoratedBox(
-          decoration: ChhayaDecorations.primaryButton(
-            borderRadius: ChhayaRadius.pill,
-            withShadow: !disableAnimations,
-          ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+        child: SizedBox(
+          height: buttonHeight,
+          width: expanded ? double.infinity : width,
           child: FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              shadowColor: Colors.transparent,
+              backgroundColor: ChhayaColors.coral,
+              foregroundColor: ChhayaColors.white,
+              disabledBackgroundColor: ChhayaColors.warmGray,
+              disabledForegroundColor: ChhayaColors.inkFaint,
+              elevation: 0,
+              shadowColor: ChhayaColors.coral.withValues(alpha: 0),
+              minimumSize: const Size(44, 44),
+              padding: const EdgeInsets.symmetric(
+                horizontal: ChhayaSpacing.space6,
+                vertical: ChhayaSpacing.space3,
+              ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(ChhayaRadius.pill),
               ),
-              padding: EdgeInsets.zero,
             ),
-            onPressed: isLoading ? null : () {
-              if (!disableAnimations) ChhayaHaptics.medium();
-              onPressed();
-            },
+            onPressed: isLoading
+                ? null
+                : () {
+                    ChhayaHaptics.light();
+                    onPressed();
+                  },
             child: child,
           ),
         ),
@@ -93,7 +99,7 @@ class ChhayaPrimaryButton extends StatelessWidget {
 }
 
 /// ChhayaSecondaryButton — Secondary action button
-/// Surface bg, divider border, pill radius
+/// White fill, coralDeep text, borderMed border, pill radius, haptic.
 class ChhayaSecondaryButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
@@ -116,58 +122,155 @@ class ChhayaSecondaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final disableAnimations = MediaQuery.of(context).disableAnimations;
+    final double buttonHeight = height < 44.0 ? 44.0 : height;
 
-    return SizedBox(
-      height: height,
-      width: expanded ? double.infinity : width,
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          backgroundColor: ChhayaColors.secondaryBackground,
-          side: BorderSide(
-            color: ChhayaColors.opaqueSeparator.withValues(alpha: 0.6),
-            width: 1,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+      child: SizedBox(
+        height: buttonHeight,
+        width: expanded ? double.infinity : width,
+        child: OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            backgroundColor: ChhayaColors.white,
+            foregroundColor: ChhayaColors.coralDeep,
+            disabledBackgroundColor: ChhayaColors.warmGray,
+            side: const BorderSide(
+              color: ChhayaColors.borderMed,
+              width: 1,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(ChhayaRadius.pill),
+            ),
+            minimumSize: const Size(44, 44),
+            padding: const EdgeInsets.symmetric(
+              horizontal: ChhayaSpacing.space6,
+              vertical: ChhayaSpacing.space3,
+            ),
           ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(ChhayaRadius.pill),
-          ),
-          padding: EdgeInsets.zero,
-        ),
-        onPressed: isLoading ? null : () {
-          if (!disableAnimations) ChhayaHaptics.light();
-          onPressed();
-        },
-        child: isLoading
-            ? SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  color: ChhayaColors.accent,
-                  valueColor: disableAnimations
-                      ? const AlwaysStoppedAnimation<Color>(ChhayaColors.accent)
-                      : null,
-                ),
-              )
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (icon != null) ...[
-                    Icon(icon, size: 18, color: ChhayaColors.labelPrimary),
-                    const SizedBox(width: ChhayaSpacing.space1),
-                  ],
-                  Text(
-                    label,
-                    style: ChhayaTypography.headlineMedium.copyWith(
-                      color: ChhayaColors.labelPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+          onPressed: isLoading
+              ? null
+              : () {
+                  ChhayaHaptics.light();
+                  onPressed();
+                },
+          child: isLoading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: ChhayaColors.coralDeep,
                   ),
-                ],
-              ),
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (icon != null) ...[
+                      Icon(icon, size: 18, color: ChhayaColors.coralDeep),
+                      const SizedBox(width: ChhayaSpacing.space1),
+                    ],
+                    Flexible(
+                      child: Text(
+                        label,
+                        style: ChhayaTypography.headlineMedium.copyWith(
+                          color: ChhayaColors.coralDeep,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+/// ChhayaPillButton — Compact icon + label pill
+/// Coral fill by default, white text, pill radius, haptic on press.
+class ChhayaPillButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onPressed;
+  final IconData? icon;
+  final bool isLoading;
+  final double height;
+  final Color background;
+  final Color foreground;
+
+  const ChhayaPillButton({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.icon,
+    this.isLoading = false,
+    this.height = 44,
+    this.background = ChhayaColors.coral,
+    this.foreground = ChhayaColors.white,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final double buttonHeight = height < 44.0 ? 44.0 : height;
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+      child: SizedBox(
+        height: buttonHeight,
+        child: FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: background,
+            foregroundColor: foreground,
+            disabledBackgroundColor: ChhayaColors.warmGray,
+            disabledForegroundColor: ChhayaColors.inkFaint,
+            elevation: 0,
+            shadowColor: ChhayaColors.coral.withValues(alpha: 0),
+            minimumSize: const Size(44, 44),
+            padding: const EdgeInsets.symmetric(
+              horizontal: ChhayaSpacing.space4,
+              vertical: ChhayaSpacing.space2,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(ChhayaRadius.pill),
+            ),
+          ),
+          onPressed: isLoading
+              ? null
+              : () {
+                  ChhayaHaptics.light();
+                  onPressed();
+                },
+          child: isLoading
+              ? SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: foreground,
+                  ),
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (icon != null) ...[
+                      Icon(icon, size: 16, color: foreground),
+                      const SizedBox(width: ChhayaSpacing.space1),
+                    ],
+                    Flexible(
+                      child: Text(
+                        label,
+                        style: ChhayaTypography.headlineSmall.copyWith(
+                          color: foreground,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
       ),
     );
   }
@@ -205,7 +308,7 @@ class ChhayaGhostButton extends StatelessWidget {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(ChhayaRadius.pill),
         ),
-        minimumSize: const Size(0, 36),
+        minimumSize: const Size(44, 44),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
       child: Row(
@@ -245,7 +348,7 @@ class ChhayaIconButton extends StatelessWidget {
     required this.onPressed,
     this.color,
     this.background,
-    this.size = 42,
+    this.size = 44,
     this.tooltip,
     this.isLoading = false,
   });
@@ -253,11 +356,12 @@ class ChhayaIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final disableAnimations = MediaQuery.of(context).disableAnimations;
+    final double buttonSize = size < 44.0 ? 44.0 : size;
 
     final child = isLoading
         ? SizedBox(
-            width: size * 0.4,
-            height: size * 0.4,
+            width: buttonSize * 0.4,
+            height: buttonSize * 0.4,
             child: CircularProgressIndicator(
               strokeWidth: 2,
               color: color ?? ChhayaColors.accent,
@@ -268,7 +372,7 @@ class ChhayaIconButton extends StatelessWidget {
           )
         : Icon(
             icon,
-            size: size * 0.48,
+            size: buttonSize * 0.48,
             color: color ?? ChhayaColors.labelPrimary,
           );
 
@@ -281,8 +385,8 @@ class ChhayaIconButton extends StatelessWidget {
             },
       customBorder: const CircleBorder(),
       child: Container(
-        width: size,
-        height: size,
+        width: buttonSize,
+        height: buttonSize,
         decoration: BoxDecoration(
           color: background ?? ChhayaColors.fillTertiary,
           shape: BoxShape.circle,
@@ -325,10 +429,12 @@ class ChhayaFAB extends StatelessWidget {
 
     if (extended) {
       return FloatingActionButton.extended(
-        onPressed: isLoading ? null : () {
-          if (!disableAnimations) ChhayaHaptics.medium();
-          onPressed();
-        },
+        onPressed: isLoading
+            ? null
+            : () {
+                if (!disableAnimations) ChhayaHaptics.medium();
+                onPressed();
+              },
         backgroundColor: scheme.primary,
         foregroundColor: scheme.onPrimary,
         elevation: 8,
@@ -366,10 +472,12 @@ class ChhayaFAB extends StatelessWidget {
     }
 
     return FloatingActionButton(
-      onPressed: isLoading ? null : () {
-        if (!disableAnimations) ChhayaHaptics.medium();
-        onPressed();
-      },
+      onPressed: isLoading
+          ? null
+          : () {
+              if (!disableAnimations) ChhayaHaptics.medium();
+              onPressed();
+            },
       backgroundColor: scheme.primary,
       foregroundColor: scheme.onPrimary,
       elevation: 8,
@@ -421,7 +529,11 @@ class ChhayaChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 14, color: selected ? ChhayaColors.onAccent : ChhayaColors.labelSecondary),
+            Icon(icon,
+                size: 14,
+                color: selected
+                    ? ChhayaColors.onAccent
+                    : ChhayaColors.labelSecondary),
             const SizedBox(width: 4),
           ],
           Text(
@@ -429,7 +541,9 @@ class ChhayaChip extends StatelessWidget {
             style: ChhayaTypography.caption1.copyWith(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: selected ? ChhayaColors.onAccent : ChhayaColors.labelSecondary,
+              color: selected
+                  ? ChhayaColors.onAccent
+                  : ChhayaColors.labelSecondary,
             ),
           ),
         ],
@@ -438,7 +552,9 @@ class ChhayaChip extends StatelessWidget {
       selectedColor: selectedColor ?? ChhayaColors.accent,
       backgroundColor: backgroundColor ?? ChhayaColors.cardSurface,
       side: BorderSide(
-        color: selected ? Colors.transparent : ChhayaColors.glassBorder.withValues(alpha: 0.14),
+        color: selected
+            ? ChhayaColors.transparent
+            : ChhayaColors.glassBorder.withValues(alpha: 0.14),
       ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(ChhayaRadius.pill),

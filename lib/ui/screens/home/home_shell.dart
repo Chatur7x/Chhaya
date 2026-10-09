@@ -34,7 +34,7 @@ class _HomeShellState extends State<HomeShell> {
         ),
         child: SafeArea(
           child: NavigationBar(
-            backgroundColor: Colors.transparent,
+            backgroundColor: ChhayaColors.transparent,
             elevation: 0,
             selectedIndex: _selectedIndex,
             onDestinationSelected: (index) {
