@@ -86,7 +86,9 @@ class ChhayaApp extends ConsumerWidget {
     return MaterialApp(
       title: 'Chhaya',
       debugShowCheckedModeBanner: false,
-      theme: ChhayaTheme.materialDark,
+      theme: ChhayaTheme.materialLight,
+      darkTheme: ChhayaTheme.materialDark,
+      themeMode: ThemeMode.system,
       home: initAsync.when(
         data: (isLoggedIn) {
           if (isLoggedIn) {
