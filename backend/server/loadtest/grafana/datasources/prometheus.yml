@@ -1,0 +1,15 @@
+apiVersion: 1
+
+# Points Grafana at the Prometheus scraped by prometheus.yml in this
+# directory. Committed so `docker compose -f
+# docker-compose.loadtest.yml up` works from a clean checkout: a missing
+# bind-mount source is a hard startup error.
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: 10s
