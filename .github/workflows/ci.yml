@@ -24,6 +24,18 @@ jobs:
   backend:
     name: Backend lint + test
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: chhaya
+          POSTGRES_PASSWORD: chhaya
+          POSTGRES_DB: chhaya
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U chhaya" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://chhaya:chhaya@localhost:5432/chhaya
     defaults:
       run:
         working-directory: backend/server

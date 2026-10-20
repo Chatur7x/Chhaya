@@ -168,7 +168,9 @@ class AuthService {
           .map((m) => Message.fromJson(Map<String, dynamic>.from(m as Map))).toList();
       if (pair.privateKey.length != 32 || pair.publicKey.length != 32) return false;
       if (profile.chhayaId.publicKey != pair.publicKeyHex &&
-          profile.chhayaId.publicKey != AccountIdentity.idFor(pair)) return false;
+          profile.chhayaId.publicKey != AccountIdentity.idFor(pair)) {
+        return false;
+      }
       await _keyManager.storeKeyPair(pair);
       await _keyManager.storeRecoveryPhrase(phrase);
       await _database.saveUserProfile(profile);

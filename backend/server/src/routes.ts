@@ -1,4 +1,4 @@
-import { Request, Response, Router } from 'express';
+import { Request, Response, Router, NextFunction, Express } from 'express';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { createHash, randomBytes } from 'crypto';
@@ -6,14 +6,17 @@ import { getDb, query, withTransaction } from './db';
 import { logger } from './log';
 import { sendNewMessageNotification, sendCallNotification, registerFCMToken, subscribeToPush } from './push';
 import { broadcastToUser } from './signaling';
+import { authenticateToken, issueSession, hashCredential, verifyCredential } from './session';
 
 const router = Router();
+const safe = (handler: (req: Request,res: Response,next: NextFunction)=>Promise<unknown>) =>
+  (req: Request,res: Response,next: NextFunction) => { void Promise.resolve(handler(req,res,next)).catch(next); };
 
 // Validation schemas
 const registerSchema = z.object({
-  chhayaId: z.string().length(66),
+  chhayaId: z.string().regex(/^05[0-9a-f]{64}$/),
   displayName: z.string().min(1).max(100),
-  publicKey: z.string().length(66),
+  publicKey: z.string().regex(/^[0-9a-f]{64}$/),
   encryptedPrivateKey: z.string().min(1),
   recoveryPhraseHash: z.string().length(64),
   deviceId: z.string().uuid(),
@@ -23,7 +26,7 @@ const registerSchema = z.object({
 });
 
 const loginSchema = z.object({
-  chhayaId: z.string().length(66),
+  chhayaId: z.string().regex(/^05[0-9a-f]{64}$/),
   recoveryPhraseHash: z.string().length(64),
   deviceId: z.string().uuid(),
   deviceName: z.string().optional(),
@@ -32,7 +35,7 @@ const loginSchema = z.object({
 });
 
 const addContactSchema = z.object({
-  chhayaId: z.string().length(66),
+  chhayaId: z.string().regex(/^05[0-9a-f]{64}$/),
   displayName: z.string().min(1).max(100),
 });
 
@@ -63,25 +66,23 @@ const updateSettingsSchema = z.object({
 });
 
 // Auth middleware
-const authMiddleware = async (req: Request, res: Response, next: Function) => {
+const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Missing authorization header' });
   }
   const token = authHeader.substring(7);
   
-  // Simple token validation - in production use JWT
-  const userResult = await query('SELECT id FROM users WHERE id = $1 AND is_active = true', [token]);
-  if (userResult.rows.length === 0) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
-  }
-  
-  (req as any).userId = userResult.rows[0].id;
-  next();
+  try {
+    const userId = await authenticateToken(token);
+    if (!userId) return res.status(401).json({ error: 'Invalid or expired token' });
+    (req as any).userId = userId;
+    next();
+  } catch (error) { next(error); }
 };
 
 // POST /api/v1/auth/register
-router.post('/auth/register', async (req: Request, res: Response) => {
+router.post('/auth/register', safe(async (req: Request, res: Response) => {
   try {
     const data = registerSchema.parse(req.body);
     
@@ -91,16 +92,17 @@ router.post('/auth/register', async (req: Request, res: Response) => {
       return res.status(409).json({ error: 'User already exists' });
     }
 
+    if (data.chhayaId !== `05${data.publicKey}`) return res.status(400).json({error:'Identity does not match key'});
     const userId = uuidv4();
     const now = new Date();
 
     await withTransaction(async (client) => {
       await client.query(
         `INSERT INTO users (id, chhaya_id, display_name, public_key, encrypted_private_key, 
-          recovery_phrase_hash, device_id, created_at) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          recovery_phrase_hash, created_at) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [userId, data.chhayaId, data.displayName, data.publicKey, data.encryptedPrivateKey, 
-         data.recoveryPhraseHash, data.deviceId, now]
+         hashCredential(data.recoveryPhraseHash), now]
       );
 
       // Register device
@@ -117,8 +119,8 @@ router.post('/auth/register', async (req: Request, res: Response) => {
       await registerFCMToken(userId, data.deviceId, data.fcmToken);
     }
 
-    logger.info('User registered', { userId, chhayaId: data.chhayaId });
-    res.status(201).json({ userId, token: userId }); // In production, return JWT
+    logger.info('Account registered');
+    res.status(201).json({ userId, token: await issueSession(userId) });
   } catch (e) {
     if (e instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: e.errors });
@@ -126,19 +128,19 @@ router.post('/auth/register', async (req: Request, res: Response) => {
     logger.error('Registration failed', { error: (e as Error).message });
     res.status(500).json({ error: 'Registration failed' });
   }
-});
+}));
 
 // POST /api/v1/auth/login
-router.post('/auth/login', async (req: Request, res: Response) => {
+router.post('/auth/login', safe(async (req: Request, res: Response) => {
   try {
     const data = loginSchema.parse(req.body);
 
     const userResult = await query(
-      'SELECT id, recovery_phrase_hash FROM users WHERE chhaya_id = $1 AND is_active = true',
+      'SELECT id, public_key, recovery_phrase_hash FROM users WHERE chhaya_id = $1 AND is_active = true',
       [data.chhayaId]
     );
 
-    if (userResult.rows.length === 0 || userResult.rows[0].recovery_phrase_hash !== data.recoveryPhraseHash) {
+    if (userResult.rows.length === 0 || !verifyCredential(data.recoveryPhraseHash, userResult.rows[0].recovery_phrase_hash)) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -146,11 +148,11 @@ router.post('/auth/login', async (req: Request, res: Response) => {
 
     // Update device
     await query(
-      `INSERT INTO devices (user_id, id, device_name, platform, fcm_token) 
-       VALUES ($1, $2, $3, $4, $5) 
+      `INSERT INTO devices (user_id, id, device_name, platform, fcm_token, public_key) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
        ON CONFLICT (id) DO UPDATE SET 
          device_name = $3, platform = $4, fcm_token = $5, last_active_at = NOW()`,
-      [userId, data.deviceId, data.deviceName || 'Device', data.platform || 'unknown', data.fcmToken || null]
+      [userId, data.deviceId, data.deviceName || 'Device', data.platform || 'unknown', data.fcmToken || null, userResult.rows[0].public_key]
     );
 
     if (data.fcmToken) {
@@ -160,8 +162,8 @@ router.post('/auth/login', async (req: Request, res: Response) => {
     // Update last seen
     await query('UPDATE users SET last_seen_at = NOW() WHERE id = $1', [userId]);
 
-    logger.info('User logged in', { userId });
-    res.json({ userId, token: userId }); // In production, return JWT
+    logger.info('Session created');
+    res.json({ userId, token: await issueSession(userId) });
   } catch (e) {
     if (e instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: e.errors });
@@ -169,10 +171,16 @@ router.post('/auth/login', async (req: Request, res: Response) => {
     logger.error('Login failed', { error: (e as Error).message });
     res.status(500).json({ error: 'Login failed' });
   }
-});
+}));
+
+router.post('/auth/logout', authMiddleware, safe(async(req: Request,res: Response)=>{
+  const {tokenHash} = await import('./session');
+  await query('DELETE FROM auth_sessions WHERE token_hash=$1',[tokenHash(req.headers.authorization!.substring(7))]);
+  res.json({success:true});
+}));
 
 // GET /api/v1/users/me
-router.get('/users/me', authMiddleware, async (req: Request, res: Response) => {
+router.get('/users/me', authMiddleware, safe(async (req: Request, res: Response) => {
   const userId = (req as any).userId;
   const result = await query(
     `SELECT id, chhaya_id, display_name, public_key, biometric_enabled, 
@@ -181,10 +189,10 @@ router.get('/users/me', authMiddleware, async (req: Request, res: Response) => {
   );
   if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
   res.json(result.rows[0]);
-});
+}));
 
 // PUT /api/v1/users/me/settings
-router.put('/users/me/settings', authMiddleware, async (req: Request, res: Response) => {
+router.put('/users/me/settings', authMiddleware, safe(async (req: Request, res: Response) => {
   const userId = (req as any).userId;
   const data = updateSettingsSchema.parse(req.body);
 
@@ -211,10 +219,10 @@ router.put('/users/me/settings', authMiddleware, async (req: Request, res: Respo
   }
 
   res.json({ success: true });
-});
+}));
 
 // POST /api/v1/contacts
-router.post('/contacts', authMiddleware, async (req: Request, res: Response) => {
+router.post('/contacts', authMiddleware, safe(async (req: Request, res: Response) => {
   const userId = (req as any).userId;
   const data = addContactSchema.parse(req.body);
 
@@ -258,14 +266,14 @@ router.post('/contacts', authMiddleware, async (req: Request, res: Response) => 
     );
   });
 
-  res.status(201).json({ contactId, conversationId: convoId });
-});
+  res.status(201).json({ contactId, conversationId: convoId, publicKey: targetResult.rows[0].public_key });
+}));
 
 // GET /api/v1/contacts
-router.get('/contacts', authMiddleware, async (req: Request, res: Response) => {
+router.get('/contacts', authMiddleware, safe(async (req: Request, res: Response) => {
   const userId = (req as any).userId;
   const result = await query(
-    `SELECT c.id, c.display_name, c.verification_level, c.is_blocked, c.created_at,
+    `SELECT c.contact_id AS id, c.display_name, c.verification_level, c.is_blocked, c.created_at,
      u.chhaya_id, u.public_key, u.last_seen_at
      FROM contacts c
      JOIN users u ON u.id = c.contact_id
@@ -274,10 +282,10 @@ router.get('/contacts', authMiddleware, async (req: Request, res: Response) => {
     [userId]
   );
   res.json(result.rows);
-});
+}));
 
 // POST /api/v1/conversations
-router.post('/conversations', authMiddleware, async (req: Request, res: Response) => {
+router.post('/conversations', authMiddleware, safe(async (req: Request, res: Response) => {
   const userId = (req as any).userId;
   const data = createConversationSchema.parse(req.body);
 
@@ -305,10 +313,10 @@ router.post('/conversations', authMiddleware, async (req: Request, res: Response
   });
 
   res.status(201).json({ conversationId: convoId });
-});
+}));
 
 // GET /api/v1/conversations
-router.get('/conversations', authMiddleware, async (req: Request, res: Response) => {
+router.get('/conversations', authMiddleware, safe(async (req: Request, res: Response) => {
   const userId = (req as any).userId;
   const result = await query(
     `SELECT c.id, c.type, c.name, c.avatar_url, c.created_at, c.updated_at,
@@ -316,7 +324,7 @@ router.get('/conversations', authMiddleware, async (req: Request, res: Response)
       FROM conversation_participants cp
       JOIN users u ON u.id = cp.user_id
       WHERE cp.conversation_id = c.id AND cp.left_at IS NULL) as participants,
-     (SELECT m.content, m.sender_id, m.sent_at, m.message_type
+     (SELECT json_build_object('id',m.id,'conversation_id',m.conversation_id,'content',m.content,'sender_id',m.sender_id,'sent_at',m.sent_at,'message_type',m.message_type)
       FROM messages m
       WHERE m.conversation_id = c.id AND m.is_deleted = false
       ORDER BY m.sent_at DESC
@@ -330,10 +338,10 @@ router.get('/conversations', authMiddleware, async (req: Request, res: Response)
     [userId]
   );
   res.json(result.rows);
-});
+}));
 
 // POST /api/v1/messages
-router.post('/messages', authMiddleware, async (req: Request, res: Response) => {
+router.post('/messages', authMiddleware, safe(async (req: Request, res: Response) => {
   const userId = (req as any).userId;
   const data = sendMessageSchema.parse(req.body);
 
@@ -371,7 +379,7 @@ router.post('/messages', authMiddleware, async (req: Request, res: Response) => 
 
   // Send push notifications
   for (const p of otherParticipants.rows) {
-    sendNewMessageNotification(p.user_id, p.display_name, data.content.substring(0, 100), data.conversationId, messageId);
+    void sendNewMessageNotification(p.user_id, 'Chhaya', 'New encrypted message', data.conversationId, messageId);
     
     // Also broadcast via signaling if online
     broadcastToUser(p.user_id, {
@@ -382,14 +390,15 @@ router.post('/messages', authMiddleware, async (req: Request, res: Response) => 
     });
   }
 
-  res.status(201).json({ messageId });
-});
+  const saved = await query('SELECT * FROM messages WHERE id=$1',[messageId]);
+  res.status(201).json(saved.rows[0]);
+}));
 
 // GET /api/v1/messages/:conversationId
-router.get('/messages/:conversationId', authMiddleware, async (req: Request, res: Response) => {
+router.get('/messages/:conversationId', authMiddleware, safe(async (req: Request, res: Response) => {
   const userId = (req as any).userId;
   const { conversationId } = req.params;
-  const limit = parseInt(req.query.limit as string) || 50;
+  const limit = Math.max(1, Math.min(200, parseInt(req.query.limit as string) || 50));
   const before = req.query.before as string;
 
   // Verify participant
@@ -402,7 +411,7 @@ router.get('/messages/:conversationId', authMiddleware, async (req: Request, res
   }
 
   let queryStr = `
-    SELECT m.id, m.sender_id, m.content, m.message_type, m.media_url, m.media_meta, 
+    SELECT m.id, m.conversation_id, m.sender_id, m.content, m.message_type, m.media_url, m.media_meta, 
            m.reply_to_id, m.sent_at, m.delivered_at, m.read_at,
            u.display_name as sender_name
     FROM messages m
@@ -421,12 +430,15 @@ router.get('/messages/:conversationId', authMiddleware, async (req: Request, res
 
   const result = await query(queryStr, params);
   res.json(result.rows.reverse());
-});
+}));
 
 // POST /api/v1/messages/:messageId/read
-router.post('/messages/:messageId/read', authMiddleware, async (req: Request, res: Response) => {
+router.post('/messages/:messageId/read', authMiddleware, safe(async (req: Request, res: Response) => {
   const userId = (req as any).userId;
   const { messageId } = req.params;
+  const allowed = await query(`SELECT 1 FROM messages m JOIN conversation_participants cp
+    ON cp.conversation_id=m.conversation_id WHERE m.id=$1 AND cp.user_id=$2 AND cp.left_at IS NULL`,[messageId,userId]);
+  if (allowed.rowCount !== 1) return res.status(403).json({error:'Not a participant'});
 
   await query(
     `UPDATE conversation_participants 
@@ -441,10 +453,10 @@ router.post('/messages/:messageId/read', authMiddleware, async (req: Request, re
   );
 
   res.json({ success: true });
-});
+}));
 
 // POST /api/v1/devices/link
-router.post('/devices/link', authMiddleware, async (req: Request, res: Response) => {
+router.post('/devices/link', authMiddleware, safe(async (req: Request, res: Response) => {
   const userId = (req as any).userId;
   const { deviceId, deviceName, platform, publicKey } = req.body;
 
@@ -456,10 +468,10 @@ router.post('/devices/link', authMiddleware, async (req: Request, res: Response)
   );
 
   res.json({ success: true });
-});
+}));
 
 // POST /api/v1/push/subscribe
-router.post('/push/subscribe', authMiddleware, async (req: Request, res: Response) => {
+router.post('/push/subscribe', authMiddleware, safe(async (req: Request, res: Response) => {
   const userId = (req as any).userId;
   const { endpoint, keys } = req.body;
 
@@ -469,18 +481,18 @@ router.post('/push/subscribe', authMiddleware, async (req: Request, res: Respons
 
   await subscribeToPush(userId, { endpoint, keys });
   res.json({ success: true });
-});
+}));
 
 // GET /api/v1/onion/nodes
-router.get('/onion/nodes', async (req: Request, res: Response) => {
+router.get('/onion/nodes', safe(async (req: Request, res: Response) => {
   const result = await query(
     'SELECT id, address, region, latency_ms, reliability FROM onion_nodes WHERE is_active = true'
   );
   res.json(result.rows);
-});
+}));
 
 // GET /api/v1/onion/path
-router.get('/onion/path', async (req: Request, res: Response) => {
+router.get('/onion/path', safe(async (req: Request, res: Response) => {
   const hopCount = parseInt(req.query.hops as string) || 3;
   const excludeRegion = req.query.excludeRegion as string;
 
@@ -504,6 +516,7 @@ router.get('/onion/path', async (req: Request, res: Response) => {
   }
 
   res.json(picked);
-});
+}));
 
 export { router as apiRouter };
+export const registerRoutes = (app: Express): void => { app.use('/api/v1', router); };

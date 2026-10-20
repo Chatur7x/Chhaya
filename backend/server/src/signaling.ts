@@ -4,9 +4,10 @@ import { config } from './config';
 import { logger, createChildLogger } from './log';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, query } from './db';
+import { authenticateToken } from './session';
 
 interface SignalingMessage {
-  type: 'offer' | 'answer' | 'ice-candidate' | 'join' | 'leave' | 'ping' | 'pong' | 'error';
+  type: 'offer' | 'answer' | 'ice-candidate' | 'join' | 'leave' | 'ping' | 'pong' | 'error' | 'new_message';
   payload: any;
   from: string;
   to?: string;
@@ -29,11 +30,11 @@ const log = createChildLogger({ module: 'signaling' });
 
 export const startSignalingServer = (): WebSocketServer => {
   const server = createServer();
-  const wss = new WebSocketServer({ server });
+  const wss = new WebSocketServer({ server, maxPayload: 65536 });
 
   wss.on('connection', (ws, req) => {
     const clientId = uuidv4();
-    log.info('New signaling connection', { clientId, ip: req.socket.remoteAddress });
+    log.info('Signaling connection opened');
 
     ws.on('message', async (data) => {
       try {
@@ -96,7 +97,8 @@ const handleMessage = async (clientId: string, ws: WebSocket, msg: SignalingMess
 };
 
 const handleJoin = async (clientId: string, ws: WebSocket, msg: SignalingMessage): Promise<void> => {
-  const { userId, deviceId, conversationId } = msg.payload;
+  const { deviceId, conversationId, token } = msg.payload;
+  const userId = await authenticateToken(token);
   
   if (!userId || !deviceId) {
     send(ws, { type: 'error', payload: { message: 'Missing userId or deviceId' }, from: 'server', timestamp: Date.now() });
@@ -104,13 +106,25 @@ const handleJoin = async (clientId: string, ws: WebSocket, msg: SignalingMessage
     return;
   }
 
-  // Verify user exists
+  // Verify authenticated account exists
   const userResult = await query('SELECT id FROM users WHERE id = $1', [userId]);
   if (userResult.rows.length === 0) {
     send(ws, { type: 'error', payload: { message: 'User not found' }, from: 'server', timestamp: Date.now() });
     ws.close();
     return;
   }
+
+  // Verify room membership before joining, including direct signaling.
+  if (conversationId) {
+    const membership = await query('SELECT 1 FROM conversation_participants WHERE conversation_id=$1 AND user_id=$2 AND left_at IS NULL',[conversationId,userId]);
+    if (membership.rowCount !== 1) { ws.close(1008, 'Not a participant'); return; }
+
+    await query(
+      'UPDATE conversation_participants SET last_active_at = NOW() WHERE conversation_id = $1 AND user_id = $2',
+      [conversationId, userId]
+    );
+  }
+
 
   const client: ConnectedClient = {
     id: clientId,
@@ -128,15 +142,7 @@ const handleJoin = async (clientId: string, ws: WebSocket, msg: SignalingMessage
   }
   userClients.get(userId)!.add(clientId);
 
-  // Join conversation room
-  if (conversationId) {
-    await query(
-      'UPDATE conversation_participants SET last_active_at = NOW() WHERE conversation_id = $1 AND user_id = $2',
-      [conversationId, userId]
-    );
-  }
-
-  log.info('Client joined', { clientId, userId, deviceId, conversationId });
+  log.info('Authenticated signaling client joined');
   send(ws, { type: 'join', payload: { status: 'ok', clientId }, from: 'server', timestamp: Date.now() });
 };
 
@@ -176,7 +182,7 @@ const handleWebRTCSignal = async (fromClientId: string, msg: SignalingMessage): 
   } else {
     // Direct message
     const targetClient = clients.get(to);
-    if (targetClient) {
+    if (targetClient && fromClient.conversationId && targetClient.conversationId === fromClient.conversationId) {
       send(targetClient.ws, {
         type: msg.type,
         payload,
@@ -200,7 +206,7 @@ const handleDisconnect = (clientId: string): void => {
     if (userSet.size === 0) userClients.delete(client.userId);
   }
 
-  log.info('Client disconnected', { clientId, userId: client.userId });
+  log.info('Signaling client disconnected');
 };
 
 const cleanupStaleClients = (): void => {

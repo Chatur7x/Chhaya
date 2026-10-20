@@ -1,4 +1,4 @@
-import { Pool, PoolClient, QueryResult } from 'pg';
+import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
 import { config } from './config';
 import { logger } from './log';
 
@@ -53,7 +53,7 @@ const runMigrations = async (p: Pool): Promise<void> => {
       display_name VARCHAR(100) NOT NULL,
       public_key VARCHAR(66) NOT NULL,
       encrypted_private_key BYTEA NOT NULL,
-      recovery_phrase_hash VARCHAR(64) NOT NULL,
+      recovery_phrase_hash TEXT NOT NULL,
       biometric_enabled BOOLEAN DEFAULT false,
       pin_hash VARCHAR(64),
       panic_pin_hash VARCHAR(64),
@@ -151,6 +151,13 @@ const runMigrations = async (p: Pool): Promise<void> => {
       expires_at TIMESTAMPTZ
     )`,
 
+    `ALTER TABLE users ALTER COLUMN recovery_phrase_hash TYPE TEXT;
+     ALTER TABLE conversation_participants ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMPTZ DEFAULT 'epoch';
+     ALTER TABLE conversation_participants ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ DEFAULT NOW();`,
+    `CREATE TABLE IF NOT EXISTS auth_sessions (
+      token_hash CHAR(64) PRIMARY KEY, user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TIMESTAMPTZ NOT NULL
+    )`,
     `CREATE TABLE IF NOT EXISTS rate_limits (
       key VARCHAR(100) PRIMARY KEY,
       count INTEGER DEFAULT 0,
@@ -166,23 +173,7 @@ const runMigrations = async (p: Pool): Promise<void> => {
      CREATE INDEX IF NOT EXISTS idx_onion_nodes_region ON onion_nodes(region, is_active);
      CREATE INDEX IF NOT EXISTS idx_circuits_user ON circuits(user_id, status);`,
 
-    `INSERT INTO onion_nodes (id, address, public_key, region, latency_ms, reliability, is_active)
-     VALUES 
-       ('node_us_east_001', 'us-east.chhaya.network:8443', decode('a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef12345678', 'hex'), 'us-east', 45, 0.98, true),
-       ('node_eu_west_002', 'eu-west.chhaya.network:8443', decode('b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef1234567890', 'hex'), 'eu-west', 52, 0.97, true),
-       ('node_ap_south_003', 'ap-south.chhaya.network:8443', decode('c3d4e5f6789012345678901234567890abcdef1234567890abcdef1234567890ab', 'hex'), 'ap-south', 68, 0.96, true),
-       ('node_us_west_004', 'us-west.chhaya.network:8443', decode('d4e5f6789012345678901234567890abcdef1234567890abcdef1234567890abcdef', 'hex'), 'us-west', 58, 0.97, true),
-       ('node_eu_north_005', 'eu-north.chhaya.network:8443', decode('e5f6789012345678901234567890abcdef1234567890abcdef1234567890abcdef12', 'hex'), 'eu-north', 48, 0.98, true),
-       ('node_ap_east_006', 'ap-east.chhaya.network:8443', decode('f6789012345678901234567890abcdef1234567890abcdef1234567890abcdef1234', 'hex'), 'ap-east', 72, 0.95, true),
-       ('node_sa_east_007', 'sa-east.chhaya.network:8443', decode('789012345678901234567890abcdef1234567890abcdef1234567890abcdef123456', 'hex'), 'sa-east', 85, 0.94, true),
-       ('node_af_south_008', 'af-south.chhaya.network:8443', decode('9012345678901234567890abcdef1234567890abcdef1234567890abcdef12345678', 'hex'), 'af-south', 95, 0.93, true)
-     ON CONFLICT (id) DO UPDATE SET 
-       address = EXCLUDED.address,
-       public_key = EXCLUDED.public_key,
-       latency_ms = EXCLUDED.latency_ms,
-       reliability = EXCLUDED.reliability,
-       is_active = EXCLUDED.is_active,
-       last_health_check = NOW()`,
+
   ];
 
   for (const migration of migrations) {
@@ -190,7 +181,7 @@ const runMigrations = async (p: Pool): Promise<void> => {
   }
 };
 
-export const query = async <T = any>(text: string, params?: any[]): Promise<QueryResult<T>> => {
+export const query = async <T extends QueryResultRow = any>(text: string, params?: any[]): Promise<QueryResult<T>> => {
   const start = Date.now();
   const result = await pool!.query<T>(text, params);
   const duration = Date.now() - start;
@@ -199,3 +190,4 @@ export const query = async <T = any>(text: string, params?: any[]): Promise<Quer
   }
   return result;
 };
+export async function closeDb(): Promise<void> { await pool?.end(); pool = null; }

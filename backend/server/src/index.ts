@@ -10,14 +10,19 @@ import { startSignalingServer } from './signaling';
 import { startOnionRelayServer } from './onion-relay';
 import { initPushNotifications } from './push';
 import { registerRoutes } from './routes';
+import { ZodError } from 'zod';
+import { collectDefaultMetrics, register, Counter } from 'prom-client';
 
-const app = express();
+export const app = express();
+collectDefaultMetrics();
+const requests = new Counter({name:'chhaya_http_requests_total',help:'Completed HTTP requests',labelNames:['method','status']});
+app.use((req,res,next)=>{ res.on('finish',()=>requests.inc({method:req.method,status:res.statusCode})); next(); });
 
 // Middleware
 app.use(helmet({
   contentSecurityPolicy: false, // Allow WebSocket connections
 }));
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({ origin: false }));
 app.use(express.json({ limit: '1mb' }));
 
 // Rate limiting
@@ -36,13 +41,13 @@ app.use(async (req, res, next) => {
 
 // Health check
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString(), version: '13.0.0' });
+  res.json({ status: 'ok', timestamp: new Date().toISOString(), version: '14.0.0' });
 });
 
 // Metrics endpoint
 app.get('/metrics', async (_req, res) => {
-  res.set('Content-Type', 'text/plain');
-  res.send('# Metrics endpoint - integrate with prom-client\n');
+  res.set('Content-Type', register.contentType);
+  res.send(await register.metrics());
 });
 
 // Register API routes
@@ -50,7 +55,8 @@ registerRoutes(app);
 
 // Error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  logger.error('Unhandled error', { error: err.message, stack: err.stack });
+  if (err instanceof ZodError) return res.status(400).json({error:'Invalid input'});
+  logger.error('Request failed');
   res.status(500).json({ error: 'Internal server error' });
 });
 
@@ -60,7 +66,7 @@ async function start() {
     await initDb();
     initPushNotifications();
     startSignalingServer();
-    await startOnionRelayServer();
+    // Onion transport is not enabled until a vetted relay implementation is configured.
 
     app.listen(config.PORT, () => {
       logger.info(`Chhaya API server listening on port ${config.PORT}`, {
@@ -86,4 +92,4 @@ process.on('SIGINT', () => {
   process.exit(0);
 });
 
-start();
+if (require.main === module) void start();
