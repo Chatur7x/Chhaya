@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'account_identity.dart';
+import '../../core/crypto/primitives/rng.dart';
 import 'package:chaaya/core/crypto/chhaya_crypto_engine.dart';
 import 'package:chaaya/core/crypto/key_manager.dart';
 import 'package:chaaya/core/database/local_database.dart';
@@ -35,19 +37,12 @@ class AuthService {
 
   Future<UserProfile> createAccount({String? displayName}) async {
 
-    final keyPair = await ChhayaCryptoEngine.generateKeyPair();
-    await _keyManager.storeKeyPair(keyPair);
-
-
     final recoveryPhrase = ChhayaCryptoEngine.generateRecoveryPhrase();
+    final keyPair = await AccountIdentity.fromRecoveryPhrase(recoveryPhrase);
+    await _keyManager.storeKeyPair(keyPair);
     await _keyManager.storeRecoveryPhrase(recoveryPhrase);
-
-
     final chhayaId = ChhayaId(
-      publicKey: keyPair.publicKeyHex,
-      createdAt: DateTime.now(),
-    );
-
+      publicKey: AccountIdentity.idFor(keyPair), createdAt: DateTime.now());
 
     final profile = UserProfile(
       chhayaId: chhayaId,
@@ -61,135 +56,9 @@ class AuthService {
     _currentUser = profile;
 
 
-    await _populateMockData(keyPair.publicKeyHex);
+
 
     return profile;
-  }
-
-
-  Future<void> _populateMockData(String ownPublicKey) async {
-    final contacts = [
-      Contact(
-        id: 'contact_priya',
-        chhayaId: ChhayaId.fromPublicKey('5f7b3c2a8d1e4c9b3a7d2e5f9a1b4c8d6e2f7a3b5c9d1e4f8a6b2c7d3e5f9a12'),
-        displayName: 'Priya Sharma',
-        verificationLevel: 3,
-        isOnline: true,
-      ),
-      Contact(
-        id: 'contact_arjun',
-        chhayaId: ChhayaId.fromPublicKey('2e8d1e4c9b3a7d2e5f9a1b4c8d6e2f7a3b5c9d1e4f8a6b2c7d3e5f9a1b4c8d62'),
-        displayName: 'Arjun Mehta',
-        verificationLevel: 2,
-        isOnline: true,
-      ),
-      Contact(
-        id: 'contact_neha',
-        chhayaId: ChhayaId.fromPublicKey('b3c7d2e5f9a1b4c8d6e2f7a3b5c9d1e4f8a6b2c7d3e5f9a1b4c8d6e2f7a3b5c9'),
-        displayName: 'Neha Gupta',
-        verificationLevel: 1,
-        isOnline: false,
-      ),
-      Contact(
-        id: 'contact_rahul',
-        chhayaId: ChhayaId.fromPublicKey('f8a6b2c7d3e5f9a1b4c8d6e2f7a3b5c9d1e4f8a6b2c7d3e5f9a1b4c8d6e2f7a3'),
-        displayName: 'Rahul Kapoor',
-        verificationLevel: 2,
-        isOnline: false,
-      ),
-    ];
-
-    for (final contact in contacts) {
-      await _database.addContact(contact);
-    }
-
-    final now = DateTime.now();
-
-    final convo1Id = 'convo_priya';
-    final messages1 = [
-      Message(
-        id: 'm1_1',
-        conversationId: convo1Id,
-        senderId: contacts[0].id,
-        content: 'Hey! How are you?',
-        timestamp: now.subtract(const Duration(minutes: 10)),
-        isRead: true,
-        isDelivered: true,
-      ),
-      Message(
-        id: 'm1_2',
-        conversationId: convo1Id,
-        senderId: 'me',
-        content: 'I\'m great, thanks! Working on the Chhaya crypto module.',
-        timestamp: now.subtract(const Duration(minutes: 9)),
-        isRead: true,
-        isDelivered: true,
-      ),
-      Message(
-        id: 'm1_3',
-        conversationId: convo1Id,
-        senderId: contacts[0].id,
-        content: 'Oh nice! How\'s the onion routing coming along?',
-        timestamp: now.subtract(const Duration(minutes: 8)),
-        isRead: true,
-        isDelivered: true,
-      ),
-      Message(
-        id: 'm1_4',
-        conversationId: convo1Id,
-        senderId: 'me',
-        content: 'The 3-hop routing is working. Latency is around 200ms per message.',
-        timestamp: now.subtract(const Duration(minutes: 7)),
-        isRead: true,
-        isDelivered: true,
-      ),
-      Message(
-        id: 'm1_5',
-        conversationId: convo1Id,
-        senderId: contacts[0].id,
-        content: 'Hey! Did you check the new build?',
-        timestamp: now.subtract(const Duration(minutes: 2)),
-        isRead: false,
-        isDelivered: true,
-      ),
-    ];
-
-    for (final msg in messages1) {
-      await _database.addMessage(msg);
-    }
-
-    final convo1 = Conversation(
-      id: convo1Id,
-      participants: [contacts[0]],
-      lastMessage: messages1.last,
-      unreadCount: 1,
-      createdAt: now.subtract(const Duration(minutes: 10)),
-    );
-    await _database.addConversation(convo1);
-
-    final convo2Id = 'convo_arjun';
-    final messages2 = [
-      Message(
-        id: 'm2_1',
-        conversationId: convo2Id,
-        senderId: contacts[1].id,
-        content: 'The encryption module is ready.',
-        timestamp: now.subtract(const Duration(hours: 1)),
-        isRead: true,
-        isDelivered: true,
-      ),
-    ];
-    for (final msg in messages2) {
-      await _database.addMessage(msg);
-    }
-    final convo2 = Conversation(
-      id: convo2Id,
-      participants: [contacts[1]],
-      lastMessage: messages2.last,
-      unreadCount: 0,
-      createdAt: now.subtract(const Duration(hours: 1)),
-    );
-    await _database.addConversation(convo2);
   }
 
 
@@ -200,22 +69,13 @@ class AuthService {
 
 
 
-    final phraseString = recoveryPhrase.join(' ');
-    final phraseBytes = phraseString.codeUnits;
-    final deterministicSeed = _crypto.hashData(
-      Uint8List.fromList(phraseBytes),
-    );
-
-    final keyPair = ChhayaKeyPair(
-      publicKey: _crypto.hashData(deterministicSeed),
-      privateKey: deterministicSeed,
-    );
+    final keyPair = await AccountIdentity.fromRecoveryPhrase(recoveryPhrase);
 
     await _keyManager.storeKeyPair(keyPair);
     await _keyManager.storeRecoveryPhrase(recoveryPhrase);
 
     final chhayaId = ChhayaId(
-      publicKey: keyPair.publicKeyHex,
+      publicKey: AccountIdentity.idFor(keyPair),
       createdAt: DateTime.now(),
     );
 
@@ -254,74 +114,75 @@ class AuthService {
 
 
   Future<String> generateBackup() async {
-    if (_currentUser == null) {
-      throw StateError('Cannot generate backup: No user logged in');
-    }
-
+    final profile = _currentUser;
     final phrase = await getRecoveryPhrase();
-    if (phrase == null) {
-      throw StateError('Cannot generate backup: Recovery phrase not found');
+    final pair = await _keyManager.getKeyPair();
+    if (profile == null || phrase == null || pair == null) {
+      throw StateError('No account to back up');
     }
-
-
-    final seedBytes = phrase.join(' ').codeUnits;
-    final derivedSecret = _crypto.hashData(Uint8List.fromList(seedBytes));
-
-
     final contacts = await _database.getAllContacts();
     final conversations = await _database.getAllConversations();
-
-    final payloadJson = {
-      'profile': _currentUser!.toJson(),
-      'contactsCount': contacts.length,
-      'conversationsCount': conversations.length,
-      'exportedAt': DateTime.now().toIso8601String(),
-    };
-
-
-    final encrypted = await _crypto.encryptMessage(
-      jsonEncode(payloadJson),
-      derivedSecret,
-    );
-
-    return encrypted;
+    final messages = <Map<String, dynamic>>[];
+    for (final conversation in conversations) {
+      messages.addAll((await _database.getMessages(conversation.id))
+          .map((message) => message.toJson()));
+    }
+    final salt = Csprng.instance.bytes(32);
+    final key = ChhayaCryptoEngine.keyFromRecoveryPhrase(phrase.join(' '), salt: salt);
+    try {
+      final payload = jsonEncode({
+        'profile': profile.toJson(),
+        'publicKey': base64Encode(pair.publicKey),
+        'privateKey': base64Encode(pair.privateKey),
+        'contacts': contacts.map((c) => c.toJson()).toList(),
+        'conversations': conversations.map((c) => c.toJson()).toList(),
+        'messages': messages,
+      });
+      return jsonEncode({'version': 2, 'salt': base64Encode(salt),
+        'ciphertext': await _crypto.encryptMessage(payload, key)});
+    } finally {
+      Csprng.wipe(key);
+    }
   }
 
-
-  Future<bool> restoreFromBackup(String backupBase64, List<String> recoveryPhrase) async {
+  Future<bool> restoreFromBackup(String backup, List<String> phrase) async {
+    Uint8List? key;
     try {
-      final seedBytes = recoveryPhrase.join(' ').codeUnits;
-      final derivedSecret = _crypto.hashData(Uint8List.fromList(seedBytes));
-
-      final decryptedJsonString = await _crypto.decryptMessage(backupBase64, derivedSecret);
-
-      final data = jsonDecode(decryptedJsonString) as Map<String, dynamic>;
-      final profileMap = data['profile'] as Map<String, dynamic>;
-      final profile = UserProfile.fromJson(profileMap);
-
-
-      final deterministicSeed = _crypto.hashData(Uint8List.fromList(seedBytes));
-      final keyPair = ChhayaKeyPair(
-        publicKey: _crypto.hashData(deterministicSeed),
-        privateKey: deterministicSeed,
-      );
-      await _keyManager.storeKeyPair(keyPair);
-      await _keyManager.storeRecoveryPhrase(recoveryPhrase);
-
-
+      final envelope = jsonDecode(backup) as Map<String, dynamic>;
+      if (envelope['version'] != 2) return false;
+      final salt = base64Decode(envelope['salt'] as String);
+      if (salt.length != 32) return false;
+      key = ChhayaCryptoEngine.keyFromRecoveryPhrase(phrase.join(' '), salt: salt);
+      final payload = jsonDecode(await _crypto.decryptMessage(
+          envelope['ciphertext'] as String, key)) as Map<String, dynamic>;
+      final profile = UserProfile.fromJson(payload['profile'] as Map<String, dynamic>);
+      if (profile.recoveryPhrase.join(' ') != phrase.join(' ')) return false;
+      final pair = ChhayaKeyPair(publicKey: base64Decode(payload['publicKey'] as String),
+          privateKey: base64Decode(payload['privateKey'] as String));
+      // Parse all content before modifying the current account.
+      final contacts = (payload['contacts'] as List)
+          .map((c) => Contact.fromJson(Map<String, dynamic>.from(c as Map))).toList();
+      final conversations = (payload['conversations'] as List)
+          .map((c) => Conversation.fromJson(Map<String, dynamic>.from(c as Map))).toList();
+      final messages = (payload['messages'] as List)
+          .map((m) => Message.fromJson(Map<String, dynamic>.from(m as Map))).toList();
+      if (pair.privateKey.length != 32 || pair.publicKey.length != 32) return false;
+      if (profile.chhayaId.publicKey != pair.publicKeyHex &&
+          profile.chhayaId.publicKey != AccountIdentity.idFor(pair)) return false;
+      await _keyManager.storeKeyPair(pair);
+      await _keyManager.storeRecoveryPhrase(phrase);
       await _database.saveUserProfile(profile);
+      for (final contact in contacts) { await _database.addContact(contact); }
+      for (final conversation in conversations) { await _database.addConversation(conversation); }
+      for (final message in messages) { await _database.addMessage(message); }
       _currentUser = profile;
-
-
-      await _populateMockData(keyPair.publicKeyHex);
-
       return true;
     } catch (_) {
       return false;
+    } finally {
+      if (key != null) Csprng.wipe(key);
     }
   }
-
-
 
   Future<String> generateDeviceLinkCode() async {
     if (_currentUser == null) {

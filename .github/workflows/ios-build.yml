@@ -2,7 +2,7 @@ name: iOS Build
 on:
   workflow_dispatch:
   push:
-    branches: [main, platform/ios-foundation]
+    branches: [main, platform/ios-foundation, 'codex/**']
     paths: ['ios/**', 'lib/**', 'test/**', 'pubspec.yaml', 'pubspec.lock', '.github/workflows/ios-build.yml']
   pull_request:
     branches: [main]

@@ -10,7 +10,7 @@ name: Android Build
 on:
   workflow_dispatch:
   push:
-    branches: [main, platform/ios-foundation]
+    branches: [main, platform/ios-foundation, 'codex/**']
     paths:
       - 'ios/**'
       - 'lib/**'

@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'dart:convert';
-import 'package:chaaya/core/crypto/chhaya_crypto_engine.dart';
 import '../../theme/chhaya_theme.dart';
 import '../../widgets/glass_container.dart';
 import '../../widgets/chhaya_button.dart';
 import '../../../core/models/chhaya_id.dart';
 import '../../../core/router/chhaya_router.dart';
 import '../../../core/providers/app_providers.dart';
-import '../../../services/api/api_service.dart'; // ignore: unused_import
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -93,29 +90,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
     setState(() => _creating = true);
     try {
       final auth = ref.read(authServiceProvider);
-      final api = ref.read(apiServiceProvider); // ignore: unused_local_variable
-      
-      // Create account locally first
       final profile = await auth.createAccount(displayName: _nameCtrl.text.trim());
       final phrase = profile.recoveryPhrase;
-      
-      // Register with backend
-      final crypto = ChhayaCryptoEngine();
-      final keyPair = await ChhayaCryptoEngine.generateKeyPair();
-      final recoveryHash = crypto.hashData(Uint8List.fromList(utf8.encode(phrase.join(' '))));
-      final recoveryHashHex = recoveryHash.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-      
-      await api.register(
-        chhayaId: profile.chhayaId.publicKey,
-        displayName: _nameCtrl.text.trim(),
-        publicKey: keyPair.publicKeyHex,
-        encryptedPrivateKey: keyPair.privateKeyHex, // In production, encrypt with user's recovery phrase
-        recoveryPhraseHash: recoveryHashHex,
-        deviceId: 'device_${DateTime.now().millisecondsSinceEpoch}',
-        deviceName: 'Primary',
-        platform: 'flutter',
-      );
-      
+      if (!mounted) return;
       setState(() {
         _generatedPhrase = phrase;
         _creating = false;
@@ -160,10 +137,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
       bool success = false;
       if (backupText.isNotEmpty) {
         success = await auth.restoreFromBackup(backupText, words);
-        if (!success) {
-          await auth.restoreAccount(words);
-          success = auth.currentUser != null;
-        }
+
       } else {
         await auth.restoreAccount(words);
         success = auth.currentUser != null;
