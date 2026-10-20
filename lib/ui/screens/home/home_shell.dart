@@ -1,3 +1,5 @@
+import '../../../services/call/call_service.dart';
+import '../call/call_screen.dart';
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/app_providers.dart';
@@ -18,10 +20,14 @@ class HomeShell extends ConsumerStatefulWidget {
 class _HomeShellState extends ConsumerState<HomeShell> with WidgetsBindingObserver {
   int _selectedIndex=0;
   Timer? _syncTimer;
+  StreamSubscription<IncomingCall>? _incomingCalls;
+  bool _showingCall=false;
   bool _syncing=false;
   String? _syncError;
   @override
-  void initState() { super.initState(); WidgetsBinding.instance.addObserver(this); _startSync(); }
+  void initState() { super.initState(); WidgetsBinding.instance.addObserver(this);
+    _incomingCalls=ref.read(callServiceProvider).incoming.listen(_receiveCall);
+    _startSync(); }
   void _startSync() {
     _syncTimer?.cancel(); _sync();
     _syncTimer=Timer.periodic(const Duration(seconds:5),(_)=>_sync());
@@ -30,6 +36,7 @@ class _HomeShellState extends ConsumerState<HomeShell> with WidgetsBindingObserv
     if(_syncing) { return; }
     _syncing=true;
     try {
+      await ref.read(callServiceProvider).ensureConnected();
       final conversations=await ref.read(messagingServiceProvider).sync();
       final contacts=await ref.read(localDatabaseProvider).getAllContacts();
       if(!mounted) { return; }
@@ -45,8 +52,29 @@ class _HomeShellState extends ConsumerState<HomeShell> with WidgetsBindingObserv
     else { _syncTimer?.cancel(); }
   }
   @override
-  void dispose() { _syncTimer?.cancel(); WidgetsBinding.instance.removeObserver(this); super.dispose(); }
+  void dispose() { _incomingCalls?.cancel(); _syncTimer?.cancel(); WidgetsBinding.instance.removeObserver(this); super.dispose(); }
 
+
+  Future<void> _receiveCall(IncomingCall incoming) async {
+    if(!mounted||_showingCall) { return; }
+    _showingCall=true;
+    final contact=ref.read(contactsProvider).where((c)=>c.id==incoming.senderId).firstOrNull;
+    final accepted=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
+      title:Text('Incoming call from ${contact?.displayName??'verified contact'}'),
+      content:Text(incoming.video?'Video call':'Voice call'),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Decline')),
+        FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Accept'))]));
+    try {
+      if(accepted==true&&mounted) {
+        await ref.read(callServiceProvider).accept(incoming);
+        if(mounted) { await Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>CallScreen(
+          contactName:contact?.displayName??'Contact',isVideo:incoming.video,incoming:true,conversationId:incoming.conversationId))); }
+      }
+    } catch(error) {
+      await ref.read(callServiceProvider).end(notifyPeer:false);
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Call failed: $error')));
+    } finally { _showingCall=false; }
+  }
 
   final _pages = const [
     ChatListScreen(),

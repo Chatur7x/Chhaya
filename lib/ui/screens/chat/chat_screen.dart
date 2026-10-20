@@ -226,7 +226,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
             icon: Icons.call_rounded,
             onPressed: () => Navigator.of(context).pushNamed(
               ChhayaRouter.call,
-              arguments: {'contactName': widget.contactName, 'isVideo': false},
+              arguments: {'conversationId':widget.conversationId, 'contactName': widget.contactName, 'isVideo': false},
             ),
             size: 36,
             background: ChhayaColors.cardSurface,
@@ -236,7 +236,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
             icon: Icons.videocam_rounded,
             onPressed: () => Navigator.of(context).pushNamed(
               ChhayaRouter.call,
-              arguments: {'contactName': widget.contactName, 'isVideo': true},
+              arguments: {'conversationId':widget.conversationId, 'contactName': widget.contactName, 'isVideo': true},
             ),
             size: 36,
             background: ChhayaColors.cardSurface,

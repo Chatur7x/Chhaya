@@ -47,6 +47,7 @@ class ChhayaRouter {
             contactName: args?['contactName'] as String? ?? 'Unknown',
             contactAvatar: args?['contactAvatar'] as String?,
             isVideo: args?['isVideo'] as bool? ?? false,
+            conversationId: args?['conversationId'] as String? ?? '',
           ),
           routeSettings,
           fullscreenDialog: true,

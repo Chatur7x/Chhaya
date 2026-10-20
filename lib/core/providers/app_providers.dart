@@ -12,6 +12,7 @@ import '../../services/network/decentralized_file_client.dart';
 import '../../services/notification/notification_service.dart';
 import '../../services/api/api_service.dart';
 import '../../services/messaging/messaging_service.dart';
+import '../../services/call/call_service.dart';
 
 
 
@@ -136,4 +137,7 @@ class ContactsNotifier extends StateNotifier<List<Contact>> {
 }
 
 final messagingServiceProvider = Provider<MessagingService>((ref) => MessagingService(
+  api:ref.read(apiServiceProvider),database:ref.read(localDatabaseProvider),keys:ref.read(keyManagerProvider)));
+
+final callServiceProvider=ChangeNotifierProvider<CallService>((ref)=>CallService(
   api:ref.read(apiServiceProvider),database:ref.read(localDatabaseProvider),keys:ref.read(keyManagerProvider)));

@@ -7,7 +7,7 @@ import { getDb, query } from './db';
 import { authenticateToken } from './session';
 
 interface SignalingMessage {
-  type: 'offer' | 'answer' | 'ice-candidate' | 'join' | 'leave' | 'ping' | 'pong' | 'error' | 'new_message';
+  type: 'offer' | 'answer' | 'ice-candidate' | 'join' | 'leave' | 'ping' | 'pong' | 'error' | 'new_message' | 'call-end';
   payload: any;
   from: string;
   to?: string;
@@ -84,6 +84,7 @@ const handleMessage = async (clientId: string, ws: WebSocket, msg: SignalingMess
     case 'offer':
     case 'answer':
     case 'ice-candidate':
+    case 'call-end':
       await handleWebRTCSignal(clientId, msg);
       break;
 
@@ -150,48 +151,14 @@ const handleWebRTCSignal = async (fromClientId: string, msg: SignalingMessage): 
   const fromClient = clients.get(fromClientId);
   if (!fromClient) return;
 
-  const { to, payload } = msg;
-  
-  if (!to) {
-    // Broadcast to conversation participants
-    if (fromClient.conversationId) {
-      const participants = await query(
-        `SELECT DISTINCT cp.user_id FROM conversation_participants cp 
-         WHERE cp.conversation_id = $1 AND cp.left_at IS NULL`,
-        [fromClient.conversationId]
-      );
+  const {to,payload}=msg;
+  if(typeof to!=='string'||typeof payload?.conversationId!=='string'||typeof payload?.callId!=='string') return;
+  const allowed=await query(`SELECT user_id FROM conversation_participants
+    WHERE conversation_id=$1 AND user_id=ANY($2::uuid[]) AND left_at IS NULL`,
+    [payload.conversationId,[fromClient.userId,to]]);
+  if(allowed.rows.length!==2) return;
+  broadcastToUser(to,{type:msg.type,payload,from:fromClient.userId,to,timestamp:Date.now()});
 
-      for (const p of participants.rows) {
-        const userClientIds = userClients.get(p.user_id);
-        if (userClientIds) {
-          for (const cid of userClientIds) {
-            const targetClient = clients.get(cid);
-            if (targetClient && targetClient.id !== fromClientId) {
-              send(targetClient.ws, {
-                type: msg.type,
-                payload,
-                from: fromClientId,
-                to: cid,
-                timestamp: Date.now(),
-              });
-            }
-          }
-        }
-      }
-    }
-  } else {
-    // Direct message
-    const targetClient = clients.get(to);
-    if (targetClient && fromClient.conversationId && targetClient.conversationId === fromClient.conversationId) {
-      send(targetClient.ws, {
-        type: msg.type,
-        payload,
-        from: fromClientId,
-        to,
-        timestamp: Date.now(),
-      });
-    }
-  }
 };
 
 const handleDisconnect = (clientId: string): void => {
