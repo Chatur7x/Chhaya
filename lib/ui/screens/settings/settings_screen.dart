@@ -305,7 +305,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
       title: Text(title, style: ChhayaTypography.bodyMedium),
       value: value,
-      onChanged: (v) { ChhayaHaptics.selection(); onChanged(v); },
+      onChanged: onChanged == null ? null : (v) { ChhayaHaptics.selection(); onChanged(v); },
       activeTrackColor: color.withValues(alpha: 0.3),
       activeThumbColor: color,
       contentPadding: const EdgeInsets.symmetric(horizontal: ChhayaSpacing.space4, vertical: 2),
