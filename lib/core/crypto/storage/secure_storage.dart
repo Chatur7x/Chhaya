@@ -134,8 +134,10 @@ Future<HardwareSecurityLevel?> queryNativeStorageLevel(
     switch (level) {
       case 'strongbox':
         return HardwareSecurityLevel.strongBox;
+      case 'secure_enclave':
       case 'secure-enclave':
         return HardwareSecurityLevel.secureEnclave;
+      case 'keychain':
       case 'tee':
         return HardwareSecurityLevel.tee;
       case 'software':

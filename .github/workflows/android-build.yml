@@ -9,8 +9,9 @@ name: Android Build
 
 on:
   push:
-    branches: [main]
+    branches: [main, platform/ios-foundation]
     paths:
+      - 'ios/**'
       - 'lib/**'
       - 'android/**'
       - 'test/**'

@@ -12,8 +12,6 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
-    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "ChhayaSecurityPlugin") {
-      ChhayaSecurityPlugin.register(with: registrar)
-    }
+    ChhayaSecurityPlugin.register(with: engineBridge.applicationRegistrar.messenger())
   }
 }
