@@ -42,6 +42,7 @@ class CallService extends ChangeNotifier {
   bool connected=false,muted=false,videoEnabled=true;
   String status='Ready';
   bool _renderersReady=false,_remoteReady=false;
+  Timer? _ringTimeout;
   final _candidates=<RTCIceCandidate>[];
   Future<void> _signalTail=Future.value();
 
@@ -103,6 +104,8 @@ class CallService extends ChangeNotifier {
     final offer=await _pc!.createOffer();
     await _pc!.setLocalDescription(offer);
     _send('offer',{'sdp':offer.sdp,'type':offer.type,'video':video});
+    _ringTimeout?.cancel();
+    _ringTimeout=Timer(const Duration(seconds:60),()=>end());
     status='Calling'; notifyListeners();
   }
 
@@ -168,6 +171,7 @@ class CallService extends ChangeNotifier {
     if(id!=_callId||sender!=_peerId||_signalKey==null) { return; }
     final body=_open(type!,id,sender,payload['envelope'] as String,_signalKey!);
     if(type=='answer') {
+      _ringTimeout?.cancel();
       _peerAnswered=true;
       for(final candidate in _candidateOutbox) { _send('ice-candidate',candidate); }
       _candidateOutbox.clear();
@@ -181,6 +185,18 @@ class CallService extends ChangeNotifier {
     } else if(type=='call-end') { await end(notifyPeer:false); }
   }
 
+  Future<void> reject(IncomingCall incoming) async {
+    if(_callId!=null) { return; }
+    final peer=await _peer(incoming.conversationId);
+    final key=await _key(peer,incoming.callId);
+    try {
+      final encrypted=base64Encode(AesGcm.encryptBytes(key,Uint8List.fromList(utf8.encode('{}')),
+          aad:_aad('call-end',incoming.callId,api.userId!,incoming.senderId)));
+      _socket?.sink.add(jsonEncode({'type':'call-end','to':incoming.senderId,'payload':{
+        'callId':incoming.callId,'conversationId':incoming.conversationId,'envelope':encrypted}}));
+    } finally { Csprng.wipe(key); }
+  }
+
   void toggleMute(){ muted=!muted; for(final track in _local?.getAudioTracks()??[]) { track.enabled=!muted; } notifyListeners(); }
   void toggleVideo(){ videoEnabled=!videoEnabled; for(final track in _local?.getVideoTracks()??[]) { track.enabled=videoEnabled; } notifyListeners(); }
   Future<void> end({bool notifyPeer=true}) async {
@@ -188,7 +204,8 @@ class CallService extends ChangeNotifier {
     for(final track in _local?.getTracks()??[]) { await track.stop(); }
     await _local?.dispose(); await _pc?.close();
     _local=null; _pc=null; _peerAnswered=false; _candidateOutbox.clear(); _remoteReady=false; _candidates.clear();
-    localRenderer.srcObject=null; remoteRenderer.srcObject=null;
+    if(_renderersReady) { localRenderer.srcObject=null; remoteRenderer.srcObject=null; }
+    _ringTimeout?.cancel();
     if(_signalKey!=null) { Csprng.wipe(_signalKey!); }
     _signalKey=null; _callId=null; _peerId=null; _conversationId=null;
     connected=false; status='Call ended'; notifyListeners();

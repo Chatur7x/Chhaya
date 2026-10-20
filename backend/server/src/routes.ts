@@ -126,7 +126,7 @@ router.post('/auth/register', safe(async (req: Request, res: Response) => {
     if (e instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: e.errors });
     }
-    logger.error('Registration failed', { error: (e as Error).message });
+    logger.error('Registration failed');
     res.status(500).json({ error: 'Registration failed' });
   }
 }));
@@ -169,7 +169,7 @@ router.post('/auth/login', safe(async (req: Request, res: Response) => {
     if (e instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: e.errors });
     }
-    logger.error('Login failed', { error: (e as Error).message });
+    logger.error('Login failed');
     res.status(500).json({ error: 'Login failed' });
   }
 }));

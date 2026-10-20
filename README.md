@@ -1,5 +1,15 @@
 # Chhaya
 
+> **Current build status:** development/test build, not a production release.
+> Direct-message transport, foreground WebRTC calls, recovery and encrypted
+> backups are under automated verification. Both people need a deployed HTTPS
+> backend and verified identities. No hosted service is bundled.
+> Onion routing, offline mesh, post-quantum providers, encrypted groups,
+> attachments and coercion-resistant vault features are not complete.
+> See [test-build guide](docs/test-builds.md) for installation and limitations.
+> Claims in the historical feature roadmap below describe intended scope;
+> they are not a release-readiness or external-audit claim.
+
 > **Privacy-first, end-to-end encrypted messenger. Open source.**
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.29%2B-blue?logo=flutter)](https://flutter.dev)
@@ -8,9 +18,7 @@
 [![CI](https://github.com/Chatur7x/Chhaya/actions/workflows/ci.yml/badge.svg)](https://github.com/Chatur7x/Chhaya/actions/workflows/ci.yml)
 
 Chhaya is an open-source, end-to-end encrypted messenger. No phone number,
-no email, no central identity — a 66-character anonymous identity with
-audited cryptography, onion-routed transport, and a coercion-resistant
-design. This project is community open source: free to use, modify.
+no email, no central identity — a 66-character anonymous identity with cryptographic components and additional privacy features under development. This project is community open source: free to use, modify.
 
 ---
 

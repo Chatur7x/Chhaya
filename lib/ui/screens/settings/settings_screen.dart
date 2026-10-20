@@ -17,10 +17,10 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _biometricLock = false;
-  bool _onionRouting = true;
+  final bool _onionRouting = false;
   bool _readReceipts = true;
   bool _disappearingMessages = false;
-  bool _meshRouting = false;
+  final bool _meshRouting = false;
 
   String _shortId(String id, int max) => id.length > max ? '${id.substring(0, max)}…' : id;
 
@@ -30,9 +30,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final db = ref.read(localDatabaseProvider);
     _biometricLock = db.getBiometricLockEnabled();
     _readReceipts = db.getReadReceiptsEnabled();
-    _onionRouting = db.getOnionRoutingEnabled();
     _disappearingMessages = db.getGlobalDisappearingDuration() > 0;
-    _meshRouting = db.getMeshRoutingEnabled();
   }
 
   Future<void> _configureServer() async {
@@ -179,28 +177,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
             _sectionHeader('NETWORK'),
             _settingsCard([
-              _settingsSwitch(Icons.public_rounded, ChhayaColors.accent, 'Onion Routing', _onionRouting, (v) async {
-                await ref.read(localDatabaseProvider).setOnionRoutingEnabled(v);
-                setState(() => _onionRouting = v);
-              }),
-              const Divider(height: 0, indent: 56),
-              _settingsTile(Icons.speed_rounded, ChhayaColors.warning, 'Relay Speed', onTap: _showRelaySpeed),
-              const Divider(height: 0, indent: 56),
-              _settingsSwitch(Icons.wifi_tethering_rounded, ChhayaColors.success, 'Local Mesh', _meshRouting, (v) async {
-                await ref.read(localDatabaseProvider).setMeshRoutingEnabled(v);
-                setState(() => _meshRouting = v);
-                if (v) _showMeshPeers();
-              }),
+              _settingsSwitch(Icons.public_rounded, ChhayaColors.accent, 'Onion routing (unavailable)', _onionRouting, null),
+              const Divider(height:0,indent:56),
+              _settingsTile(Icons.info_outline,ChhayaColors.info,'Transport status',onTap:_showRelaySpeed),
+              const Divider(height:0,indent:56),
+              _settingsSwitch(Icons.wifi_tethering_rounded,ChhayaColors.success,'Offline mesh (unavailable)',_meshRouting,null),
+              _settingsTile(Icons.info_outline,ChhayaColors.info,'Offline transport status',onTap:_showMeshPeers),
             ]),
 
             _sectionHeader('ABOUT'),
             _settingsCard([
-              _settingsTile(Icons.info_rounded, ChhayaColors.labelSecondary, 'Version', trailing: Text('12.0.2', style: ChhayaTypography.labelMedium), onTap: () {
+              _settingsTile(Icons.info_rounded, ChhayaColors.labelSecondary, 'Version', trailing: Text('14.0.0 test build', style: ChhayaTypography.labelMedium), onTap: () {
                 showDialog(context: context, builder: (_) => AlertDialog(
                   backgroundColor: ChhayaColors.cardSurfaceElevated,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ChhayaRadius.xxl)),
                   title: const Text('Chhaya'),
-                  content: const Text('Version 12.0.2 (Build 14) Hacker-terminal minimalism • 2026\n\n© 2026 Chhaya Project'),
+                  content: const Text('Version 14.0.0 test build • 2026\n\n© 2026 Chhaya Project'),
                   actions: [TextButton(child: const Text('OK'), onPressed: () => Navigator.pop(context))],
                 ));
               }),
@@ -301,7 +293,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _settingsSwitch(IconData icon, Color color, String title, bool value, ValueChanged<bool> onChanged) {
+  Widget _settingsSwitch(IconData icon, Color color, String title, bool value, ValueChanged<bool>? onChanged) {
     return SwitchListTile(
       secondary: Container(
         width: 30, height: 30,
@@ -571,37 +563,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _showRelaySpeed() {
-    final router = ref.read(onionRouterProvider);
-    final nodes = router.activeNodes;
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: ChhayaColors.sheetBackground,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(ChhayaRadius.xxl))),
-      builder: (_) => _buildBottomSheet(
-        title: 'Relay Network Telemetry',
-        child: Column(children: [
-          _telemetryRow('Status', _onionRouting ? 'Active' : 'Disabled'),
-          _telemetryRow('Hop Count', '${nodes.length}'),
-          _telemetryRow('Packets Routed', '${router.stats.totalSent}'),
-          const SizedBox(height: ChhayaSpacing.space2),
-          ...nodes.map((n) => Container(
-            margin: const EdgeInsets.only(bottom: ChhayaSpacing.space2),
-            padding: const EdgeInsets.all(ChhayaSpacing.space3),
-            decoration: BoxDecoration(
-              color: ChhayaColors.fillTertiary,
-              borderRadius: BorderRadius.circular(ChhayaRadius.md),
-              border: Border.all(color: ChhayaColors.separator),
-            ),
-            child: Row(children: [
-              const Icon(Icons.public_rounded, color: ChhayaColors.accent, size: 18),
-              const SizedBox(width: ChhayaSpacing.space2),
-              Expanded(child: Text(n.address, style: ChhayaTypography.code.copyWith(fontSize: 11))),
-              Text('${n.latencyMs}ms', style: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.success, fontWeight: FontWeight.w700)),
-            ]),
-          )),
-        ]),
-      ),
-    );
+    showDialog(context:context,builder:(ctx)=>AlertDialog(
+      title:const Text('Transport status'),
+      content:_telemetryRow('Transport','HTTPS API; onion routing unavailable'),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Close'))]));
   }
 
   Widget _telemetryRow(String label, String value) {
@@ -616,39 +581,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _showMeshPeers() {
-    final peers = [
-      {'name': 'Pixel 8 Pro', 'signal': '▂▄▆█', 'latency': '12ms'},
-      {'name': 'iPhone 16', 'signal': '▂▄▆', 'latency': '28ms'},
-      {'name': 'Galaxy S25', 'signal': '▂▄', 'latency': '45ms'},
-    ];
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: ChhayaColors.sheetBackground,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(ChhayaRadius.xxl))),
-      builder: (_) => _buildBottomSheet(
-        title: 'Nearby Mesh Peers',
-        child: Column(
-          children: peers.map((p) => Container(
-            margin: const EdgeInsets.only(bottom: ChhayaSpacing.space2),
-            padding: const EdgeInsets.all(ChhayaSpacing.space3),
-            decoration: BoxDecoration(
-              color: ChhayaColors.fillTertiary,
-              borderRadius: BorderRadius.circular(ChhayaRadius.md),
-              border: Border.all(color: ChhayaColors.separator),
-            ),
-            child: Row(children: [
-              const Icon(Icons.wifi_tethering_rounded, color: ChhayaColors.success, size: 22),
-              const SizedBox(width: ChhayaSpacing.space3),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(p['name']!, style: ChhayaTypography.bodyMedium),
-                Text('${p['signal']}  ${p['latency']}', style: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.success)),
-              ])),
-              ChhayaChip(label: 'Connect', selected: true, selectedColor: ChhayaColors.success, onSelected: () => ChhayaHaptics.success()),
-            ]),
-          )).toList(),
-        ),
-      ),
-    );
+    showDialog(context:context,builder:(ctx)=>AlertDialog(
+      title:const Text('Offline transport'),
+      content:const Text('Offline mesh is not implemented in this build. Internet messaging requires a configured server.'),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Close'))]));
   }
 
   void _logout() async {

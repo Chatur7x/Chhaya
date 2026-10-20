@@ -30,7 +30,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
   bool _loading = true;
   bool _isTyping = false;
   final bool _otherTyping = false;
-  bool _steganoMode = false;
+  final bool _steganoMode = false;
   int _ttlMinutes = 0;
   Timer? _refreshTimer;
   bool _sending=false;
@@ -208,7 +208,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
                 Text(
                   _ttlMinutes > 0
                       ? 'Disappearing · $_ttlLabel'
-                      : 'Onion-secured',
+                      : 'Verified direct chat',
                   style: ChhayaTypography.labelSmall.copyWith(
                     color: _ttlMinutes > 0
                         ? ChhayaColors.warning
@@ -327,7 +327,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
             ),
             const SizedBox(height: ChhayaSpacing.space1),
             Text(
-              'Messages are onion-routed and encrypted\nwith AES-256-GCM + Double Ratchet.',
+              'Verify your contact and connect your server\nto exchange encrypted direct messages.',
               textAlign: TextAlign.center,
               style: ChhayaTypography.bodySmall.copyWith(
                 color: ChhayaColors.labelTertiary,
@@ -623,6 +623,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
     );
   }
 
+  void _attachmentUnavailable() {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Attachments and polls are not available in this test build.')));
+  }
+
   void _showAttachmentSheet() {
     showModalBottomSheet(
       context: context,
@@ -641,10 +645,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _attachAction(Icons.camera_alt_rounded, 'Camera', ChhayaColors.accent, () {}),
-                  _attachAction(Icons.photo_rounded, 'Gallery', ChhayaColors.success, () {}),
-                  _attachAction(Icons.insert_drive_file_rounded, 'File', ChhayaColors.info, () {}),
-                  _attachAction(Icons.how_to_vote_rounded, 'Poll', ChhayaColors.warning, () {}),
+                  _attachAction(Icons.camera_alt_rounded, 'Camera', ChhayaColors.accent, _attachmentUnavailable),
+                  _attachAction(Icons.photo_rounded, 'Gallery', ChhayaColors.success, _attachmentUnavailable),
+                  _attachAction(Icons.insert_drive_file_rounded, 'File', ChhayaColors.info, _attachmentUnavailable),
+                  _attachAction(Icons.how_to_vote_rounded, 'Poll', ChhayaColors.warning, _attachmentUnavailable),
                 ],
               ),
               const SizedBox(height: ChhayaSpacing.space4),
@@ -656,17 +660,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
                 ),
                 child: SwitchListTile(
                   secondary: const Icon(Icons.visibility_off_rounded, color: ChhayaColors.accent, size: 20),
-                  title: Text('Stegano Mode', style: ChhayaTypography.bodyMedium),
+                  title: Text('Steganography (unavailable)', style: ChhayaTypography.bodyMedium),
                   subtitle: Text(
                     'Hide messages inside images',
                     style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.labelTertiary),
                   ),
                   value: _steganoMode,
-                  onChanged: (v) {
-                    setSheetState(() => _steganoMode = v);
-                    setState(() => _steganoMode = v);
-                    ChhayaHaptics.selection();
-                  },
+                  onChanged: null,
                   activeTrackColor: ChhayaColors.accent.withValues(alpha: 0.3),
                   activeThumbColor: ChhayaColors.accent,
                 ),

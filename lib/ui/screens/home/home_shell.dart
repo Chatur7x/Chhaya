@@ -69,7 +69,7 @@ class _HomeShellState extends ConsumerState<HomeShell> with WidgetsBindingObserv
         await ref.read(callServiceProvider).accept(incoming);
         if(mounted) { await Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>CallScreen(
           contactName:contact?.displayName??'Contact',isVideo:incoming.video,incoming:true,conversationId:incoming.conversationId))); }
-      }
+      } else { await ref.read(callServiceProvider).reject(incoming); }
     } catch(error) {
       await ref.read(callServiceProvider).end(notifyPeer:false);
       if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Call failed: $error')));
