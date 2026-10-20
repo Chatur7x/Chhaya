@@ -1,3 +1,4 @@
+import 'dart:convert';
 // Android secure storage: Keystore + StrongBox preference.
 //
 // Purpose: store key material in the Android Keystore via encrypted
@@ -5,12 +6,9 @@
 // device proves one exists. Ladder: StrongBox → TEE Keystore →
 // software Keystore (with logged warning).
 //
-// NATIVE FOLLOW-UP (pending decision): StrongBox enforcement needs a
-// ~20-line Kotlin handler for channel `chhaya/security`
-// (`isStrongBoxAvailable` via PackageManager.FEATURE_STRONGBOX_KEYSTORE
-// plus an AndroidKeyStore AES key with setIsStrongBoxBacked(true)).
-// Until that handler ships, the probe below degrades gracefully to the
-// TEE assumption with a warning — the release build is unaffected.
+// Persistent native wrapping and the actual wrapping-key security level
+// are provided by ChhayaSecurityPlugin. Older plaintext delegate values
+// remain readable; new writes are wrapped on supported native hosts.
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../log.dart';
@@ -32,14 +30,25 @@ class AndroidSecureStorage implements SecureStorage {
   final SecureStorage _delegate;
   final MethodChannel _channel;
 
+  static const _prefix='chhaya.keystore.v1:';
   @override
-  Future<void> write({required String key, required String value}) {
-    return _delegate.write(key: key, value: value);
+  Future<void> write({required String key, required String value}) async {
+    String? wrapped;
+    try {
+      wrapped=await _channel.invokeMethod<String>('wrapSecret',{'value':base64Encode(utf8.encode(value))});
+    } on MissingPluginException {
+      ChhayaLog.w('Native wrapping unavailable; using encrypted platform storage',name:'SecureStorage.android');
+    }
+    await _delegate.write(key:key,value:wrapped==null?value:'$_prefix$wrapped');
   }
 
   @override
-  Future<String?> read({required String key}) {
-    return _delegate.read(key: key);
+  Future<String?> read({required String key}) async {
+    final value=await _delegate.read(key:key);
+    if(value==null||!value.startsWith(_prefix)) { return value; }
+    final plain=await _channel.invokeMethod<String>('unwrapSecret',{'value':value.substring(_prefix.length)});
+    if(plain==null) { throw StateError('Keystore wrapping key unavailable'); }
+    return utf8.decode(base64Decode(plain));
   }
 
   @override

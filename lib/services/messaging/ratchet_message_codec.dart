@@ -55,7 +55,7 @@ class RatchetMessageCodec {
   }
 
   Future<Map<String,dynamic>> decrypt(Contact peer,String conversation,
-      String messageId,String sender,String envelope) async {
+      String messageId,String sender,String envelope,{Future<void> Function(SessionState state,Map<String,dynamic> payload)? commit}) async {
     final wire=jsonDecode(envelope) as Map<String,dynamic>;
     if(wire['v']!=1) { throw const FormatException('Unsupported message protocol'); }
     final header=base64Decode(wire['header'] as String);
@@ -65,7 +65,8 @@ class RatchetMessageCodec {
       final aad=Uint8List.fromList([..._aad(conversation,messageId,sender),...header]);
       final plain=AesGcm.decryptBytes(keys.messageKey,base64Decode(wire['body'] as String),aad:aad);
       final result=jsonDecode(utf8.decode(plain)) as Map<String,dynamic>;
-      await sessions.saveSession(state);
+      if(commit!=null) { await commit(state,result); }
+      else { await sessions.saveSession(state); }
       return result;
     } finally { keys.wipe(); state.wipe(); }
   }

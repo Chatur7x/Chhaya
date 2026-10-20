@@ -267,7 +267,7 @@ class _AppStartupGateState extends ConsumerState<AppStartupGate> {
             backgroundColor: ChhayaColors.cardSurface,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ChhayaRadius.xl)),
             title: const Text('Data Erased'),
-            content: const Text('All data has been permanently destroyed.'),
+            content: const Text('Local account data and keys have been removed. Remote copies and backups are not erased.'),
             actions: [
               TextButton(
                 child: const Text('OK'),

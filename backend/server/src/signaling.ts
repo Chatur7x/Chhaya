@@ -21,6 +21,7 @@ interface ConnectedClient {
   deviceId: string;
   conversationId?: string;
   lastPing: number;
+  sessionToken: string;
 }
 
 const clients = new Map<string, ConnectedClient>();
@@ -68,13 +69,15 @@ export const startSignalingServer = (): WebSocketServer => {
   });
 
   // Periodic cleanup
-  setInterval(cleanupStaleClients, 60000);
+  const cleanup=setInterval(cleanupStaleClients,60000);
+  wss.on('close',()=>{ clearInterval(cleanup); server.close(); });
 
   return wss;
 };
 
 const handleMessage = async (clientId: string, ws: WebSocket, msg: SignalingMessage): Promise<void> => {
   const client = clients.get(clientId);
+  if(client && await authenticateToken(client.sessionToken)!==client.userId) { ws.close(1008,'Session expired'); return; }
 
   switch (msg.type) {
     case 'join':
@@ -134,6 +137,7 @@ const handleJoin = async (clientId: string, ws: WebSocket, msg: SignalingMessage
     deviceId,
     conversationId,
     lastPing: Date.now(),
+    sessionToken: token,
   };
 
   clients.set(clientId, client);

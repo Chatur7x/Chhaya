@@ -34,6 +34,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
   int _ttlMinutes = 0;
   Timer? _refreshTimer;
   bool _sending=false;
+  bool _refreshing=false;
 
   late AnimationController _fabCtrl;
   late Animation<double> _fabScale;
@@ -57,14 +58,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
   }
 
   Future<void> _loadMessages() async {
-    final db = ref.read(localDatabaseProvider);
-    final msgs = await db.getMessages(widget.conversationId);
-    if(!mounted) { return; }
-    setState(() {
-      _messages = msgs.where((message)=>!message.isExpired).toList();
-      _loading = false;
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    if(_refreshing) { return; }
+    _refreshing=true;
+    try {
+      final db=ref.read(localDatabaseProvider);
+      final msgs=await db.getMessages(widget.conversationId);
+      if(!mounted) { return; }
+      setState(() { _messages=msgs.where((message)=>!message.isExpired).toList(); _loading=false; });
+      for(final message in msgs.where((m)=>m.senderId!='me'&&!m.isRead&&!m.isExpired)) {
+        if(!db.getReadReceiptsEnabled()) { break; }
+        try {
+          await ref.read(apiServiceProvider).markMessagesRead(message.id);
+          await db.addMessage(message.copyWith(isRead:true));
+        } catch (_) { break; }
+      }
+    } finally { _refreshing=false; }
   }
 
   @override

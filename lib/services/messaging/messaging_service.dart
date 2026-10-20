@@ -87,15 +87,22 @@ class MessagingService {
         }
         final codec=await _codec();
         for(final message in batches) {
-          if(known.contains(message.id)||message.senderId==api.userId) { continue; }
-          final payload=await codec.decrypt(peers.single,conversation.id,message.id,message.senderId,message.content);
-          final received=message.copyWith(content:payload['content'] as String,
-              ttl:payload['ttlMs']==null?null:Duration(milliseconds:payload['ttlMs'] as int));
-          await database.addMessage(received);
+          if(message.senderId==api.userId) {
+            final saved=local.where((m)=>m.id==message.id).firstOrNull;
+            if(saved!=null) { await database.addMessage(saved.copyWith(isRead:message.isRead,isDelivered:message.isDelivered)); }
+            continue;
+          }
+          if(known.contains(message.id)) { continue; }
+          await codec.decrypt(peers.single,conversation.id,message.id,message.senderId,message.content,
+            commit:(state,payload) async {
+              final received=message.copyWith(content:payload['content'] as String,
+                  ttl:payload['ttlMs']==null?null:Duration(milliseconds:payload['ttlMs'] as int));
+              await database.commitReceivedMessage(state,received);
+            });
         }
       }
       final messages=(await database.getMessages(conversation.id)).where((m)=>!m.isExpired).toList();
-      if(messages.isNotEmpty) updated=updated.copyWith(lastMessage:messages.last);
+      if(messages.isNotEmpty) { updated=updated.copyWith(lastMessage:messages.last); }
       await database.addConversation(updated);
       result.add(updated);
     }

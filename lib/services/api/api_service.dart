@@ -81,6 +81,9 @@ class ApiService {
   }
 
   Future<void> logout() async {
+    if(isAuthenticated&&isConfigured) {
+      try { await _request<dynamic>('POST','/api/v1/auth/logout'); } catch (_) { /* Local logout must remain possible offline. */ }
+    }
     _authToken = null;
     _userId = null;
     final prefs = await SharedPreferences.getInstance();

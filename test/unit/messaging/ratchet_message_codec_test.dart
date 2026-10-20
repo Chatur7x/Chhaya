@@ -21,6 +21,8 @@ void main(){
     final bytes=base64Decode(damaged['body'] as String); bytes[bytes.length-1]^=1;
     damaged['body']=base64Encode(bytes);
     await expectLater(bob.decrypt(ap,'conversation','one','alice',jsonEncode(damaged)),throwsA(anything));
+    await expectLater(bob.decrypt(ap,'conversation','one','alice',encrypted,
+        commit:(state,payload) async { throw StateError('database unavailable'); }),throwsStateError);
     expect((await bob.decrypt(ap,'conversation','one','alice',encrypted))['content'],'hello');
     await expectLater(bob.decrypt(ap,'conversation','one','alice',encrypted),throwsA(anything));
     final reply=await bob.encrypt(ap,'conversation','two','bob',{'content':'reply'});

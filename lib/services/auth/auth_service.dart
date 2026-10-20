@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'account_identity.dart';
+import '../api/api_service.dart';
 import '../../core/crypto/primitives/rng.dart';
 import 'package:chaaya/core/crypto/chhaya_crypto_engine.dart';
 import 'package:chaaya/core/crypto/key_manager.dart';
@@ -101,11 +102,12 @@ class AuthService {
 
 
   Future<void> logout() async {
-    await _keyManager.clearAllKeys();
-    await _database.clearAll();
-    _currentUser = null;
+    await ApiService().logout();
+    await _database.destroy();
+    await _keyManager.clearAllAccountSecrets();
+    _currentUser=null;
+    await _database.init(requireBiometric:false);
   }
-
 
   Future<List<String>?> getRecoveryPhrase() async {
     return _keyManager.getRecoveryPhrase();

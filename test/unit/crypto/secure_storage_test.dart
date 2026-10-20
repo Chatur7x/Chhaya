@@ -149,6 +149,23 @@ void main() {
     });
   });
 
+  group('Android wrapping envelopes', () {
+    test('wraps actual stored values and refuses missing unwrap support', () async {
+      final backing=SecureStorageMock();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,(call) async {
+        if(call.method=='wrapSecret') { return 'ciphertext'; }
+        if(call.method=='unwrapSecret') { return base64Encode(utf8.encode('private')); }
+        return 'tee';
+      });
+      final storage=AndroidSecureStorage(delegate:backing,channel:channel);
+      await storage.write(key:'secret',value:'private');
+      expect(await backing.read(key:'secret'),'chhaya.keystore.v1:ciphertext');
+      expect(await storage.read(key:'secret'),'private');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,null);
+      await expectLater(storage.read(key:'secret'),throwsA(isA<MissingPluginException>()));
+    });
+  });
+
   group('IOSSecureStorage', () {
     test('reads/writes through delegate without platform calls', () async {
       final ios = IOSSecureStorage(delegate: SecureStorageMock());
