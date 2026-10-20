@@ -8,6 +8,7 @@
 name: Android Build
 
 on:
+  workflow_dispatch:
   push:
     branches: [main, platform/ios-foundation]
     paths:
@@ -60,3 +61,10 @@ jobs:
             ${{ runner.os }}-gradle-
       - run: flutter pub get
       - run: flutter build apk --debug
+      - name: Save installable Android test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Chhaya-Android-Test-APK
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
