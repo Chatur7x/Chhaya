@@ -94,7 +94,7 @@ class AuthService {
 
 
   Future<void> updateDisplayName(String name) async {
-    if (_currentUser == null) return;
+    if(_currentUser == null) { return; }
     _currentUser = _currentUser!.copyWith(displayName: name);
     await _database.saveUserProfile(_currentUser!);
   }
@@ -149,14 +149,14 @@ class AuthService {
     Uint8List? key;
     try {
       final envelope = jsonDecode(backup) as Map<String, dynamic>;
-      if (envelope['version'] != 2) return false;
+      if(envelope['version'] != 2) { return false; }
       final salt = base64Decode(envelope['salt'] as String);
-      if (salt.length != 32) return false;
+      if(salt.length != 32) { return false; }
       key = ChhayaCryptoEngine.keyFromRecoveryPhrase(phrase.join(' '), salt: salt);
       final payload = jsonDecode(await _crypto.decryptMessage(
           envelope['ciphertext'] as String, key)) as Map<String, dynamic>;
       final profile = UserProfile.fromJson(payload['profile'] as Map<String, dynamic>);
-      if (profile.recoveryPhrase.join(' ') != phrase.join(' ')) return false;
+      if(profile.recoveryPhrase.join(' ') != phrase.join(' ')) { return false; }
       final pair = ChhayaKeyPair(publicKey: base64Decode(payload['publicKey'] as String),
           privateKey: base64Decode(payload['privateKey'] as String));
       // Parse all content before modifying the current account.
@@ -166,7 +166,7 @@ class AuthService {
           .map((c) => Conversation.fromJson(Map<String, dynamic>.from(c as Map))).toList();
       final messages = (payload['messages'] as List)
           .map((m) => Message.fromJson(Map<String, dynamic>.from(m as Map))).toList();
-      if (pair.privateKey.length != 32 || pair.publicKey.length != 32) return false;
+      if(pair.privateKey.length != 32 || pair.publicKey.length != 32) { return false; }
       if (profile.chhayaId.publicKey != pair.publicKeyHex &&
           profile.chhayaId.publicKey != AccountIdentity.idFor(pair)) {
         return false;

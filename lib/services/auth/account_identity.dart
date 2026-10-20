@@ -10,7 +10,7 @@ class AccountIdentity {
   AccountIdentity._();
 
   static Future<ChhayaKeyPair> fromRecoveryPhrase(List<String> words) async {
-    if (words.length != 12) throw ArgumentError('Recovery phrase must contain 12 words');
+    if(words.length != 12) { throw ArgumentError('Recovery phrase must contain 12 words'); }
     final entropy = Bip39.mnemonicToEntropy(words);
     Csprng.wipe(entropy);
     final seed = ChhayaCryptoEngine.keyFromRecoveryPhrase(words.join(' '),

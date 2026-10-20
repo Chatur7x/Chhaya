@@ -35,6 +35,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _meshRouting = db.getMeshRoutingEnabled();
   }
 
+  Future<void> _configureServer() async {
+    final api=ref.read(apiServiceProvider);
+    final controller=TextEditingController(text:api.baseUrl);
+    final url=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(
+      title:const Text('Messaging server'),
+      content:Column(mainAxisSize:MainAxisSize.min,children:[
+        const Text('Both people must use the same deployed Chhaya server. Enter its HTTPS address.'),
+        TextField(controller:controller,keyboardType:TextInputType.url,decoration:const InputDecoration(hintText:'https://chat.example.com')),
+      ]),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cancel')),
+        TextButton(onPressed:()=>Navigator.pop(ctx,controller.text.trim()),child:const Text('Connect'))]));
+    controller.dispose();
+    if(url==null||!mounted) { return; }
+    try {
+      final user=ref.read(currentUserProvider);
+      if(user==null) { throw StateError('Create an account first'); }
+      await api.connectAccount(url,user,ref.read(keyManagerProvider));
+      final conversations=await ref.read(messagingServiceProvider).sync();
+      ref.read(conversationsProvider.notifier).setConversations(conversations);
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Connected to messaging server')));
+    } catch(error) {
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Connection failed: $error')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
@@ -106,6 +131,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ),
 
+            _sectionHeader('CONNECTION'),
+            _settingsCard([
+              _settingsTile(Icons.dns_rounded, ChhayaColors.info, 'Connect messaging server', onTap: _configureServer),
+            ]),
             _sectionHeader('ACCOUNT'),
             _settingsCard([
               _settingsTile(Icons.description_rounded, ChhayaColors.accent, 'Recovery Phrase', onTap: _showRecoveryPhrase),
@@ -293,7 +322,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Widget _blockedCountBadge() {
     final blocked = ref.read(localDatabaseProvider).getBlockedContacts();
-    if (blocked.isEmpty) return const SizedBox.shrink();
+    if(blocked.isEmpty) { return const SizedBox.shrink(); }
     return Container(
       margin: const EdgeInsets.only(right: 4),
       padding: const EdgeInsets.symmetric(horizontal: ChhayaSpacing.space2, vertical: 2),
@@ -308,7 +337,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void _showRecoveryPhrase() async {
     final auth = ref.read(authServiceProvider);
     final phrase = await auth.getRecoveryPhrase() ?? ['anchor','brave','castle','diamond','eagle','frost','garden','harbor','ivory','jasmine','knight','lantern'];
-    if (!mounted) return;
+    if(!mounted) { return; }
     showModalBottomSheet(
       context: context,
       backgroundColor: ChhayaColors.sheetBackground,
@@ -392,7 +421,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void _showBackup() async {
     final auth = ref.read(authServiceProvider);
     final backup = await auth.generateBackup();
-    if (!mounted) return;
+    if(!mounted) { return; }
     showModalBottomSheet(
       context: context,
       backgroundColor: ChhayaColors.sheetBackground,
@@ -530,7 +559,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             style: TextButton.styleFrom(foregroundColor: ChhayaColors.error),
             child: const Text('Set Panic PIN'),
             onPressed: () async {
-              if (pinCtrl.text.length != 4) return;
+              if(pinCtrl.text.length != 4) { return; }
               await ref.read(localDatabaseProvider).setPanicPin(pinCtrl.text);
               if (mounted) Navigator.pop(context);
               ChhayaHaptics.warning();

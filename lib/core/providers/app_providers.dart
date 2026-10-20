@@ -11,6 +11,7 @@ import '../../services/network/p2p_tunnel_service.dart';
 import '../../services/network/decentralized_file_client.dart';
 import '../../services/notification/notification_service.dart';
 import '../../services/api/api_service.dart';
+import '../../services/messaging/messaging_service.dart';
 
 
 
@@ -133,3 +134,6 @@ class ContactsNotifier extends StateNotifier<List<Contact>> {
     state = state.where((c) => c.id != id).toList();
   }
 }
+
+final messagingServiceProvider = Provider<MessagingService>((ref) => MessagingService(
+  api:ref.read(apiServiceProvider),database:ref.read(localDatabaseProvider),keys:ref.read(keyManagerProvider)));

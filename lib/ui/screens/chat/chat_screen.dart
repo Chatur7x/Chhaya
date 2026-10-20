@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/chhaya_theme.dart';
@@ -33,7 +32,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
   bool _otherTyping = false;
   bool _steganoMode = false;
   int _ttlMinutes = 0;
-  Timer? _autoReplyTimer;
+  Timer? _refreshTimer;
+  bool _sending=false;
 
   late AnimationController _fabCtrl;
   late Animation<double> _fabScale;
@@ -53,14 +53,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
       }
     });
     _loadMessages();
+    _refreshTimer=Timer.periodic(const Duration(seconds:2),(_)=>_loadMessages());
   }
 
   Future<void> _loadMessages() async {
     final db = ref.read(localDatabaseProvider);
     final msgs = await db.getMessages(widget.conversationId);
-    if (!mounted) return;
+    if(!mounted) { return; }
     setState(() {
-      _messages = msgs;
+      _messages = msgs.where((message)=>!message.isExpired).toList();
       _loading = false;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
@@ -70,7 +71,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
   void dispose() {
     _msgCtrl.dispose();
     _scrollCtrl.dispose();
-    _autoReplyTimer?.cancel();
+    _refreshTimer?.cancel();
     _fabCtrl.dispose();
     super.dispose();
   }
@@ -78,7 +79,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
   bool _isSent(Message m) => m.senderId == 'me';
 
   void _scrollToBottom() {
-    if (!_scrollCtrl.hasClients) return;
+    if(!_scrollCtrl.hasClients) { return; }
     _scrollCtrl.animateTo(
       _scrollCtrl.position.maxScrollExtent,
       duration: ChhayaAnimation.normal,
@@ -87,80 +88,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
   }
 
   Future<void> _sendMessage() async {
-    final text = _msgCtrl.text.trim();
-    if (text.isEmpty) return;
-
-    final msg = Message(
-      id: 'm_${DateTime.now().millisecondsSinceEpoch}',
-      conversationId: widget.conversationId,
-      senderId: 'me',
-      content: text,
-      timestamp: DateTime.now(),
-      isSent: true,
-      isDelivered: true,
-      ttl: _ttlMinutes > 0 ? Duration(minutes: _ttlMinutes) : null,
-    );
-
-    final db = ref.read(localDatabaseProvider);
-    await db.addMessage(msg);
-
-    setState(() => _messages = [..._messages, msg]);
-    _msgCtrl.clear();
-    setState(() => _isTyping = false);
-    _fabCtrl.reverse();
-    ChhayaHaptics.medium();
-    _scrollToBottom();
-    _scheduleAutoReply();
-  }
-
-  void _scheduleAutoReply() {
-    _autoReplyTimer?.cancel();
-    _autoReplyTimer = Timer(const Duration(milliseconds: 1400), () {
-      if (!mounted) return;
-      setState(() => _otherTyping = true);
+    final text=_msgCtrl.text.trim();
+    if(text.isEmpty||_sending) { return; }
+    setState(()=>_sending=true);
+    try {
+      final conversation=ref.read(conversationsProvider).where((c)=>c.id==widget.conversationId).firstOrNull;
+      if(conversation==null) { throw StateError('Conversation is unavailable'); }
+      await ref.read(messagingServiceProvider).send(conversation,text,
+          ttl:_ttlMinutes>0?Duration(minutes:_ttlMinutes):null);
+      _msgCtrl.clear();
+      await _loadMessages();
       _scrollToBottom();
-
-      _autoReplyTimer = Timer(const Duration(milliseconds: 2200), () async {
-        if (!mounted) return;
-        setState(() => _otherTyping = false);
-        final contactId = _contactId();
-        final reply = Message(
-          id: 'm_${DateTime.now().millisecondsSinceEpoch}',
-          conversationId: widget.conversationId,
-          senderId: contactId,
-          content: _autoReplyText(),
-          timestamp: DateTime.now(),
-          isRead: true,
-          isDelivered: true,
-        );
-        final db = ref.read(localDatabaseProvider);
-        await db.addMessage(reply);
-        if (!mounted) return;
-        setState(() => _messages = [..._messages, reply]);
-        _scrollToBottom();
-      });
-    });
-  }
-
-  String _contactId() {
-    final convos = ref.read(conversationsProvider);
-    final convo = convos.where((c) => c.id == widget.conversationId).firstOrNull;
-    if (convo != null && convo.participants.isNotEmpty) return convo.participants.first.id;
-    return 'contact';
-  }
-
-  String _autoReplyText() {
-    const replies = [
-      'Got it, thanks!',
-      'Sounds good to me.',
-      'Onion-routed and received 👍',
-      'Let me check and get back to you.',
-      'Agreed.',
-      'Perfect.',
-      'Can we talk about this later?',
-      'Interesting — tell me more.',
-    ];
-    return replies[Random().nextInt(replies.length)];
+    } catch(error) {
+      await _loadMessages();
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Message not sent: $error'),
+          action:SnackBarAction(label:'Retry',onPressed:() async {
+            try {
+              await ref.read(messagingServiceProvider).retryPending(widget.conversationId);
+              await _loadMessages();
+            } catch (_) {
+              if(mounted) ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content:Text('Still offline. Your message remains queued.')));
+            }
+          })));
+      }
+    } finally { if(mounted) setState(()=>_sending=false); }
   }
 
   @override
@@ -192,7 +145,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
                           ),
                           itemCount: _messages.length + (_otherTyping ? 1 : 0),
                           itemBuilder: (ctx, i) {
-                            if (i == _messages.length) return _buildTypingIndicator(disableAnimations);
+                            if(i == _messages.length) { return _buildTypingIndicator(disableAnimations); }
                             return _buildMessageBubble(_messages[i], i);
                           },
                         ),
@@ -294,8 +247,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
   }
 
   String get _ttlLabel {
-    if (_ttlMinutes >= 1440) return '${_ttlMinutes ~/ 1440}d';
-    if (_ttlMinutes >= 60) return '${_ttlMinutes ~/ 60}h';
+    if(_ttlMinutes >= 1440) { return '${_ttlMinutes ~/ 1440}d'; }
+    if(_ttlMinutes >= 60) { return '${_ttlMinutes ~/ 60}h'; }
     return '$_ttlMinutes min';
   }
 

@@ -47,6 +47,7 @@ const createConversationSchema = z.object({
 });
 
 const sendMessageSchema = z.object({
+  messageId: z.string().uuid().optional(),
   conversationId: z.string().uuid(),
   content: z.string().min(1).max(10000),
   messageType: z.enum(['text', 'image', 'file', 'voice', 'location']).default('text'),
@@ -72,7 +73,7 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction) =
     return res.status(401).json({ error: 'Missing authorization header' });
   }
   const token = authHeader.substring(7);
-  
+
   try {
     const userId = await authenticateToken(token);
     if (!userId) return res.status(401).json({ error: 'Invalid or expired token' });
@@ -85,7 +86,7 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction) =
 router.post('/auth/register', safe(async (req: Request, res: Response) => {
   try {
     const data = registerSchema.parse(req.body);
-    
+
     // Check if user exists
     const existing = await query('SELECT id FROM users WHERE chhaya_id = $1', [data.chhayaId]);
     if (existing.rows.length > 0) {
@@ -98,18 +99,18 @@ router.post('/auth/register', safe(async (req: Request, res: Response) => {
 
     await withTransaction(async (client) => {
       await client.query(
-        `INSERT INTO users (id, chhaya_id, display_name, public_key, encrypted_private_key, 
-          recovery_phrase_hash, created_at) 
+        `INSERT INTO users (id, chhaya_id, display_name, public_key, encrypted_private_key,
+          recovery_phrase_hash, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [userId, data.chhayaId, data.displayName, data.publicKey, data.encryptedPrivateKey, 
+        [userId, data.chhayaId, data.displayName, data.publicKey, data.encryptedPrivateKey,
          hashCredential(data.recoveryPhraseHash), now]
       );
 
       // Register device
       await client.query(
-        `INSERT INTO devices (user_id, id, device_name, platform, fcm_token, public_key) 
+        `INSERT INTO devices (user_id, id, device_name, platform, fcm_token, public_key)
          VALUES ($1, $2, $3, $4, $5, $6)`,
-        [userId, data.deviceId, data.deviceName || 'Primary', data.platform || 'unknown', 
+        [userId, data.deviceId, data.deviceName || 'Primary', data.platform || 'unknown',
          data.fcmToken || null, data.publicKey]
       );
     });
@@ -148,9 +149,9 @@ router.post('/auth/login', safe(async (req: Request, res: Response) => {
 
     // Update device
     await query(
-      `INSERT INTO devices (user_id, id, device_name, platform, fcm_token, public_key) 
-       VALUES ($1, $2, $3, $4, $5, $6) 
-       ON CONFLICT (id) DO UPDATE SET 
+      `INSERT INTO devices (user_id, id, device_name, platform, fcm_token, public_key)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (id) DO UPDATE SET
          device_name = $3, platform = $4, fcm_token = $5, last_active_at = NOW()`,
       [userId, data.deviceId, data.deviceName || 'Device', data.platform || 'unknown', data.fcmToken || null, userResult.rows[0].public_key]
     );
@@ -183,7 +184,7 @@ router.post('/auth/logout', authMiddleware, safe(async(req: Request,res: Respons
 router.get('/users/me', authMiddleware, safe(async (req: Request, res: Response) => {
   const userId = (req as any).userId;
   const result = await query(
-    `SELECT id, chhaya_id, display_name, public_key, biometric_enabled, 
+    `SELECT id, chhaya_id, display_name, public_key, biometric_enabled,
      created_at, last_seen_at FROM users WHERE id = $1`,
     [userId]
   );
@@ -247,7 +248,7 @@ router.post('/contacts', authMiddleware, safe(async (req: Request, res: Response
   }
 
   await query(
-    `INSERT INTO contacts (user_id, contact_id, display_name, verification_level) 
+    `INSERT INTO contacts (user_id, contact_id, display_name, verification_level)
      VALUES ($1, $2, $3, 1)`,
     [userId, contactId, data.displayName]
   );
@@ -260,7 +261,7 @@ router.post('/contacts', authMiddleware, safe(async (req: Request, res: Response
       [convoId, userId]
     );
     await client.query(
-      `INSERT INTO conversation_participants (conversation_id, user_id, is_admin) 
+      `INSERT INTO conversation_participants (conversation_id, user_id, is_admin)
        VALUES ($1, $2, true), ($1, $3, false)`,
       [convoId, userId, contactId]
     );
@@ -298,14 +299,14 @@ router.post('/conversations', authMiddleware, safe(async (req: Request, res: Res
 
   await withTransaction(async (client) => {
     await client.query(
-      `INSERT INTO conversations (id, type, name, avatar_url, created_by) 
+      `INSERT INTO conversations (id, type, name, avatar_url, created_by)
        VALUES ($1, $2, $3, $4, $5)`,
       [convoId, data.type, data.name || null, data.avatarUrl || null, userId]
     );
 
     for (const pid of allParticipants) {
       await client.query(
-        `INSERT INTO conversation_participants (conversation_id, user_id, is_admin) 
+        `INSERT INTO conversation_participants (conversation_id, user_id, is_admin)
          VALUES ($1, $2, $3)`,
         [convoId, pid, pid === userId]
       );
@@ -354,11 +355,11 @@ router.post('/messages', authMiddleware, safe(async (req: Request, res: Response
     return res.status(403).json({ error: 'Not a participant' });
   }
 
-  const messageId = uuidv4();
+  const messageId = data.messageId ?? uuidv4();
   await query(
     `INSERT INTO messages (id, conversation_id, sender_id, content, message_type, media_url, media_meta, reply_to_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-    [messageId, data.conversationId, userId, data.content, data.messageType, 
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING`,
+    [messageId, data.conversationId, userId, data.content, data.messageType,
      data.mediaUrl || null, data.mediaMeta || null, data.replyToId || null]
   );
 
@@ -370,7 +371,7 @@ router.post('/messages', authMiddleware, safe(async (req: Request, res: Response
 
   // Get other participants for push notifications
   const otherParticipants = await query(
-    `SELECT cp.user_id, u.display_name 
+    `SELECT cp.user_id, u.display_name
      FROM conversation_participants cp
      JOIN users u ON u.id = cp.user_id
      WHERE cp.conversation_id = $1 AND cp.user_id != $2 AND cp.left_at IS NULL`,
@@ -380,7 +381,7 @@ router.post('/messages', authMiddleware, safe(async (req: Request, res: Response
   // Send push notifications
   for (const p of otherParticipants.rows) {
     void sendNewMessageNotification(p.user_id, 'Chhaya', 'New encrypted message', data.conversationId, messageId);
-    
+
     // Also broadcast via signaling if online
     broadcastToUser(p.user_id, {
       type: 'new_message',
@@ -391,6 +392,7 @@ router.post('/messages', authMiddleware, safe(async (req: Request, res: Response
   }
 
   const saved = await query('SELECT * FROM messages WHERE id=$1',[messageId]);
+  if (saved.rows[0]?.sender_id !== userId || saved.rows[0]?.conversation_id !== data.conversationId) return res.status(409).json({error:'Message identifier conflict'});
   res.status(201).json(saved.rows[0]);
 }));
 
@@ -411,7 +413,7 @@ router.get('/messages/:conversationId', authMiddleware, safe(async (req: Request
   }
 
   let queryStr = `
-    SELECT m.id, m.conversation_id, m.sender_id, m.content, m.message_type, m.media_url, m.media_meta, 
+    SELECT m.id, m.conversation_id, m.sender_id, m.content, m.message_type, m.media_url, m.media_meta,
            m.reply_to_id, m.sent_at, m.delivered_at, m.read_at,
            u.display_name as sender_name
     FROM messages m
@@ -441,7 +443,7 @@ router.post('/messages/:messageId/read', authMiddleware, safe(async (req: Reques
   if (allowed.rowCount !== 1) return res.status(403).json({error:'Not a participant'});
 
   await query(
-    `UPDATE conversation_participants 
+    `UPDATE conversation_participants
      SET last_read_at = (SELECT sent_at FROM messages WHERE id = $1)
      WHERE user_id = $2 AND conversation_id = (SELECT conversation_id FROM messages WHERE id = $1)`,
     [messageId, userId]
@@ -461,7 +463,7 @@ router.post('/devices/link', authMiddleware, safe(async (req: Request, res: Resp
   const { deviceId, deviceName, platform, publicKey } = req.body;
 
   await query(
-    `INSERT INTO devices (user_id, id, device_name, platform, public_key, is_linked) 
+    `INSERT INTO devices (user_id, id, device_name, platform, public_key, is_linked)
      VALUES ($1, $2, $3, $4, $5, true)
      ON CONFLICT (id) DO UPDATE SET is_linked = true, last_active_at = NOW()`,
     [userId, deviceId, deviceName || 'Linked Device', platform || 'unknown', publicKey]
