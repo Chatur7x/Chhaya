@@ -6,7 +6,6 @@ import 'package:chaaya/ui/widgets/chhaya_button.dart';
 import 'package:chaaya/ui/widgets/glass_container.dart';
 import 'package:chaaya/core/providers/app_providers.dart';
 import 'package:chaaya/core/models/contact.dart';
-import 'package:chaaya/core/models/chhaya_id.dart';
 import 'package:chaaya/core/models/conversation.dart';
 import 'package:chaaya/core/router/chhaya_router.dart';
 

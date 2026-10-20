@@ -29,7 +29,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
   List<Message> _messages = [];
   bool _loading = true;
   bool _isTyping = false;
-  bool _otherTyping = false;
+  final bool _otherTyping = false;
   bool _steganoMode = false;
   int _ttlMinutes = 0;
   Timer? _refreshTimer;
@@ -108,8 +108,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
               await ref.read(messagingServiceProvider).retryPending(widget.conversationId);
               await _loadMessages();
             } catch (_) {
-              if(mounted) ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content:Text('Still offline. Your message remains queued.')));
+              if(mounted) { ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content:Text('Still offline. Your message remains queued.'))); }
             }
           })));
       }

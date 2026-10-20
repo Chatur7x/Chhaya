@@ -50,7 +50,7 @@ class CallService extends ChangeNotifier {
     if(!api.isAuthenticated||_socket!=null) { return; }
     if(_connecting!=null) { return _connecting; }
     final pending=_connect(); _connecting=pending;
-    try { await pending; } finally { _connecting=null; }
+    try { await pending; } catch (_) { await _socket?.sink.close(); _socket=null; rethrow; } finally { _connecting=null; }
   }
   Future<void> _connect() async {
     final uri=Uri.parse(api.baseUrl).replace(scheme:'wss',path:'/signaling');
@@ -190,7 +190,7 @@ class CallService extends ChangeNotifier {
     await _local?.dispose(); await _pc?.close();
     _local=null; _pc=null; _peerAnswered=false; _candidateOutbox.clear(); _remoteReady=false; _candidates.clear();
     localRenderer.srcObject=null; remoteRenderer.srcObject=null;
-    if(_signalKey!=null) Csprng.wipe(_signalKey!);
+    if(_signalKey!=null) { Csprng.wipe(_signalKey!); }
     _signalKey=null; _callId=null; _peerId=null; _conversationId=null;
     connected=false; status='Call ended'; notifyListeners();
   }
