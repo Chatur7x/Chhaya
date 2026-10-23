@@ -37,8 +37,15 @@ void main() {
             onPressed:(){replied=true;Navigator.pop(ctx);},child:const Text('Reply'))),
           actions:[CupertinoContextMenuAction(onPressed:(){replied=true;Navigator.pop(context);},child:const Text('Reply'))],
           child:const SizedBox(width:180,height:80,child:Text('Hold this message'))))))));
-      await tester.longPress(find.text('Hold this message'));
-      await tester.pumpAndSettle();
+      if(reduced) {
+        await tester.longPress(find.text('Hold this message'));
+        await tester.pumpAndSettle();
+      } else {
+        final gesture=await tester.startGesture(tester.getCenter(find.text('Hold this message')));
+        await tester.pumpAndSettle();
+        await gesture.up();
+        await tester.pumpAndSettle();
+      }
       await tester.tap(find.text('Reply'));
       await tester.pumpAndSettle();
       expect(replied,isTrue);

@@ -6,7 +6,7 @@ import 'chhaya_colors.dart';
 class ChhayaTypography {
   ChhayaTypography._();
 
-  static const String _fontFamily = 'CupertinoSystemText';
+  static const String _fontFamily = 'Inter';
   static const String _displayFontFamily = 'DepartureMono';
   static const String _monoFontFamily = 'DepartureMono';
 

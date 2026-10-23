@@ -137,10 +137,11 @@ void main() {
           await tester.pump();
         }
         if(entry.key=='conversation-rich') {
-          await tester.ensureVisible(find.text('Meeting notes.txt'));
+          await tester.scrollUntilVisible(find.text('Meeting notes.txt'),160,scrollable:find.byType(Scrollable).first);
           await tester.pumpAndSettle();
         }
         if(entry.key=='conversation-reply-draft') {
+          await tester.ensureVisible(find.text('Hey! Are we still on for tomorrow?'));
           await tester.longPress(find.text('Hey! Are we still on for tomorrow?'));
           await tester.pumpAndSettle();
           await tester.tap(find.text('Reply'));
