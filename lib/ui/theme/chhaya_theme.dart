@@ -69,13 +69,14 @@ class ChhayaTheme {
   static ThemeData get materialLight => _material(colorScheme);
 
   static ThemeData _material(ColorScheme scheme, {TargetPlatform? platform}) {
-    platform ??= defaultTargetPlatform;
+    final targetPlatform = platform ?? defaultTargetPlatform;
     final palette = ChhayaPalette(scheme);
-    TextStyle type(TextStyle style) => ChhayaTypography.forPlatform(style, platform);
+    TextStyle type(TextStyle style) =>
+        ChhayaTypography.forPlatform(style, targetPlatform);
 
     return ThemeData(
       useMaterial3: true,
-      platform: platform,
+      platform: targetPlatform,
       brightness: scheme.brightness,
       colorScheme: scheme,
       scaffoldBackgroundColor: scheme.surface,
@@ -98,7 +99,7 @@ class ChhayaTheme {
       ),
       dividerColor: scheme.outlineVariant,
       splashFactory: InkSparkle.splashFactory,
-      textTheme: _textTheme(scheme, platform),
+      textTheme: _textTheme(scheme, targetPlatform),
       appBarTheme: AppBarTheme(
         backgroundColor: scheme.surface.withValues(alpha: 0.9),
         foregroundColor: scheme.onSurface,

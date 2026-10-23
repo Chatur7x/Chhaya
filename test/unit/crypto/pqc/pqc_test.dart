@@ -2,8 +2,7 @@
 //
 // Covers everything rule-compliant: combiner binding, dual-KEM
 // behavior with test KEMs, consent-gated fallback, no-silent-
-// downgrade, and the audit gates on ML-KEM-1024 / ML-DSA-87.
-// NIST KATs are tracked as blocked until an approved provider lands.
+// downgrade, and provider availability behavior.
 import 'dart:typed_data';
 
 import 'package:chaaya/core/crypto/pqc/dual_kem.dart';
@@ -16,8 +15,7 @@ import 'package:chaaya/core/crypto/primitives/rng.dart';
 import 'package:chaaya/core/crypto/primitives/x25519.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Test-only KEM (deterministic, NOT secure). Production KEMs land
-/// behind the audit gate in ml_kem.dart.
+/// Test-only KEM (deterministic, NOT secure); never use it for real keys.
 class FakeKem implements PqKem {
   final Uint8List tag;
   FakeKem(this.tag);
@@ -27,6 +25,9 @@ class FakeKem implements PqKem {
 
   @override
   bool get isAvailable => true;
+
+  @override
+  Future<bool> initialize() async => true;
 
   @override
   Future<({Uint8List ciphertext, Uint8List sharedSecret})> encapsulate(
