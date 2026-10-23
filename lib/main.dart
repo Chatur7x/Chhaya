@@ -80,7 +80,8 @@ class ChhayaApp extends ConsumerWidget {
           }
         },
         loading: () => const _SplashScreen(),
-        error: (e, stack) => _SplashScreen(errorMessage: 'Error: $e'),
+        error: (e, stack) => _SplashScreen(errorMessage: 'Could not open your account. Try again.',
+          onRetry:()=>ref.invalidate(appInitializationProvider)),
       ),
       onGenerateRoute: ChhayaRouter.generateRoute,
     );
@@ -89,88 +90,29 @@ class ChhayaApp extends ConsumerWidget {
 
 class _SplashScreen extends StatelessWidget {
   final String? errorMessage;
-  const _SplashScreen({this.errorMessage});
+  final VoidCallback? onRetry;
+  const _SplashScreen({this.errorMessage,this.onRetry});
 
   @override
-  Widget build(BuildContext context) {
-    final disableAnimations = MediaQuery.of(context).disableAnimations;
-
-    return Scaffold(
-      backgroundColor: ChhayaColors.primaryBackground,
-      body: Stack(
-        children: [
-          Positioned(
-            top: -80, left: -60, right: -60, height: 420,
-            child: Container(decoration: const BoxDecoration(gradient: ChhayaColors.glowGradient)),
-          ),
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 110, height: 110,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(ChhayaRadius.xl),
-                    color: ChhayaColors.cardSurface,
-                    border: Border.all(
-                      color: ChhayaColors.accent.withValues(alpha: 0.5),
-                      width: 1.5,
-                    ),
-                  ),
-                  child: const Icon(Icons.shield_outlined, size: 48, color: ChhayaColors.accent),
-                ),
-                const SizedBox(height: ChhayaSpacing.space5),
-                Text(
-                  'CHHAYA',
-                  style: ChhayaTypography.displayHero.copyWith(
-                    color: ChhayaColors.accent,
-                    fontFamily: 'JetBrains Mono',
-                    fontSize: 40,
-                    letterSpacing: 6.0,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'PRIVACY • SPEED • TRUST',
-                  style: ChhayaTypography.labelSmall.copyWith(
-                    letterSpacing: 2.0,
-                    color: ChhayaColors.labelTertiary,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 10,
-                  ),
-                ),
-                const SizedBox(height: ChhayaSpacing.space12),
-                if (errorMessage != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Text(
-                      errorMessage!,
-                      textAlign: TextAlign.center,
-                      style: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.error),
-                    ),
-                  )
-                else
-                  Column(children: [
-                    SizedBox(
-                      width: 28, height: 28,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.8,
-                        color: ChhayaColors.accent,
-                        valueColor: disableAnimations
-                            ? const AlwaysStoppedAnimation<Color>(ChhayaColors.accent)
-                            : null,
-                      ),
-                    ),
-                    const SizedBox(height: ChhayaSpacing.space3),
-                    Text('Securing tunnel…', style: ChhayaTypography.code.copyWith(color: ChhayaColors.labelTertiary, fontSize: 12)),
-                  ]),
-              ],
-            ),
-          ),
+  Widget build(BuildContext context) => Scaffold(
+    body:SafeArea(child:Center(child:SingleChildScrollView(
+      padding:const EdgeInsets.all(32),child:Column(mainAxisSize:MainAxisSize.min,children:[
+        const Icon(Icons.chat_bubble_outline_rounded,size:56,color:ChhayaColors.accent),
+        const SizedBox(height:24),
+        Text('Chhaya',style:ChhayaTypography.displayLarge),
+        const SizedBox(height:24),
+        if(errorMessage!=null) ...[
+          Text(errorMessage!,textAlign:TextAlign.center,style:ChhayaTypography.bodyLarge),
+          if(onRetry!=null) Padding(padding:const EdgeInsets.only(top:16),
+            child:FilledButton(onPressed:onRetry,child:const Text('Try again'))),
+        ] else ...[
+          const SizedBox(width:24,height:24,child:CircularProgressIndicator(strokeWidth:2)),
+          const SizedBox(height:16),
+          Text('Opening your account…',style:ChhayaTypography.body),
         ],
-      ),
-    );
-  }
+      ]),
+    ))),
+  );
 }
 
 class _RouteLoader extends StatefulWidget {
@@ -394,10 +336,10 @@ class _AppStartupGateState extends ConsumerState<AppStartupGate> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: row.map((digit) {
-                              if (digit.isEmpty) return const SizedBox(width: 76, height: 76);
+                              if (digit.isEmpty) return const SizedBox(width: 64, height: 64);
                               if (digit == '⌫') {
                                 return SizedBox(
-                                  width: 76, height: 76,
+                                  width: 64, height: 64,
                                   child: IconButton(
                                     style: IconButton.styleFrom(
                                       backgroundColor: ChhayaColors.cardSurface,
@@ -416,7 +358,7 @@ class _AppStartupGateState extends ConsumerState<AppStartupGate> {
                                   _onPinDigit(digit);
                                 },
                                 child: Container(
-                                  width: 76, height: 76,
+                                  width: 64, height: 64,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: ChhayaColors.cardSurface,

@@ -1,4 +1,7 @@
 import 'dart:io';
+import 'dart:async';
+import 'package:chaaya/main.dart';
+import 'package:chaaya/ui/screens/call/call_screen.dart';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -34,6 +37,8 @@ final _conversations=[
 ];
 class DesignDatabase extends LocalDatabase {
   @override
+  Future<bool> isBiometricAvailable() async => false;
+  @override
   Future<List<Conversation>> getAllConversations() async => _conversations;
   @override
   Future<List<Contact>> getAllContacts() async => [_maya];
@@ -57,6 +62,10 @@ void main() {
     await (FontLoader('RobotoMono')..addFont(rootBundle.load('assets/fonts/RobotoMono-Variable.ttf'))).load();
   });
   final scenes=<String,Widget>{
+    'lock':const AppStartupGate(),
+    'loading':const ChhayaApp(),
+    'startup-error':const ChhayaApp(),
+    'voice-call':const CallScreen(contactName:'Maya Rao',isVideo:false,incoming:true),
     'home':const HomeShell(),
     'chats':const ChatListScreen(),
     'contacts':const ContactsTab(),
@@ -76,7 +85,10 @@ void main() {
         tester.view.devicePixelRatio=1;
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
-        final container=ProviderContainer(overrides:[localDatabaseProvider.overrideWithValue(DesignDatabase())]);
+        final container=ProviderContainer(overrides:[localDatabaseProvider.overrideWithValue(DesignDatabase()),
+          if(entry.key=='loading') appInitializationProvider.overrideWith((ref)=>Completer<bool>().future),
+          if(entry.key=='startup-error') appInitializationProvider.overrideWith((ref) async=>throw StateError('fixture failure')),
+        ]);
         addTearDown(container.dispose);
         container.read(conversationsProvider.notifier).setConversations(_conversations);
         container.read(contactsProvider.notifier).setContacts([_maya]);
