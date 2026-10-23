@@ -20,6 +20,14 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze --no-pub
       - run: flutter test
+      - name: Save Flutter design review captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Chhaya-Design-Review
+          path: build/design-review/*.png
+          if-no-files-found: warn
+          retention-days: 14
 
   backend:
     name: Backend lint + test

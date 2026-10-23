@@ -26,7 +26,7 @@ void main() {
     // Welcome page assertions (match current onboarding copy).
     expect(find.text('CHHAYA'), findsOneWidget);
     expect(
-      find.text('Privacy Redefined. Speed Perfected.'),
+      find.text('A quieter place\nto stay close.'),
       findsOneWidget,
     );
     expect(find.text('Get Started'), findsOneWidget);

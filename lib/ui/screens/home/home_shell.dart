@@ -83,54 +83,41 @@ class _HomeShellState extends ConsumerState<HomeShell> with WidgetsBindingObserv
     SettingsScreen(),
   ];
 
+  void _select(int index) {
+    ChhayaHaptics.selection();
+    setState(()=>_selectedIndex=index);
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(builder:(context,constraints) {
+    final wide=constraints.maxWidth>=720;
+    const icons=[Icons.chat_bubble_outline_rounded,Icons.call_outlined,
+      Icons.people_outline_rounded,Icons.settings_outlined];
+    const selectedIcons=[Icons.chat_bubble_rounded,Icons.call_rounded,
+      Icons.people_rounded,Icons.settings_rounded];
+    const labels=['Chats','Calls','Contacts','Settings'];
     return Scaffold(
-      backgroundColor: ChhayaColors.primaryBackground,
-      body: Column(children:[
-        if(_syncError!=null) SafeArea(bottom:false,child:MaterialBanner(
-          content:Text(_syncError!),actions:[TextButton(onPressed:_sync,child:const Text('Retry'))])),
-        Expanded(child:IndexedStack(index:_selectedIndex,children:_pages)),
+      body:Row(children:[
+        if(wide) NavigationRail(
+          selectedIndex:_selectedIndex,onDestinationSelected:_select,
+          labelType:NavigationRailLabelType.all,groupAlignment:-0.7,
+          backgroundColor:ChhayaColors.surface,
+          destinations:[for(var i=0;i<labels.length;i++) NavigationRailDestination(
+            icon:Icon(icons[i]),selectedIcon:Icon(selectedIcons[i]),label:Text(labels[i]))],
+        ),
+        Expanded(child:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:880),
+          child:Column(children:[
+            if(_syncError!=null) SafeArea(bottom:false,child:MaterialBanner(
+              content:Text(_syncError!),actions:[TextButton(onPressed:_sync,child:const Text('Retry'))])),
+            Expanded(child:IndexedStack(index:_selectedIndex,children:_pages)),
+          ]),
+        ))),
       ]),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: ChhayaColors.secondaryBackground.withValues(alpha: 0.92),
-          border: Border(top: BorderSide(color: ChhayaColors.glassBorder.withValues(alpha: 0.12), width: 0.6)),
-        ),
-        child: SafeArea(
-          child: NavigationBar(
-            backgroundColor: ChhayaColors.transparent,
-            elevation: 0,
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: (index) {
-              ChhayaHaptics.selection();
-              setState(() => _selectedIndex = index);
-            },
-            destinations: [
-              NavigationDestination(
-                icon: Icon(Icons.chat_bubble_outline_rounded),
-                selectedIcon: Icon(Icons.chat_bubble_rounded),
-                label: 'Chats',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.call_outlined),
-                selectedIcon: Icon(Icons.call_rounded),
-                label: 'Calls',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.people_outline_rounded),
-                selectedIcon: Icon(Icons.people_rounded),
-                label: 'Contacts',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.settings_outlined),
-                selectedIcon: Icon(Icons.settings_rounded),
-                label: 'Settings',
-              ),
-            ],
-          ),
-        ),
+      bottomNavigationBar:wide?null:NavigationBar(
+        selectedIndex:_selectedIndex,onDestinationSelected:_select,
+        destinations:[for(var i=0;i<labels.length;i++) NavigationDestination(
+          icon:Icon(icons[i]),selectedIcon:Icon(selectedIcons[i]),label:labels[i])],
       ),
     );
-  }
+  });
 }

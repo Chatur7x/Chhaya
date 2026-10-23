@@ -95,3 +95,7 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Variable.ttf

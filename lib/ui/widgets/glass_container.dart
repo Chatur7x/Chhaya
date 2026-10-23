@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:chaaya/ui/theme/chhaya_theme.dart';
 import 'package:chaaya/ui/widgets/pressable.dart';
@@ -29,25 +28,14 @@ class GlassContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final disableAnimations = MediaQuery.of(context).disableAnimations;
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: BackdropFilter(
-        filter: disableAnimations
-            ? ImageFilter.blur(sigmaX: 0, sigmaY: 0)
-            : ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
-        child: Container(
-          padding: padding,
-          decoration: ChhayaDecorations.glassCard(
-            borderRadius: borderRadius,
-            color: color,
-            withShadow: withShadow,
-            withBorder: withBorder,
-          ),
-          child: child,
-        ),
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: color ?? ChhayaColors.cardSurface,
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: withBorder ? Border.all(color: ChhayaColors.borderSoft) : null,
       ),
+      child: child,
     );
   }
 }

@@ -61,6 +61,11 @@ void main() {
           greaterThanOrEqualTo(3.0));
     });
 
+    test('primary actions and sent text meet normal-text contrast', () {
+      expect(_contrast(ChhayaColors.white, ChhayaColors.accent), greaterThanOrEqualTo(4.5));
+      expect(_contrast(ChhayaColors.bubbleSentText, ChhayaColors.bubbleSent), greaterThanOrEqualTo(4.5));
+    });
+
     test('light scheme is light, dark preserved', () {
       expect(ChhayaTheme.colorScheme.brightness, Brightness.light);
       expect(ChhayaTheme.materialLight.brightness, Brightness.light);

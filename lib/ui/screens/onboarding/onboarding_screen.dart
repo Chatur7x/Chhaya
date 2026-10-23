@@ -256,168 +256,55 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
     );
   }
 
-  Widget _pageWelcome() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(ChhayaSpacing.space6, ChhayaSpacing.space3, ChhayaSpacing.space6, ChhayaSpacing.space6),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Terminal boot panel — left-aligned, hacker minimal (taste §4.3)
-          AnimatedBuilder(
-            animation: _heroAnimCtrl,
-            builder: (context, child) {
-              return Opacity(
-                opacity: disableAnimations ? 1.0 : _heroFadeAnim.value,
-                child: child,
-              );
-            },
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(ChhayaSpacing.space4),
-              decoration: BoxDecoration(
-                color: ChhayaColors.cardSurface,
-                borderRadius: BorderRadius.circular(ChhayaRadius.md),
-                border: Border.all(
-                  color: ChhayaColors.accent.withValues(alpha: 0.35),
-                  width: 1.0,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 38, height: 38,
-                        decoration: BoxDecoration(
-                          color: ChhayaColors.accent,
-                          borderRadius: BorderRadius.circular(ChhayaRadius.sm),
-                        ),
-                        child: const Icon(Icons.shield_outlined, size: 22, color: ChhayaColors.onAccent),
-                      ),
-                      const SizedBox(width: ChhayaSpacing.space3),
-                      Text(
-                        'CHHAYA',
-                        style: ChhayaTypography.displaySmall.copyWith(
-                          fontFamily: 'JetBrains Mono',
-                          color: ChhayaColors.accent,
-                          fontSize: 24,
-                          letterSpacing: 4.0,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: ChhayaSpacing.space3),
-                  Divider(height: 1, thickness: 1, color: ChhayaColors.separator),
-                  const SizedBox(height: ChhayaSpacing.space3),
-                  _termLine('> identity ..... 66-char key [OK]'),
-                  _termLine('> route ........ 3-hop onion [OK]'),
-                  _termLine('> cipher ....... AES-256-GCM [OK]'),
-                  Row(
-                    children: [
-                      Text(
-                        '> status ....... GHOST',
-                        style: ChhayaTypography.code.copyWith(
-                          color: ChhayaColors.labelSecondary,
-                          fontSize: 12,
-                        ),
-                      ),
-                      _BlinkCursor(disabled: disableAnimations),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: ChhayaSpacing.space5),
-          Text('Privacy Redefined. Speed Perfected.', style: ChhayaTypography.headlineSmall.copyWith(color: ChhayaColors.labelPrimary, fontWeight: FontWeight.w700, fontSize: 16)),
-          const SizedBox(height: ChhayaSpacing.space2),
-          Text(
-            'No phone. No email. Just you.',
-            style: ChhayaTypography.bodySmall.copyWith(color: ChhayaColors.labelSecondary, height: 1.5),
-          ),
-          const SizedBox(height: ChhayaSpacing.space8),
-          ChhayaPrimaryButton(label: 'Get Started', icon: Icons.arrow_forward_rounded, onPressed: _nextPage),
-          const SizedBox(height: ChhayaSpacing.space3),
-          Center(
-            child: ChhayaGhostButton(
-              label: 'I already have an account — Log In',
-              icon: Icons.login_rounded,
-              onPressed: () => _goToAuth(true),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _pageWelcome() => SingleChildScrollView(
+    padding:const EdgeInsets.fromLTRB(28,32,28,24),
+    child:FadeTransition(opacity:disableAnimations?const AlwaysStoppedAnimation(1.0):_heroFadeAnim,child:Column(
+      crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Container(width:72,height:72,decoration:BoxDecoration(
+          color:ChhayaColors.coralTint,borderRadius:BorderRadius.circular(20)),
+          child:const Icon(Icons.chat_bubble_outline_rounded,size:36,color:ChhayaColors.accent)),
+        const SizedBox(height:32),
+        Text('CHHAYA',style:ChhayaTypography.title.copyWith(color:ChhayaColors.accent)),
+        const SizedBox(height:16),
+        Text('A quieter place\nto stay close.',style:ChhayaTypography.displayL),
+        const SizedBox(height:20),
+        Text('No phone number. No email. Just an identity you control, and the people you choose.',
+          style:ChhayaTypography.bodyLarge.copyWith(color:ChhayaColors.inkMuted)),
+        const SizedBox(height:32),
+        ChhayaPrimaryButton(label:'Get Started',icon:Icons.arrow_forward_rounded,onPressed:_nextPage),
+        const SizedBox(height:12),
+        Center(child:ChhayaGhostButton(label:'Restore an account',onPressed:()=>_goToAuth(true))),
+      ],
+    )),
+  );
 
-  Widget _termLine(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: ChhayaSpacing.space1),
-      child: Text(
-        text,
-        style: ChhayaTypography.code.copyWith(
-          color: ChhayaColors.labelSecondary,
-          fontSize: 12,
-        ),
-      ),
-    );
-  }
-
-  Widget _pageFeatures() {
-    final features = [
-      {'icon': Icons.lock_rounded, 'title': 'End-to-End Encrypted', 'desc': 'AES-256-GCM + Double Ratchet', 'color': ChhayaColors.success},
-      {'icon': Icons.person_off_rounded, 'title': 'No Phone Number', 'desc': '66-char anonymous Chhaya ID', 'color': ChhayaColors.accent},
-      {'icon': Icons.alt_route_rounded, 'title': 'Onion Routed', 'desc': '3 hops • 512B padding • IP hidden', 'color': ChhayaColors.info},
-      {'icon': Icons.bolt_rounded, 'title': 'Lightning Fast', 'desc': 'P2P WebRTC • Decentralized files', 'color': ChhayaColors.warning},
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(ChhayaSpacing.space5, ChhayaSpacing.space2, ChhayaSpacing.space5, ChhayaSpacing.space5),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text('Why Chhaya?', style: ChhayaTypography.displayMedium.copyWith(fontSize: 26)),
-          const SizedBox(height: ChhayaSpacing.space1),
-          Text('Military-grade privacy, consumer-grade polish', style: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.labelTertiary)),
-          const SizedBox(height: ChhayaSpacing.space5),
-          ...features.map((f) => Padding(
-                padding: const EdgeInsets.only(bottom: ChhayaSpacing.space3),
-                child: GlassContainer(
-                  padding: const EdgeInsets.all(ChhayaSpacing.space4),
-                  borderRadius: ChhayaRadius.xl,
-                  child: Row(children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(color: (f['color'] as Color).withValues(alpha: 0.14), borderRadius: BorderRadius.circular(ChhayaRadius.xl), border: Border.all(color: (f['color'] as Color).withValues(alpha: 0.22))),
-                      child: Icon(f['icon'] as IconData, color: f['color'] as Color, size: 22),
-                    ),
-                    const SizedBox(width: ChhayaSpacing.space4),
-                    Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(f['title'] as String, style: ChhayaTypography.headlineMedium.copyWith(fontSize: 14)),
-                        const SizedBox(height: ChhayaSpacing.space1),
-                        Text(f['desc'] as String, style: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.labelTertiary, fontSize: 12)),
-                      ]),
-                    ),
-                    Icon(Icons.check_circle_rounded, size: 18, color: (f['color'] as Color).withValues(alpha: 0.6)),
-                  ]),
-                ),
-              )),
-          const SizedBox(height: ChhayaSpacing.space4),
-          ChhayaPrimaryButton(label: 'Continue', onPressed: _nextPage),
-        ],
-      ),
-    );
-  }
+  Widget _pageFeatures() => ListView(padding:const EdgeInsets.all(28),children:[
+    Text('Make it personal.\nKeep it private.',style:ChhayaTypography.displayMedium),
+    const SizedBox(height:24),
+    for(final feature in [
+      (Icons.person_outline,'Your own identity','Create an account without a phone number or email.'),
+      (Icons.verified_user_outlined,'Know who you’re talking to','Compare a full ID or scan a QR code before messaging.'),
+      (Icons.lock_outline,'Encrypted direct messages','Messages are encrypted on your device before sending.'),
+      (Icons.dns_outlined,'Connect on your terms','Both people connect to the same deployed Chhaya server.'),
+    ]) Padding(padding:const EdgeInsets.only(bottom:24),child:Row(
+      crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Icon(feature.$1,size:24,color:ChhayaColors.accent),
+        const SizedBox(width:16),
+        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text(feature.$2,style:ChhayaTypography.title),
+          const SizedBox(height:8),
+          Text(feature.$3,style:ChhayaTypography.bodyLarge.copyWith(color:ChhayaColors.inkMuted)),
+        ])),
+      ],
+    )),
+    ChhayaPrimaryButton(label:'Continue',onPressed:_nextPage),
+  ]);
 
   Widget _pageAuthChoice() {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(ChhayaSpacing.space5, ChhayaSpacing.space4, ChhayaSpacing.space5, ChhayaSpacing.space5),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           Text('Welcome', style: ChhayaTypography.displaySmall),
           const SizedBox(height: ChhayaSpacing.space2),
@@ -728,45 +615,3 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
 }
 
 /// Blinking terminal block cursor. Static (visible) under reduced motion.
-class _BlinkCursor extends StatefulWidget {
-  final bool disabled;
-  const _BlinkCursor({required this.disabled});
-
-  @override
-  State<_BlinkCursor> createState() => _BlinkCursorState();
-}
-
-class _BlinkCursorState extends State<_BlinkCursor>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 530),
-    );
-    if (!widget.disabled) _ctrl.repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (widget.disabled) {
-      return Container(width: 8, height: 14, color: ChhayaColors.accent);
-    }
-    return FadeTransition(
-      opacity: _ctrl.drive(
-        Tween<double>(begin: 1.0, end: 0.0)
-            .chain(CurveTween(curve: Curves.easeInOut)),
-      ),
-      child: Container(width: 8, height: 14, color: ChhayaColors.accent),
-    );
-  }
-}

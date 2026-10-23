@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/chhaya_theme.dart';
 import '../../widgets/avatar_widget.dart';
+import '../../widgets/chhaya_app_bar.dart';
 import '../../widgets/glass_container.dart';
 import '../../widgets/chhaya_button.dart';
 import '../../../core/router/chhaya_router.dart';
@@ -67,10 +68,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     return Scaffold(
       backgroundColor: ChhayaColors.primaryBackground,
-      appBar: AppBar(
-        backgroundColor: ChhayaColors.primaryBackground,
-        title: Text('Settings', style: ChhayaTypography.displayMedium.copyWith(fontSize: 24)),
-      ),
+      appBar: const ChhayaAppBar(title: 'Settings'),
       body: SafeArea(
         child: ListView(
           physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
@@ -112,7 +110,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 Flexible(
                                   child: Text(
                                     _shortId(chhayaIdText, 16),
-                                    style: ChhayaTypography.code.copyWith(fontSize: 11),
+                                    style: ChhayaTypography.code.copyWith(fontSize: 13),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
@@ -258,7 +256,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             const SizedBox(height: ChhayaSpacing.space4),
             Center(
               child: Text(
-                'Chhaya v12.0.2 • Privacy Redefined',
+                'Chhaya · Version 14.0.0 test build',
                 style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.labelQuaternary),
               ),
             ),
@@ -274,7 +272,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       child: Text(
         title,
         style: ChhayaTypography.labelSmall.copyWith(
-          letterSpacing: 1.0,
+          letterSpacing: 0.2,
           color: ChhayaColors.labelTertiary,
           fontWeight: FontWeight.w700,
         ),
@@ -297,37 +295,37 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget _settingsTile(IconData icon, Color color, String title, {String? subtitle, Widget? trailing, VoidCallback? onTap}) {
     return ListTile(
       leading: Container(
-        width: 30, height: 30,
+        width: 36, height: 36,
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.15),
+          color: ChhayaColors.hoverCream,
           borderRadius: BorderRadius.circular(ChhayaRadius.xs),
         ),
-        child: Icon(icon, color: color, size: 18),
+        child: Icon(icon, color: ChhayaColors.inkSoft, size: 20),
       ),
       title: Text(title, style: ChhayaTypography.bodyMedium),
       subtitle: subtitle != null ? Text(subtitle, style: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.labelTertiary)) : null,
       trailing: trailing ?? (onTap != null ? const Icon(Icons.chevron_right_rounded, color: ChhayaColors.labelTertiary, size: 14) : null),
       onTap: onTap != null ? () { ChhayaHaptics.selection(); onTap(); } : null,
-      contentPadding: const EdgeInsets.symmetric(horizontal: ChhayaSpacing.space4, vertical: 2),
+      contentPadding: const EdgeInsets.symmetric(horizontal: ChhayaSpacing.space4, vertical: 6),
     );
   }
 
   Widget _settingsSwitch(IconData icon, Color color, String title, bool value, ValueChanged<bool>? onChanged) {
     return SwitchListTile(
       secondary: Container(
-        width: 30, height: 30,
+        width: 36, height: 36,
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.15),
+          color: ChhayaColors.hoverCream,
           borderRadius: BorderRadius.circular(ChhayaRadius.xs),
         ),
-        child: Icon(icon, color: color, size: 18),
+        child: Icon(icon, color: ChhayaColors.inkSoft, size: 20),
       ),
       title: Text(title, style: ChhayaTypography.bodyMedium),
       value: value,
       onChanged: onChanged == null ? null : (v) { ChhayaHaptics.selection(); onChanged(v); },
-      activeTrackColor: color.withValues(alpha: 0.3),
-      activeThumbColor: color,
-      contentPadding: const EdgeInsets.symmetric(horizontal: ChhayaSpacing.space4, vertical: 2),
+      activeTrackColor: ChhayaColors.accent,
+      activeThumbColor: ChhayaColors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: ChhayaSpacing.space4, vertical: 6),
     );
   }
 
@@ -336,7 +334,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if(blocked.isEmpty) { return const SizedBox.shrink(); }
     return Container(
       margin: const EdgeInsets.only(right: 4),
-      padding: const EdgeInsets.symmetric(horizontal: ChhayaSpacing.space2, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: ChhayaSpacing.space2, vertical: 6),
       decoration: BoxDecoration(
         color: ChhayaColors.error,
         borderRadius: BorderRadius.circular(ChhayaRadius.pill),

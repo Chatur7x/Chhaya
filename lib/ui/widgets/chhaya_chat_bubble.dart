@@ -23,7 +23,7 @@ class ChhayaChatBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final maxWidth = MediaQuery.of(context).size.width * 0.75;
-    final fill = isMine ? ChhayaColors.coral : ChhayaColors.white;
+    final fill = isMine ? ChhayaColors.bubbleSent : ChhayaColors.white;
     final textColor = isMine ? ChhayaColors.white : ChhayaColors.ink;
 
     return Align(
@@ -56,7 +56,7 @@ class ChhayaChatBubble extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (timestamp != null)
-                      Text(timestamp!, style: ChhayaTypography.caption),
+                      Text(timestamp!, style: ChhayaTypography.caption.copyWith(color: textColor)),
                     if (verified) ...[
                       if (timestamp != null)
                         const SizedBox(width: ChhayaSpacing.space1),

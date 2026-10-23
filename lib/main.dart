@@ -44,10 +44,10 @@ void main() async {
 
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: ChhayaColors.primaryBackground,
-    statusBarIconBrightness: Brightness.light,
-    statusBarBrightness: Brightness.dark,
+    statusBarIconBrightness: Brightness.dark,
+    statusBarBrightness: Brightness.light,
     systemNavigationBarColor: ChhayaColors.primaryBackground,
-    systemNavigationBarIconBrightness: Brightness.light,
+    systemNavigationBarIconBrightness: Brightness.dark,
   ));
 
   runApp(const ProviderScope(child: ChhayaApp()));
@@ -65,7 +65,7 @@ class ChhayaApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: ChhayaTheme.materialLight,
       darkTheme: ChhayaTheme.materialDark,
-      themeMode: ThemeMode.system,
+      themeMode: ThemeMode.light,
       home: initAsync.when(
         data: (isLoggedIn) {
           if (isLoggedIn) {
