@@ -1,5 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/semantics.dart';
+import '../../../core/models/message_attachment.dart';
+import '../../../services/messaging/attachment_service.dart';
+import '../../../services/messaging/messaging_service.dart';
+import '../../widgets/message_attachment_view.dart';
+import '../../widgets/voice_recorder_sheet.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/chhaya_theme.dart';
 import '../../widgets/avatar_widget.dart';
@@ -22,7 +29,7 @@ class ChatScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends ConsumerState<ChatScreen> {
+class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObserver {
   final _msgCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   List<Message> _messages = [];
@@ -34,11 +41,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Timer? _refreshTimer;
   bool _sending=false;
   bool _refreshing=false;
+  Message? _replyTo;
+  MessageAttachment? _attachment;
+  String? _loadError;
 
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _msgCtrl.addListener(() {
       final hasText = _msgCtrl.text.trim().isNotEmpty;
       if (hasText != _isTyping) {
@@ -56,7 +67,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final db=ref.read(localDatabaseProvider);
       final msgs=await db.getMessages(widget.conversationId);
       if(!mounted) { return; }
-      setState(() { _messages=msgs.where((message)=>!message.isExpired).toList(); _loading=false; });
+      setState(() { _messages=msgs.where((message)=>!message.isExpired).toList(); _loading=false; _loadError=null; });
+      if (WidgetsBinding.instance.lifecycleState != null &&
+          WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) { return; }
+      if (ModalRoute.of(context)?.isCurrent == false) return;
       for(final message in msgs.where((m)=>m.senderId!='me'&&!m.isRead&&!m.isExpired)) {
         if(!db.getReadReceiptsEnabled()) { break; }
         try {
@@ -64,15 +78,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           await db.addMessage(message.copyWith(isRead:true));
         } catch (_) { break; }
       }
+    } catch (_) {
+      if (mounted) setState(() { _loadError='Could not load messages.'; _loading=false; });
     } finally { _refreshing=false; }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _msgCtrl.dispose();
     _scrollCtrl.dispose();
     _refreshTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _refreshTimer?.cancel();
+    if (state == AppLifecycleState.resumed) {
+      _loadMessages();
+      _refreshTimer = Timer.periodic(const Duration(seconds: 2), (_) => _loadMessages());
+    }
   }
 
   bool _isSent(Message m) => m.senderId == 'me';
@@ -86,33 +112,110 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  Future<void> _sendMessage() async {
-    final text=_msgCtrl.text.trim();
-    if(text.isEmpty||_sending) { return; }
-    setState(()=>_sending=true);
+  void _finishDraft(String draft, Message? reply, MessageAttachment? attachment) {
+    if (!mounted) return;
+    if (_msgCtrl.text == draft) _msgCtrl.clear();
+    setState(() {
+      if (_replyTo?.id == reply?.id) _replyTo = null;
+      if (identical(_attachment, attachment)) _attachment = null;
+    });
+  }
+
+  Future<void> _retryPending() async {
     try {
-      final conversation=ref.read(conversationsProvider).where((c)=>c.id==widget.conversationId).firstOrNull;
-      if(conversation==null) { throw StateError('Conversation is unavailable'); }
-      await ref.read(messagingServiceProvider).send(conversation,text,
-          ttl:_ttlMinutes>0?Duration(minutes:_ttlMinutes):null);
-      _msgCtrl.clear();
+      await ref.read(messagingServiceProvider).retryPending(widget.conversationId);
+      await _loadMessages();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Still offline. Your message remains queued.')));
+      }
+    }
+  }
+
+  Future<void> _sendMessage() async {
+    final draft = _msgCtrl.text;
+    final text = draft.trim();
+    final attachment = _attachment;
+    final reply = _replyTo;
+    if ((text.isEmpty && attachment == null) || _sending) return;
+    setState(() => _sending = true);
+    try {
+      final conversation = ref.read(conversationsProvider)
+        .where((c) => c.id == widget.conversationId).firstOrNull;
+      if (conversation == null) throw StateError('Conversation is unavailable');
+      await ref.read(messagingServiceProvider).send(conversation, text,
+        ttl: _ttlMinutes > 0 ? Duration(minutes: _ttlMinutes) : null,
+        replyToId: reply?.id, attachment: attachment,
+        type: attachment == null ? MessageType.text :
+          attachment.isPreviewableImage ? MessageType.image :
+          attachment.mimeType == 'audio/aac' ? MessageType.voice : MessageType.file);
+      _finishDraft(draft, reply, attachment);
       await _loadMessages();
       _scrollToBottom();
-    } catch(error) {
+    } on MessageQueuedException {
+      _finishDraft(draft, reply, attachment);
       await _loadMessages();
-      if(mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Message not sent: $error'),
-          action:SnackBarAction(label:'Retry',onPressed:() async {
-            try {
-              await ref.read(messagingServiceProvider).retryPending(widget.conversationId);
-              await _loadMessages();
-            } catch (_) {
-              if(mounted) { ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content:Text('Still offline. Your message remains queued.'))); }
-            }
-          })));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('Message queued. It will retry while the app is open.'),
+          action: SnackBarAction(label: 'Retry', onPressed: _retryPending)));
       }
-    } finally { if(mounted) setState(()=>_sending=false); }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Message not sent: $error')));
+      }
+    } finally { if (mounted) setState(() => _sending = false); }
+  }
+
+  Future<void> _pickAttachment(bool imagesOnly) async {
+    try {
+      final selected = await AttachmentService.pick(imagesOnly: imagesOnly);
+      if (mounted && selected != null) setState(() => _attachment = selected);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not attach the file. Choose a readable file up to 256 KB.')));
+      }
+    }
+  }
+
+  Future<void> _recordVoice() async {
+    final attachment = await showModalBottomSheet<MessageAttachment>(
+      context: context, isDismissible: false, enableDrag: false,
+      builder: (_) => const VoiceRecorderSheet());
+    if (mounted && attachment != null) setState(() => _attachment = attachment);
+  }
+
+  Future<void> _messageActions(Message message) => showModalBottomSheet<void>(
+    context: context, builder: (ctx) => SafeArea(child: Column(
+      mainAxisSize: MainAxisSize.min, children: [
+        ListTile(leading: const Icon(Icons.reply_rounded), title: const Text('Reply'),
+          onTap: () { Navigator.pop(ctx); setState(() => _replyTo = message); }),
+        if (message.content.isNotEmpty) ListTile(leading: const Icon(Icons.copy_rounded),
+          title: const Text('Copy text'), onTap: () {
+            Clipboard.setData(ClipboardData(text: message.content)); Navigator.pop(ctx);
+          }),
+        if (_isSent(message) && !message.isSent) ListTile(
+          leading: const Icon(Icons.refresh_rounded), title: const Text('Retry queued messages'),
+          onTap: () { Navigator.pop(ctx); _retryPending(); }),
+      ],
+    )),
+  );
+
+  Widget _replyPreview(String id, Color foreground) {
+    final original = _messages.where((m) => m.id == id).firstOrNull;
+    return Padding(padding: const EdgeInsets.only(bottom: 8), child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(original == null ? 'Reply' : _isSent(original) ? 'Reply to you' : 'Reply to ${widget.contactName}',
+          style: ChhayaTypography.caption.copyWith(color: foreground, fontWeight: FontWeight.w700)),
+        Text(original == null ? 'Original message unavailable' : original.attachment?.name ?? original.content,
+          maxLines: 2, overflow: TextOverflow.ellipsis,
+          style: ChhayaTypography.body.copyWith(color: foreground)),
+        Divider(color: foreground.withValues(alpha: 0.3)),
+      ],
+    ));
   }
 
   @override
@@ -128,6 +231,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           children: [
             _buildAppBar(context, convo),
             if (_steganoMode) _buildSteganoBanner(disableAnimations),
+            if (_loadError != null) MaterialBanner(content: Text(_loadError!),
+              actions: [TextButton(onPressed: _loadMessages, child: const Text('Retry'))]),
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator(color: ChhayaColors.accent))
@@ -266,7 +371,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final timeStr = _formatTime(msg.timestamp);
     final isStegano = _steganoMode && isSent && index == _messages.length - 1;
 
-    return Align(
+    return Semantics(
+      customSemanticsActions: {CustomSemanticsAction(label: 'Message actions'): () => _messageActions(msg)},
+      child: GestureDetector(onLongPress: () => _messageActions(msg), child: Align(
       alignment: isSent ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: EdgeInsets.only(
@@ -327,7 +434,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         ],
                       ),
                     ),
-                  Text(
+                  if (msg.replyToId != null) _replyPreview(msg.replyToId!,
+                    isSent ? ChhayaColors.bubbleSentText : ChhayaColors.bubbleReceivedText),
+                  if (msg.attachment != null) MessageAttachmentView(attachment: msg.attachment!,
+                    foreground: isSent ? ChhayaColors.bubbleSentText : ChhayaColors.bubbleReceivedText),
+                  if (msg.content.isNotEmpty) Text(
                     msg.content,
                     style: ChhayaTypography.bodyMedium.copyWith(
                       color: isSent && !isStegano ? ChhayaColors.bubbleSentText : ChhayaColors.bubbleReceivedText,
@@ -371,7 +482,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ],
         ),
       ),
-    );
+    )));
   }
 
   Widget _buildTypingIndicator(bool disableAnimations) {
@@ -418,8 +529,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     padding:const EdgeInsets.fromLTRB(12,12,12,12),
     decoration:const BoxDecoration(color:ChhayaColors.surface,
       border:Border(top:BorderSide(color:ChhayaColors.borderSoft))),
-    child:Row(crossAxisAlignment:CrossAxisAlignment.end,children:[
-      IconButton(tooltip:'Attachment availability',icon:const Icon(Icons.add_rounded),onPressed:_showAttachmentSheet),
+    child:Column(mainAxisSize:MainAxisSize.min,children:[
+      if (_replyTo != null) Row(children:[
+        Expanded(child:Text('Replying to ${_isSent(_replyTo!) ? 'you' : widget.contactName}',
+          maxLines:2,overflow:TextOverflow.ellipsis,style:ChhayaTypography.caption)),
+        IconButton(tooltip:'Cancel reply',onPressed:()=>setState(()=>_replyTo=null),icon:const Icon(Icons.close_rounded)),
+      ]),
+      if (_attachment != null) Row(children:[
+        const Icon(Icons.attach_file_rounded,color:ChhayaColors.accent),
+        const SizedBox(width:8),
+        Expanded(child:Text(_attachment!.name,maxLines:2,overflow:TextOverflow.ellipsis,style:ChhayaTypography.caption)),
+        IconButton(tooltip:'Remove attachment',onPressed:()=>setState(()=>_attachment=null),icon:const Icon(Icons.close_rounded)),
+      ]),
+      Row(crossAxisAlignment:CrossAxisAlignment.end,children:[
+      IconButton(tooltip:'Attach a file',icon:const Icon(Icons.add_rounded),onPressed:_sending?null:_showAttachmentSheet),
       const SizedBox(width:8),
       Expanded(child:TextField(controller:_msgCtrl,minLines:1,
         maxLines:MediaQuery.viewInsetsOf(context).bottom>0?2:4,
@@ -429,9 +552,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       )),
       const SizedBox(width:8),
       IconButton.filled(tooltip:'Send message',
-        onPressed:_isTyping&&!_sending?_sendMessage:null,
+        onPressed:(_isTyping||_attachment!=null)&&!_sending?_sendMessage:null,
         icon:_sending?const SizedBox(width:20,height:20,child:CircularProgressIndicator(strokeWidth:2))
           :const Icon(Icons.arrow_upward_rounded)),
+    ]),
     ]),
   );
 
@@ -482,16 +606,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _showAttachmentSheet() {
     showModalBottomSheet<void>(context:context,builder:(ctx)=>SafeArea(
-      child:Padding(padding:const EdgeInsets.all(24),child:Column(
-        mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
-          Text('Attachments are not available yet',style:ChhayaTypography.title),
-          const SizedBox(height:12),
-          Text('This build supports direct text messages. Photos, files, voice messages and polls are still being developed.',
-            style:ChhayaTypography.bodyLarge),
-          const SizedBox(height:16),
-          TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Got it')),
-        ],
-      )),
+      child:Column(mainAxisSize:MainAxisSize.min,children:[
+        const Padding(padding:EdgeInsets.all(24),child:Text('Encrypted attachments · up to 256 KB')),
+        ListTile(leading:const Icon(Icons.image_outlined),title:const Text('Photo'),
+          subtitle:const Text('PNG, JPEG or WebP'),onTap:(){Navigator.pop(ctx);_pickAttachment(true);}),
+        ListTile(leading:const Icon(Icons.mic_rounded),title:const Text('Voice message'),
+          subtitle:const Text('Record up to one minute'),onTap:(){Navigator.pop(ctx);_recordVoice();}),
+        ListTile(leading:const Icon(Icons.attach_file_rounded),title:const Text('File'),
+          onTap:(){Navigator.pop(ctx);_pickAttachment(false);}),
+      ]),
     ));
   }
 

@@ -114,6 +114,14 @@ test('real API: registration, authentication, conversations, messages, isolation
     const incoming=await req('GET',`/messages/${cid}`,null,bob.token);
     assert.equal(incoming.status,200);
     assert.equal(incoming.data[0].content,'opaque-encrypted-envelope');
+    const largeEnvelope='x'.repeat(500000);
+    const attachment=await req('POST','/messages',{conversationId:cid,content:largeEnvelope},alice.token);
+    assert.equal(attachment.status,201);
+    assert.equal(attachment.data.content,largeEnvelope);
+    assert.equal((await req('POST','/messages',{conversationId:cid,content:'x'.repeat(768*1024+1)},alice.token)).status,400);
+    // Keep pagination fixtures independent of the attachment-size checks.
+    await query('DELETE FROM messages WHERE id=$1',[attachment.data.id]);
+
     // Identical timestamps must not drop records at page boundaries.
     const tiedIds=Array.from({length:4},()=>randomUUID());
     for(const id of tiedIds) await query(
