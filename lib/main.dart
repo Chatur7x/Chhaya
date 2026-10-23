@@ -11,7 +11,7 @@ import 'core/log.dart';
 /// Identifies which local startup stage failed without exposing exception
 /// messages that could contain paths or other device-specific details.
 class AppInitializationFailure implements Exception {
-  const AppInitializationFailure({required this.stage, required Object cause})
+  AppInitializationFailure({required this.stage, required Object cause})
       : causeType = cause.runtimeType.toString();
 
   final String stage;
