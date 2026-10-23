@@ -81,7 +81,7 @@ void main() {
   for(final viewport in [(360.0,1.0),(320.0,2.0),(768.0,1.0)]) {
     for(final entry in scenes.entries) {
       testWidgets('${entry.key} fits ${viewport.$1}dp at ${viewport.$2}x text', (tester) async {
-        tester.view.physicalSize=Size(viewport.$1,820);
+        tester.view.physicalSize=Size(viewport.$1,viewport.$1==320?568:820);
         tester.view.devicePixelRatio=1;
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
