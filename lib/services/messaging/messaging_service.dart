@@ -37,17 +37,15 @@ class MessagingService {
     final message=Message(id:const Uuid().v4(),conversationId:conversation.id,
         senderId:'me',content:text,timestamp:DateTime.now(),isSent:false,ttl:ttl);
     final envelope=await (await _codec()).encrypt(peer,conversation.id,message.id,api.userId!,
-        {'content':text,'ttlMs':ttl?.inMilliseconds});
-    await database.saveSessionBlob('outbox:${message.id}',envelope);
-    await database.addMessage(message);
+        {'content':text,'ttlMs':ttl?.inMilliseconds},
+        commit:(state,envelope)=>database.commitOutgoingMessage(state,message,envelope));
     return _deliver(message,envelope);
   });
 
   Future<Message> _deliver(Message message,String envelope) async {
     await api.sendMessage(conversationId:message.conversationId,content:envelope,messageId:message.id);
     final sent=message.copyWith(isSent:true);
-    await database.addMessage(sent);
-    await database.deleteSessionBlob('outbox:${message.id}');
+    await database.commitMessageSent(sent);
     return sent;
   }
 

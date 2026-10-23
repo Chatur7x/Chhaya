@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+import 'package:chaaya/core/crypto/ratchet/session_state.dart';
 // Part 3 tests — SQLCipher database layer.
 //
 // Strategy: production code paths run against an in-memory database via
@@ -26,6 +28,7 @@ import 'package:chaaya/core/models/user_profile.dart';
 /// production invariant that a key is always supplied.
 class FakeDatabaseOpener implements DatabaseOpener {
   String? passwordHex;
+  Database? opened;
   final List<String> pragmas = [];
 
   @override
@@ -47,6 +50,7 @@ class FakeDatabaseOpener implements DatabaseOpener {
         onUpgrade: (db, _, __) => onOpen(db),
       ),
     );
+    opened = db;
     pragmas.addAll(kHardeningPragmas);
     await db.execute('PRAGMA journal_mode = DELETE');
     return db;
@@ -109,6 +113,33 @@ UserProfile makeProfile() {
 void main() {
   setUpAll(() {
     sqfliteFfiInit();
+  });
+
+  test('outgoing commit rolls back every row if the outbox write fails', () async {
+    final opener=FakeDatabaseOpener();
+    final db=await makeDb(opener);
+    addTearDown(db.close);
+    await db.addConversation(makeConversation('atomic'));
+    final key=Uint8List(32);
+    final state=SessionState(peerId:'peer',initiatedByUs:true,
+      rootKey:key,sendChainKey:key,recvChainKey:key,ourPrivateKey:key,
+      ourPublicKey:key,remotePublicKey:key,spqrSeed:key);
+    final message=makeMessage('pending','atomic').copyWith(isSent:false);
+    await opener.opened!.execute(
+      "CREATE TRIGGER reject_outbox BEFORE INSERT ON kv WHEN NEW.key LIKE '%outbox:%' BEGIN SELECT RAISE(ABORT, 'disk failure'); END");
+    await expectLater(db.commitOutgoingMessage(state,message,'ciphertext'),throwsA(anything));
+    expect(await db.getMessages('atomic'),isEmpty);
+    expect(await db.loadSessionBlob('peer'),isNull);
+    expect(await db.loadSessionBlob('outbox:pending'),isNull);
+    await opener.opened!.execute('DROP TRIGGER reject_outbox');
+    await db.commitOutgoingMessage(state,message,'ciphertext');
+    expect((await db.getMessages('atomic')).single.isSent,isFalse);
+    expect(await db.loadSessionBlob('peer'),isNotNull);
+    expect(await db.loadSessionBlob('outbox:pending'),'ciphertext');
+    await db.commitMessageSent(message.copyWith(isSent:true));
+    expect((await db.getMessages('atomic')).single.isSent,isTrue);
+    expect(await db.loadSessionBlob('outbox:pending'),isNull);
+    state.wipe();
   });
 
   group('Database key', () {
