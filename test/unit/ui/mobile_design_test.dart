@@ -14,6 +14,7 @@ import 'package:chaaya/core/models/user_profile.dart';
 import 'package:chaaya/core/providers/app_providers.dart';
 import 'package:chaaya/ui/theme/chhaya_theme.dart';
 import 'package:chaaya/ui/screens/chat_list/chat_list_screen.dart';
+import 'package:chaaya/ui/screens/home/home_shell.dart';
 import 'package:chaaya/ui/screens/contacts/contacts_tab.dart';
 import 'package:chaaya/ui/screens/calls/calls_tab.dart';
 import 'package:chaaya/ui/screens/settings/settings_screen.dart';
@@ -32,6 +33,10 @@ final _conversations=[
     createdAt:DateTime(2026,10,22)),
 ];
 class DesignDatabase extends LocalDatabase {
+  @override
+  Future<List<Conversation>> getAllConversations() async => _conversations;
+  @override
+  Future<List<Contact>> getAllContacts() async => [_maya];
   @override
   Future<List<Message>> getMessages(String id) async => [
     Message(id:'hello',conversationId:id,senderId:'maya',content:'Hey! Are we still on for tomorrow?',
@@ -52,6 +57,7 @@ void main() {
     await (FontLoader('RobotoMono')..addFont(rootBundle.load('assets/fonts/RobotoMono-Variable.ttf'))).load();
   });
   final scenes=<String,Widget>{
+    'home':const HomeShell(),
     'chats':const ChatListScreen(),
     'contacts':const ContactsTab(),
     'calls':const CallsTab(),
@@ -95,6 +101,10 @@ void main() {
           await tester.pumpAndSettle();
         }
         expect(tester.takeException(),isNull,reason:'No layout or runtime errors at large text');
+        if(entry.key=='home') {
+          expect(find.byType(NavigationRail),viewport.$1>=720?findsOneWidget:findsNothing);
+          expect(find.byType(NavigationBar),viewport.$1<720?findsOneWidget:findsNothing);
+        }
         if(entry.key=='conversation') {
           expect(find.byTooltip('Send message'),findsOneWidget);
           expect(find.byIcon(Icons.mic_rounded),findsNothing);

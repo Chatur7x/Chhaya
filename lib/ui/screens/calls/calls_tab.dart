@@ -20,10 +20,10 @@ class CallsTab extends ConsumerWidget {
           child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             const Icon(Icons.call_outlined,color:ChhayaColors.accent,size:28),
             const SizedBox(height:16),
-            Text('A little closer, wherever you are.',style:ChhayaTypography.headline),
+            Text('Start a call',style:ChhayaTypography.title),
             const SizedBox(height:8),
             Text('Voice and video calls with verified contacts. Keep both apps open and connected to the same server.',
-              style:ChhayaTypography.bodyLarge),
+              style:ChhayaTypography.body),
           ]),
         ),
         const SizedBox(height:24),

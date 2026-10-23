@@ -115,6 +115,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     _buildInfoCard(
                       title: 'Security Details',
                       child: Column(
+                        crossAxisAlignment:CrossAxisAlignment.start,
                         children: [
                           _detailRow('Identity', _contact?.isVerified==true?'Verified':'Verification required'),
                           _detailRow('Messages', 'Encrypted direct text'),
@@ -259,25 +260,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildActionRow(List<Widget> children) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: ChhayaSpacing.space3),
-      child: Row(
-        children: children.map((c) => Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: ChhayaSpacing.space1), child: c))).toList(),
-      ),
-    );
-  }
+  Widget _buildActionRow(List<Widget> children) => Padding(
+    padding:const EdgeInsets.only(bottom:16),
+    child:Wrap(spacing:8,runSpacing:8,children:children),
+  );
 
-  Widget _actionBtn(IconData icon, String label, Color color, VoidCallback onTap, {Color? bgColor, Color? textColor}) {
-    return ChhayaIconButton(
-      icon: icon,
-      onPressed: onTap,
-      size: 48,
-      background: bgColor ?? color.withValues(alpha: 0.12),
-      color: textColor ?? color,
-      tooltip: label,
-    );
-  }
+  Widget _actionBtn(IconData icon,String label,Color color,VoidCallback onTap,
+      {Color? bgColor,Color? textColor}) => TextButton.icon(
+    onPressed:onTap,icon:Icon(icon,size:20),label:Text(label),
+    style:TextButton.styleFrom(foregroundColor:ChhayaColors.accent,
+      backgroundColor:ChhayaColors.coralTint,minimumSize:const Size(48,48)),
+  );
 
   Widget _detailRow(String label,String value) => Padding(
     padding:const EdgeInsets.symmetric(vertical:8),child:Column(

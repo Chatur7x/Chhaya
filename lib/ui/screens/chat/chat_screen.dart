@@ -164,7 +164,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       AvatarWidget(name:widget.contactName,size:40),
       const SizedBox(width:12),
       Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Text(widget.contactName,maxLines:1,overflow:TextOverflow.ellipsis,style:ChhayaTypography.title),
+        Text(widget.contactName,maxLines:2,overflow:TextOverflow.ellipsis,style:ChhayaTypography.title),
         Text(convo?.participants.firstOrNull?.isVerified==true?'Verified identity':'Verify identity before messaging',
           maxLines:2,style:ChhayaTypography.caption),
       ])),
