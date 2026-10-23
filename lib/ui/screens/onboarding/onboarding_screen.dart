@@ -441,9 +441,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
           const SizedBox(height: ChhayaSpacing.space2),
           TextField(
             controller: _loginPhraseCtrl,
-            maxLines: 3,
-            minLines: 2,
+            maxLines: _loginObscure ? 1 : 3,
+            minLines: _loginObscure ? 1 : 2,
             obscureText: _loginObscure,
+            autocorrect: false,
+            enableSuggestions: false,
             style: ChhayaTypography.bodyMedium.copyWith(fontFamily: 'RobotoMono', fontSize: 13, height: 1.5),
             decoration: InputDecoration(
               hintText: '12 words separated by spaces  •  e.g. abandon ability able ...',
@@ -451,6 +453,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
               filled: true,
               fillColor: ChhayaColors.inputSurface,
               suffixIcon: IconButton(
+                tooltip: _loginObscure ? 'Show recovery phrase' : 'Hide recovery phrase',
                 icon: Icon(_loginObscure ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 18, color: ChhayaColors.labelTertiary),
                 onPressed: () => setState(() => _loginObscure = !_loginObscure),
               ),

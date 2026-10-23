@@ -111,6 +111,11 @@ void main() {
           await tester.ensureVisible(find.text('Restore an account'));
           await tester.tap(find.text('Restore an account'));
           await tester.pumpAndSettle();
+          await tester.tap(find.byTooltip('Show recovery phrase'));
+          await tester.pump();
+          expect(tester.takeException(),isNull);
+          await tester.tap(find.byTooltip('Hide recovery phrase'));
+          await tester.pump();
         }
         expect(tester.takeException(),isNull,reason:'No layout or runtime errors at large text');
         if(entry.key=='home') {
