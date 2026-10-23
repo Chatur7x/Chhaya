@@ -95,6 +95,8 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    - assets/fonts/OFL-Inter.txt
+    - assets/fonts/OFL-RobotoMono.txt
   fonts:
     - family: Inter
       fonts:

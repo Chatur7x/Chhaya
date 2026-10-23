@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/router/chhaya_router.dart';
@@ -50,6 +51,10 @@ void main() async {
     systemNavigationBarIconBrightness: Brightness.dark,
   ));
 
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks(['Inter'],await rootBundle.loadString('assets/fonts/OFL-Inter.txt'));
+    yield LicenseEntryWithLineBreaks(['Roboto Mono'],await rootBundle.loadString('assets/fonts/OFL-RobotoMono.txt'));
+  });
   runApp(const ProviderScope(child: ChhayaApp()));
 }
 

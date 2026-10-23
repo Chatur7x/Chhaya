@@ -185,7 +185,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 }
               }),
               const Divider(height: 0, indent: 56),
-              _settingsTile(Icons.warning_rounded, ChhayaColors.error, 'Panic PIN', subtitle: 'Auto-wipe on entry', onTap: _showPanicPinSetup),
+              _settingsTile(Icons.warning_rounded, ChhayaColors.error, 'Panic PIN', subtitle: 'Removes local account data on entry', onTap: _showPanicPinSetup),
               const Divider(height: 0, indent: 56),
               _settingsTile(Icons.qr_code_rounded, ChhayaColors.success, 'Verify Contact', onTap: () {
                 Navigator.of(context).pushNamed(ChhayaRouter.verification);
@@ -215,24 +215,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               }),
               const Divider(height: 0, indent: 56),
               _settingsTile(Icons.description_outlined, ChhayaColors.labelSecondary, 'Licenses', onTap: () {
-                showDialog(context: context, builder: (_) => AlertDialog(
-                  backgroundColor: ChhayaColors.cardSurfaceElevated,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ChhayaRadius.xxl)),
-                  title: const Text('Open Source Licenses'),
-                  content: const Text('Flutter, Dart, PointyCastle, Riverpod, and other open-source packages under their respective licenses.'),
-                  actions: [TextButton(child: const Text('OK'), onPressed: () => Navigator.pop(context))],
-                ));
+                showLicensePage(context:context,applicationName:'Chhaya',applicationVersion:'14.0.0 test build');
               }),
               const Divider(height: 0, indent: 56),
-              _settingsTile(Icons.star_rounded, ChhayaColors.warning, 'Rate Chhaya', onTap: () {
-                showDialog(context: context, builder: (_) => AlertDialog(
-                  backgroundColor: ChhayaColors.cardSurfaceElevated,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ChhayaRadius.xxl)),
-                  title: const Text('Thank You! ❤️'),
-                  content: const Text('We appreciate your support. Chhaya is built with privacy-first principles.'),
-                  actions: [TextButton(child: const Text('Close'), onPressed: () => Navigator.pop(context))],
-                ));
-              }),
             ]),
 
             const SizedBox(height: ChhayaSpacing.space8),
