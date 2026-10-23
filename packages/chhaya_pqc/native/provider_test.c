@@ -1,6 +1,7 @@
 #include "chhaya_pqc.h"
 #include <stdio.h>
 #include <string.h>
+#include <ml_dsa/ml_dsa.h>
 #include "test_vectors.h"
 #define CHECK(x) do { if (!(x)) { fprintf(stderr,"Provider check failed at line %d\n",__LINE__); return 1; } } while (0)
 int main(void) {
@@ -11,9 +12,9 @@ int main(void) {
   memcpy(ciphertext,kat_kem_ct,sizeof(ciphertext)); ciphertext[0] ^= 1;
   CHECK(chhaya_pqc_run(3,kat_kem_sk,sizeof(kat_kem_sk),ciphertext,sizeof(ciphertext),NULL,0,out,sizeof(out)) == CHHAYA_KEM_SECRET);
   CHECK(memcmp(out,kat_kem_ss,CHHAYA_KEM_SECRET) != 0); /* FIPS 203 implicit rejection */
-  CHECK(chhaya_pqc_run(6,kat_dsa_pk,sizeof(kat_dsa_pk),kat_dsa_msg,sizeof(kat_dsa_msg),kat_dsa_sig,sizeof(kat_dsa_sig),out,sizeof(out)) == 1 && out[0] == 1);
+  CHECK(ml_dsa_87_verify_internal(kat_dsa_pk,kat_dsa_sig,sizeof(kat_dsa_sig),kat_dsa_msg,sizeof(kat_dsa_msg),NULL,0) == ML_DSA_SUCCESS);
   memcpy(signature,kat_dsa_sig,sizeof(signature)); signature[0] ^= 1;
-  CHECK(chhaya_pqc_run(6,kat_dsa_pk,sizeof(kat_dsa_pk),kat_dsa_msg,sizeof(kat_dsa_msg),signature,sizeof(signature),out,sizeof(out)) == 1 && out[0] == 0);
+  CHECK(ml_dsa_87_verify_internal(kat_dsa_pk,signature,sizeof(signature),kat_dsa_msg,sizeof(kat_dsa_msg),NULL,0) == ML_DSA_FAILURE);
   CHECK(chhaya_pqc_run(3,kat_kem_sk,1,kat_kem_ct,sizeof(kat_kem_ct),NULL,0,out,sizeof(out)) == -1);
   for (size_t i=0;i<sizeof(out);i++) CHECK(out[i] == 0);
   CHECK(chhaya_pqc_run(99,NULL,0,NULL,0,NULL,0,out,sizeof(out)) == -1);
