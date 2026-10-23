@@ -54,7 +54,8 @@ const createConversationSchema = z.object({
 const sendMessageSchema = z.object({
   messageId: z.string().uuid().optional(),
   conversationId: z.string().uuid(),
-  content: z.string().min(1).max(10000),
+  // Bounded inline encrypted attachments; JSON parser still caps the request at 1 MB.
+  content: z.string().min(1).max(768 * 1024),
   messageType: z.enum(['text', 'image', 'file', 'voice', 'location']).default('text'),
   mediaUrl: z.string().url().optional(),
   mediaMeta: z.record(z.unknown()).optional(),

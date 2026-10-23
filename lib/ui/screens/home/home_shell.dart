@@ -38,6 +38,7 @@ class _HomeShellState extends ConsumerState<HomeShell> with WidgetsBindingObserv
     _syncing=true;
     try {
       try { await ref.read(callServiceProvider).ensureConnected(); } catch (_) { /* Messaging can still use REST. */ }
+      await ref.read(messagingServiceProvider).retryAllPending();
       final conversations=await ref.read(messagingServiceProvider).sync();
       final contacts=await ref.read(localDatabaseProvider).getAllContacts();
       if(!mounted) { return; }
