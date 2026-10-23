@@ -16,10 +16,13 @@ import 'package:uuid/uuid.dart';
 class ApiService {
   static final ApiService _instance = ApiService._internal();
   factory ApiService() => _instance;
-  ApiService._internal();
+  ApiService._internal():_secure=SecureStorages.platformDefault(),_client=http.Client();
+  ApiService.forTesting({required SecureStorage storage,required http.Client client})
+      :_secure=storage,_client=client;
 
   String _baseUrl = const String.fromEnvironment('CHHAYA_API_URL');
-  final SecureStorage _secure = SecureStorages.platformDefault();
+  final SecureStorage _secure;
+  final http.Client _client;
   String? _deviceId;
   String? get deviceId => _deviceId;
   bool get isConfigured => _baseUrl.isNotEmpty;
@@ -31,18 +34,20 @@ class ApiService {
   String? get userId => _userId;
   bool get isAuthenticated => _authToken != null;
 
-  void setBaseUrl(String url) {
+  static String _validatedUrl(String url) {
     final uri = Uri.tryParse(url.trim());
     if (uri == null || uri.scheme != 'https' || uri.host.isEmpty || uri.userInfo.isNotEmpty ||
         uri.hasQuery || uri.hasFragment || (uri.path.isNotEmpty && uri.path != '/')) {
       throw ArgumentError('Use the HTTPS origin of your Chhaya server');
     }
-    _baseUrl = uri.toString().replaceFirst(RegExp(r'/$'), '');
+    return uri.toString().replaceFirst(RegExp(r'/$'), '');
   }
+  void setBaseUrl(String url) { _baseUrl=_validatedUrl(url); }
 
   Future<void> connectAccount(String url, UserProfile profile, KeyManager keys) async {
+    final validated=_validatedUrl(url);
     await logout();
-    setBaseUrl(url);
+    _baseUrl=validated;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('base_url', _baseUrl);
     _deviceId = await _secure.read(key: 'chhaya_device_id') ?? const Uuid().v4();
@@ -85,11 +90,10 @@ class ApiService {
   }
 
   Future<void> _saveAuth(String token, String userId) async {
-    _authToken = token;
-    _userId = userId;
     final prefs = await SharedPreferences.getInstance();
     await _secure.write(key: 'chhaya_auth_token', value: token);
     await prefs.setString('user_id', userId);
+    _authToken=token; _userId=userId;
   }
 
   Future<void> logout() async {
@@ -115,22 +119,21 @@ class ApiService {
     final uri = Uri.parse('$_baseUrl$path');
     final reqHeaders = {..._headers(), ...?headers};
 
-    http.Response response;
-    switch (method) {
-      case 'GET':
-        response = await http.get(uri, headers: reqHeaders).timeout(const Duration(seconds: 15));
-        break;
-      case 'POST':
-        response = await http.post(uri, headers: reqHeaders, body: body != null ? jsonEncode(body) : null).timeout(const Duration(seconds: 15));
-        break;
-      case 'PUT':
-        response = await http.put(uri, headers: reqHeaders, body: body != null ? jsonEncode(body) : null).timeout(const Duration(seconds: 15));
-        break;
-      case 'DELETE':
-        response = await http.delete(uri, headers: reqHeaders).timeout(const Duration(seconds: 15));
-        break;
-      default:
-        throw ArgumentError('Unsupported method: $method');
+    if(!['GET','POST','PUT','DELETE'].contains(method)) { throw ArgumentError('Unsupported method'); }
+    final request=http.Request(method,uri)..followRedirects=false;
+    request.headers.addAll(reqHeaders);
+    if(body!=null) {
+      final cleanBody=Map<String,dynamic>.from(body)..removeWhere((key,value)=>value==null);
+      request.body=jsonEncode(cleanBody);
+    }
+    final response=await http.Response.fromStream(
+        await _client.send(request).timeout(const Duration(seconds:15))).timeout(const Duration(seconds:15));
+    if(response.statusCode>=300&&response.statusCode<400) {
+      throw ApiException(response.statusCode,'Server redirects are not accepted; configure its final HTTPS origin',null);
+    }
+    if(response.statusCode==401) {
+      _authToken=null;
+      await _secure.delete(key:'chhaya_auth_token');
     }
 
     if (response.statusCode >= 400) {
@@ -227,7 +230,7 @@ class ApiService {
   // User
   Future<UserProfile> getCurrentUser() async {
     return await _request('GET', '/api/v1/users/me',
-      parser: (d) => UserProfile.fromJson(d),
+      parser: (d) => UserProfile(chhayaId:ChhayaId.fromPublicKey(d['chhaya_id'] as String),displayName:d['display_name'] as String,recoveryPhrase:const [],createdAt:DateTime.parse(d['created_at'] as String)),
     );
   }
 
