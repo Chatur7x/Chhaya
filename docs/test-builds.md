@@ -10,6 +10,11 @@ build can prevent upgrades. Back up important data before replacing an app;
 uninstalling removes its data. Do not rely on this development build for
 sensitive communication.
 
+The locally built output/Chhaya-V14-NEW.apk is a profile-mode AOT build named
+com.chaaya.app.chaaya and is also debug-signed. It installs alongside the
+separate com.chaaya.app.chaaya.test app, so the two apps have separate local
+accounts and databases. It is still a test artifact, not a Play Store build.
+
 ## iPhone
 
 The iOS workflow exports an unsigned Runner.app archive for developers.

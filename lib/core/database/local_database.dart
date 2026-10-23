@@ -65,10 +65,23 @@ class SqlCipherOpener implements DatabaseOpener {
       onCreate: (db, _) => onOpen(db),
       onUpgrade: (db, _, __) => onOpen(db),
     );
-    // Hardening. Constant strings only — no parameters, no user input.
-    await db.execute('PRAGMA cipher_memory_security = ON');
-    await db.execute('PRAGMA journal_mode = DELETE');
-    return db;
+    try {
+      // Hardening. Constant strings only — no parameters, no user input.
+      await db.execute('PRAGMA cipher_memory_security = ON');
+      // journal_mode returns the resulting mode as a row. Android's
+      // SQLCipher driver rejects row-returning PRAGMAs through execute().
+      await db.rawQuery('PRAGMA journal_mode = DELETE');
+      return db;
+    } catch (_) {
+      // openDatabase has already handed us a native handle. If a hardening
+      // pragma fails, release that handle before allowing startup to retry.
+      try {
+        await db.close();
+      } catch (_) {
+        // Keep the original SQLCipher/SQLite exception for diagnostics.
+      }
+      rethrow;
+    }
   }
 }
 
@@ -169,21 +182,42 @@ class LocalDatabase {
       _keyManager,
       userId: _ownerId,
     );
-    final passwordHex = DatabaseKey.toPragmaHex(dbKey);
-    final dbPath =
-        _dbPathOverride ?? p.join(await getDatabasesPath(), _dbName);
-    final runner = MigrationRunner(chhayaMigrations());
-    _db = await _opener.open(
-      path: dbPath,
-      version: runner.latestVersion,
-      passwordHex: passwordHex,
-      onOpen: (db) => runner.migrateTo(db, runner.latestVersion),
-    );
-    Csprng.wipe(dbKey);
-    _dbKey = await DatabaseKey.derive(_keyManager, userId: _ownerId);
-    _initialized = true;
-    await preloadSettings();
-    return true;
+    try {
+      final passwordHex = DatabaseKey.toPragmaHex(dbKey);
+      final dbPath =
+          _dbPathOverride ?? p.join(await getDatabasesPath(), _dbName);
+      final runner = MigrationRunner(chhayaMigrations());
+      _db = await _opener.open(
+        path: dbPath,
+        version: runner.latestVersion,
+        passwordHex: passwordHex,
+        onOpen: (db) => runner.migrateTo(db, runner.latestVersion),
+      );
+      _dbKey = await DatabaseKey.derive(_keyManager, userId: _ownerId);
+      _initialized = true;
+      await preloadSettings();
+      return true;
+    } catch (_) {
+      // A failed open/migration must not retain a partially opened native
+      // handle or leave init() marked complete, so the user can retry.
+      _initialized = false;
+      final failedDb = _db;
+      _db = null;
+      if (failedDb != null) {
+        try {
+          await failedDb.close();
+        } catch (_) {
+          // Preserve the original initialization error.
+        }
+      }
+      if (_dbKey != null) {
+        Csprng.wipe(_dbKey!);
+        _dbKey = null;
+      }
+      rethrow;
+    } finally {
+      Csprng.wipe(dbKey);
+    }
   }
 
   bool get isUnlockedWithBiometrics => _biometricUnlocked;

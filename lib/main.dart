@@ -12,13 +12,49 @@ import 'core/log.dart';
 /// messages that could contain paths or other device-specific details.
 class AppInitializationFailure implements Exception {
   AppInitializationFailure({required this.stage, required Object cause})
-      : causeType = cause.runtimeType.toString();
+      : causeType = cause.runtimeType.toString(),
+        safeSummary = _safeInitializationError(cause);
 
   final String stage;
   final String causeType;
+  final String safeSummary;
 
   @override
   String toString() => 'AppInitializationFailure($stage, $causeType)';
+}
+
+/// Produces useful diagnostics without displaying SQL statements, database
+/// paths, passwords, message contents, or other potentially sensitive values.
+String _safeInitializationError(Object error) {
+  final raw = error.toString();
+  final lower = raw.toLowerCase();
+  if (lower.contains('no implementation found') ||
+      lower.contains('notimplementederror')) {
+    return 'A required Android storage plugin is unavailable. Restart the app; '
+        'if this continues, reinstall the latest APK.';
+  }
+  if (lower.contains('not a database') ||
+      lower.contains('file is encrypted') ||
+      lower.contains('wrong key')) {
+    return 'The encrypted local database could not be unlocked. Your account '
+        'data was left untouched.';
+  }
+  if (lower.contains('unable to open database') ||
+      lower.contains('cantopen') ||
+      lower.contains('cannot open')) {
+    return 'Android could not open the local database. Check free storage '
+        'space and try again.';
+  }
+  if (lower.contains('no such table') || lower.contains('no such column') ||
+      lower.contains('syntax error') || lower.contains('migration')) {
+    return 'The local database schema could not be initialized. The error '
+        'has been recorded for diagnosis.';
+  }
+  if (error is StateError || error is ArgumentError) {
+    return 'A required local account setting could not be loaded. Try again.';
+  }
+  return 'The app could not initialize local storage. The error has been '
+      'recorded for diagnosis.';
 }
 
 /// Notifications are useful after account setup, but must never prevent the
@@ -143,7 +179,7 @@ class ChhayaApp extends ConsumerWidget {
         error: (e, stack) => _SplashScreen(
           errorMessage: 'Could not open your account. Try again.',
           errorDetails: e is AppInitializationFailure
-              ? 'Setup step: ${e.stage} (${e.causeType})'
+              ? 'Setup step: ${e.stage} (${e.causeType})\n${e.safeSummary}'
               : null,
           onRetry: () => ref.invalidate(appInitializationProvider),
         ),

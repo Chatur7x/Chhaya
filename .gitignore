@@ -38,6 +38,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+**/.cxx/
 /android/.gradle/
 /android/local.properties
 /android/key.properties
@@ -74,6 +75,7 @@ backend/server/dist/
 
 # Distribution output and TLS/signing secrets
 /dist/
+/output/
 /certs/
 *.p12
 *.mobileprovision

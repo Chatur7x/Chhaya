@@ -30,6 +30,7 @@ class FakeDatabaseOpener implements DatabaseOpener {
   String? passwordHex;
   Database? opened;
   final List<String> pragmas = [];
+  bool failNextOpen = false;
 
   @override
   Future<Database> open({
@@ -38,6 +39,10 @@ class FakeDatabaseOpener implements DatabaseOpener {
     required String passwordHex,
     required Future<void> Function(Database db) onOpen,
   }) async {
+    if (failNextOpen) {
+      failNextOpen = false;
+      throw StateError('simulated database open failure');
+    }
     if (passwordHex.isEmpty) {
       throw StateError('production invariant: password required');
     }
@@ -232,6 +237,25 @@ void main() {
   });
 
   group('Encryption posture', () {
+    test('failed database open can be retried on the same instance', () async {
+      final opener = FakeDatabaseOpener()..failNextOpen = true;
+      final keyManager = makeKeyManager();
+      await keyManager.storeChhayaId('user-1');
+      final db = LocalDatabase(
+        keyManager: keyManager,
+        opener: opener,
+        dbPath: inMemoryDatabasePath,
+      );
+      addTearDown(db.close);
+
+      await expectLater(
+        db.init(requireBiometric: false),
+        throwsA(isA<StateError>()),
+      );
+      expect(await db.init(requireBiometric: false), isTrue);
+      expect(await db.getAllConversations(), isEmpty);
+    });
+
     test('opener always receives a 64-hex password', () async {
       final opener = FakeDatabaseOpener();
       await makeDb(opener);
