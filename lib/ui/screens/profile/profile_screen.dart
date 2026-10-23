@@ -21,9 +21,6 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Contact? _contact;
   bool _blocked = false;
-  final int _msgCount = 0;
-  final int _ratchetEpoch = 0;
-  final String _sharedSecretPreview = '';
 
   @override
   void initState() {
@@ -52,54 +49,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          SliverAppBar(
-            expandedHeight: 220,
-            pinned: true,
-            backgroundColor: ChhayaColors.primaryBackground,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: BoxDecoration(gradient: ChhayaColors.heroGradient),
-                child: SafeArea(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      AvatarWidget(
-                        name: displayName,
-                        size: 72,
-                        showGradientRing: true,
-                        showShadow: true,
-                      ),
-                      const SizedBox(height: ChhayaSpacing.space3),
-                      Text(displayName, style: ChhayaTypography.displaySmall.copyWith(fontSize: 20)),
-                      const SizedBox(height: ChhayaSpacing.space1),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (!isOwnProfile)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: ChhayaSpacing.space2, vertical: ChhayaSpacing.space1),
-                              decoration: BoxDecoration(
-                                color: _verificationColor(verificationLevel).withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(ChhayaRadius.pill),
-                                border: Border.all(color: _verificationColor(verificationLevel).withValues(alpha: 0.3)),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.verified_rounded, size: 12, color: _verificationColor(verificationLevel)),
-                                  const SizedBox(width: 4),
-                                  Text(_verificationLabel(verificationLevel), style: ChhayaTypography.labelSmall.copyWith(color: _verificationColor(verificationLevel), fontWeight: FontWeight.w800, fontSize: 10)),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
+          SliverAppBar(pinned:true,title:Text(isOwnProfile?'Your profile':'Contact')),
+          SliverToBoxAdapter(child:Padding(padding:const EdgeInsets.all(24),child:Column(children:[
+            AvatarWidget(name:displayName,size:80),
+            const SizedBox(height:20),
+            Text(displayName,textAlign:TextAlign.center,style:ChhayaTypography.headline),
+            const SizedBox(height:8),
+            if(!isOwnProfile) Text(_verificationLabel(verificationLevel),
+              style:ChhayaTypography.body.copyWith(color:_verificationColor(verificationLevel))),
+          ]))),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(ChhayaSpacing.space4),
@@ -111,8 +69,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       title: 'Chhaya ID',
                       child: Row(
                         children: [
-                          Expanded(child: Text(_shortId(chhayaIdText, 16), style: ChhayaTypography.code.copyWith(color: ChhayaColors.accent, fontSize: 11))),
-                          ChhayaIconButton(icon: Icons.copy_rounded, onPressed: () {
+                          Expanded(child: Text(_shortId(chhayaIdText, 16), style: ChhayaTypography.code.copyWith(color: ChhayaColors.accent, fontSize: 13))),
+                          ChhayaIconButton(icon: Icons.copy_rounded, tooltip: 'Copy Chhaya ID', onPressed: () {
                             Clipboard.setData(ClipboardData(text: chhayaIdText));
                             ChhayaHaptics.selection();
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied')));
@@ -125,8 +83,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       title: 'Your Chhaya ID',
                       child: Row(
                         children: [
-                          Expanded(child: Text(_shortId(chhayaIdText, 16), style: ChhayaTypography.code.copyWith(color: ChhayaColors.accent, fontSize: 11))),
-                          ChhayaIconButton(icon: Icons.copy_rounded, onPressed: () {
+                          Expanded(child: Text(_shortId(chhayaIdText, 16), style: ChhayaTypography.code.copyWith(color: ChhayaColors.accent, fontSize: 13))),
+                          ChhayaIconButton(icon: Icons.copy_rounded, tooltip: 'Copy Chhaya ID', onPressed: () {
                             Clipboard.setData(ClipboardData(text: chhayaIdText));
                             ChhayaHaptics.selection();
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied')));
@@ -158,9 +116,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       title: 'Security Details',
                       child: Column(
                         children: [
-                          _detailRow('Messages', '$_msgCount'),
-                          _detailRow('Ratchet Epoch', '$_ratchetEpoch'),
-                          _detailRow('Shared Key', _sharedSecretPreview.isEmpty ? 'Loading\u2026' : _sharedSecretPreview),
+                          _detailRow('Identity', _contact?.isVerified==true?'Verified':'Verification required'),
+                          _detailRow('Messages', 'Encrypted direct text'),
                         ],
                       ),
                     ),
@@ -200,8 +157,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   void _showRecoveryPhrase() async {
     final auth = ref.read(authServiceProvider);
-    final phrase = await auth.getRecoveryPhrase() ?? ['anchor','brave','castle','diamond','eagle','frost','garden','harbor','ivory','jasmine','knight','lantern'];
+    final phrase = await auth.getRecoveryPhrase();
     if (!mounted) return;
+    if(phrase==null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Recovery phrase is unavailable. Unlock your account and try again.')));
+      return;
+    }
     showModalBottomSheet(
       context: context,
       backgroundColor: ChhayaColors.sheetBackground,
@@ -262,7 +223,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: ChhayaTypography.labelSmall.copyWith(letterSpacing: 1.0, color: ChhayaColors.labelTertiary, fontWeight: FontWeight.w700)),
+          Text(title, style: ChhayaTypography.labelSmall.copyWith(letterSpacing: 0.2, color: ChhayaColors.labelTertiary, fontWeight: FontWeight.w700)),
           const SizedBox(height: ChhayaSpacing.space3),
           child,
         ],
@@ -290,16 +251,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _detailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: ChhayaSpacing.space2),
-      child: Row(
-        children: [
-          Text(label, style: ChhayaTypography.bodySmall.copyWith(color: ChhayaColors.labelTertiary)),
-          const Spacer(),
-          Text(value, style: ChhayaTypography.bodyMedium.copyWith(fontFamily: 'JetBrains Mono', fontSize: 13)),
-        ],
-      ),
-    );
-  }
+  Widget _detailRow(String label,String value) => Padding(
+    padding:const EdgeInsets.symmetric(vertical:8),child:Column(
+      crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text(label,style:ChhayaTypography.caption),
+        const SizedBox(height:4),
+        Text(value,style:ChhayaTypography.bodyLarge),
+      ],
+    ),
+  );
 }

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/chhaya_theme.dart';
 import '../../widgets/avatar_widget.dart';
-import '../../widgets/chhaya_button.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/models/message.dart';
 import '../../../core/providers/app_providers.dart';

@@ -93,11 +93,11 @@ class _ContactsTabState extends ConsumerState<ContactsTab> {
         if(!mounted) return;
         ref.read(conversationsProvider.notifier).addConversation(conversation);
       }
-      if(mounted) Navigator.of(context).pushNamed(ChhayaRouter.chat,arguments:{
-        'conversationId':conversation.id,'contactName':contact.displayName});
+      if(mounted) { Navigator.of(context).pushNamed(ChhayaRouter.chat,arguments:{
+        'conversationId':conversation.id,'contactName':contact.displayName}); }
     } catch(_) {
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content:Text('Could not open this chat. Check your server connection and try again.')));
+      if(mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content:Text('Could not open this chat. Check your server connection and try again.'))); }
     }
   }
 

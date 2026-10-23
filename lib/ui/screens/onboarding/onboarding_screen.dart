@@ -379,7 +379,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
           Row(
             children: [
               ChhayaIconButton(
-                icon: Icons.arrow_back_rounded,
+                icon: Icons.arrow_back_rounded, tooltip: 'Back',
                 onPressed: () => _pageCtrl.animateToPage(2, duration: ChhayaAnimation.normal, curve: ChhayaAnimation.springCurve),
                 size: 40,
                 background: ChhayaColors.cardSurface,
@@ -536,7 +536,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
           const SizedBox(height: ChhayaSpacing.space2),
           Row(
             children: [
-              ChhayaIconButton(icon: Icons.arrow_back_rounded, onPressed: () => _pageCtrl.animateToPage(2, duration: ChhayaAnimation.normal, curve: ChhayaAnimation.springCurve), size: 40, background: ChhayaColors.cardSurface),
+              ChhayaIconButton(icon: Icons.arrow_back_rounded, tooltip: 'Back', onPressed: () => _pageCtrl.animateToPage(2, duration: ChhayaAnimation.normal, curve: ChhayaAnimation.springCurve), size: 40, background: ChhayaColors.cardSurface),
               const SizedBox(width: ChhayaSpacing.space3),
               Text('Welcome Back', style: ChhayaTypography.displaySmall.copyWith(fontSize: 20)),
             ],
