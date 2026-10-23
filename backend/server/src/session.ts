@@ -8,7 +8,7 @@ export function hashCredential(proof: string): string {
 }
 export function verifyCredential(proof: string, stored: string): boolean {
   const [algorithm, salt, digest] = stored.split(':');
-  if (algorithm !== 'scrypt' || !salt || !digest || digest.length !== 64) return false;
+  if (algorithm !== 'scrypt' || !salt || !digest || !/^[0-9a-f]{64}$/.test(digest)) return false;
   return timingSafeEqual(scryptSync(proof, salt, 32), Buffer.from(digest, 'hex'));
 }
 export async function issueSession(userId: string): Promise<string> {

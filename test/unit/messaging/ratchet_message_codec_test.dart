@@ -15,6 +15,8 @@ void main(){
     final bob=RatchetMessageCodec(sessions:InMemorySessionStorage(),identity:b,ownId:bid);
     final ap=Contact(id:'alice',chhayaId:ChhayaId.fromPublicKey(aid),displayName:'Alice',isVerified:true);
     final bp=Contact(id:'bob',chhayaId:ChhayaId.fromPublicKey(bid),displayName:'Bob',isVerified:true);
+    await expectLater(alice.encrypt(bp,'conversation','failed','alice',{'content':'not committed'},
+      commit:(state,envelope) async { throw StateError('disk full'); }),throwsStateError);
     final encrypted=await alice.encrypt(bp,'conversation','one','alice',{'content':'hello'});
     expect(encrypted,isNot(contains('hello')));
     final damaged=jsonDecode(encrypted) as Map<String,dynamic>;

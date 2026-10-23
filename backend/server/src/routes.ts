@@ -6,6 +6,7 @@ import { getDb, query, withTransaction } from './db';
 import { logger } from './log';
 import { sendNewMessageNotification, sendCallNotification, registerFCMToken, subscribeToPush } from './push';
 import { broadcastToUser } from './signaling';
+import { issueIdentityChallenge, consumeIdentityChallenge } from './identity-proof';
 import { authenticateToken, issueSession, hashCredential, verifyCredential } from './session';
 
 const router = Router();
@@ -14,6 +15,8 @@ const safe = (handler: (req: Request,res: Response,next: NextFunction)=>Promise<
 
 // Validation schemas
 const registerSchema = z.object({
+  challengeId: z.string().uuid(),
+  identityProof: z.string().regex(/^[0-9a-f]{64}$/),
   chhayaId: z.string().regex(/^05[0-9a-f]{64}$/),
   displayName: z.string().min(1).max(100),
   publicKey: z.string().regex(/^[0-9a-f]{64}$/),
@@ -26,6 +29,8 @@ const registerSchema = z.object({
 });
 
 const loginSchema = z.object({
+  challengeId: z.string().uuid(),
+  identityProof: z.string().regex(/^[0-9a-f]{64}$/),
   chhayaId: z.string().regex(/^05[0-9a-f]{64}$/),
   recoveryPhraseHash: z.string().length(64),
   deviceId: z.string().uuid(),
@@ -41,7 +46,7 @@ const addContactSchema = z.object({
 
 const createConversationSchema = z.object({
   type: z.enum(['direct', 'group']),
-  participantIds: z.array(z.string().uuid()).min(1),
+  participantIds: z.array(z.string().uuid()).min(1).max(32),
   name: z.string().optional(),
   avatarUrl: z.string().url().optional(),
 });
@@ -82,10 +87,19 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction) =
   } catch (error) { next(error); }
 };
 
+router.post('/auth/challenge',safe(async(req:Request,res:Response)=>{
+  const data=z.object({publicKey:z.string().regex(/^[0-9a-f]{64}$/),deviceId:z.string().uuid(),purpose:z.enum(['register','login'])}).parse(req.body);
+  try { res.json(await issueIdentityChallenge(data.publicKey,data.deviceId,data.purpose)); }
+  catch (_) { res.status(400).json({error:'Invalid identity challenge request'}); }
+}));
+
 // POST /api/v1/auth/register
 router.post('/auth/register', safe(async (req: Request, res: Response) => {
   try {
     const data = registerSchema.parse(req.body);
+    if(!await consumeIdentityChallenge(data.challengeId,data.publicKey,data.deviceId,'register',data.identityProof)) {
+      return res.status(401).json({error:'Identity proof invalid or expired'});
+    }
 
     // Check if user exists
     const existing = await query('SELECT id FROM users WHERE chhaya_id = $1', [data.chhayaId]);
@@ -135,6 +149,9 @@ router.post('/auth/register', safe(async (req: Request, res: Response) => {
 router.post('/auth/login', safe(async (req: Request, res: Response) => {
   try {
     const data = loginSchema.parse(req.body);
+    if(!await consumeIdentityChallenge(data.challengeId,data.chhayaId.slice(2),data.deviceId,'login',data.identityProof)) {
+      return res.status(401).json({error:'Identity proof invalid or expired'});
+    }
 
     const userResult = await query(
       'SELECT id, public_key, recovery_phrase_hash FROM users WHERE chhaya_id = $1 AND is_active = true',
@@ -148,13 +165,16 @@ router.post('/auth/login', safe(async (req: Request, res: Response) => {
     const userId = userResult.rows[0].id;
 
     // Update device
-    await query(
+    const device = await query(
       `INSERT INTO devices (user_id, id, device_name, platform, fcm_token, public_key)
        VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (id) DO UPDATE SET
-         device_name = $3, platform = $4, fcm_token = $5, last_active_at = NOW()`,
+         device_name = $3, platform = $4, fcm_token = $5, last_active_at = NOW()
+       WHERE devices.user_id=EXCLUDED.user_id RETURNING id`,
       [userId, data.deviceId, data.deviceName || 'Device', data.platform || 'unknown', data.fcmToken || null, userResult.rows[0].public_key]
     );
+
+    if(device.rowCount!==1) return res.status(409).json({error:'Device belongs to another account'});
 
     if (data.fcmToken) {
       await registerFCMToken(userId, data.deviceId, data.fcmToken);
@@ -247,15 +267,16 @@ router.post('/contacts', authMiddleware, safe(async (req: Request, res: Response
     return res.status(409).json({ error: 'Already contacts' });
   }
 
-  await query(
+  // Create conversation
+  const convoId = uuidv4();
+  await withTransaction(async (client) => {
+  await client.query(
     `INSERT INTO contacts (user_id, contact_id, display_name, verification_level)
      VALUES ($1, $2, $3, 1)`,
     [userId, contactId, data.displayName]
   );
 
-  // Create conversation
-  const convoId = uuidv4();
-  await withTransaction(async (client) => {
+
     await client.query(
       `INSERT INTO conversations (id, type, created_by) VALUES ($1, 'direct', $2)`,
       [convoId, userId]
@@ -295,7 +316,8 @@ router.post('/conversations', authMiddleware, safe(async (req: Request, res: Res
   }
 
   const convoId = uuidv4();
-  const allParticipants = [userId, ...data.participantIds];
+  const allParticipants = [...new Set([userId,...data.participantIds])];
+  if(allParticipants.length!==data.participantIds.length+1) return res.status(400).json({error:'Duplicate or self participant'});
 
   await withTransaction(async (client) => {
     await client.query(
@@ -356,12 +378,21 @@ router.post('/messages', authMiddleware, safe(async (req: Request, res: Response
   }
 
   const messageId = data.messageId ?? uuidv4();
-  await query(
+  const inserted = await query(
     `INSERT INTO messages (id, conversation_id, sender_id, content, message_type, media_url, media_meta, reply_to_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING RETURNING *`,
     [messageId, data.conversationId, userId, data.content, data.messageType,
      data.mediaUrl || null, data.mediaMeta || null, data.replyToId || null]
   );
+
+  if(inserted.rowCount===0) {
+    const previous=await query('SELECT * FROM messages WHERE id=$1',[messageId]);
+    const message=previous.rows[0];
+    if(!message||message.sender_id!==userId||message.conversation_id!==data.conversationId||message.content!==data.content) {
+      return res.status(409).json({error:'Message identifier conflict'});
+    }
+    return res.status(200).json(message);
+  }
 
   // Update conversation timestamp
   await query(
@@ -401,7 +432,8 @@ router.get('/messages/:conversationId', authMiddleware, safe(async (req: Request
   const userId = (req as any).userId;
   const { conversationId } = req.params;
   const limit = Math.max(1, Math.min(200, parseInt(req.query.limit as string) || 50));
-  const before = req.query.before as string;
+  const before = z.string().datetime({offset:true}).optional().parse(req.query.before);
+  const beforeId = z.string().uuid().optional().parse(req.query.beforeId);
 
   // Verify participant
   const participantCheck = await query(
@@ -422,12 +454,15 @@ router.get('/messages/:conversationId', authMiddleware, safe(async (req: Request
   `;
   const params: any[] = [conversationId];
 
-  if (before) {
+  if (beforeId) {
+    queryStr += ` AND (m.sent_at,m.id) < (SELECT sent_at,id FROM messages WHERE id=$${params.length + 1} AND conversation_id=$1)`;
+    params.push(beforeId);
+  } else if (before) {
     queryStr += ` AND m.sent_at < $${params.length + 1}`;
     params.push(before);
   }
 
-  queryStr += ` ORDER BY m.sent_at DESC LIMIT $${params.length + 1}`;
+  queryStr += ` ORDER BY m.sent_at DESC, m.id DESC LIMIT $${params.length + 1}`;
   params.push(limit);
 
   const result = await query(queryStr, params);
@@ -444,14 +479,14 @@ router.post('/messages/:messageId/read', authMiddleware, safe(async (req: Reques
 
   await query(
     `UPDATE conversation_participants
-     SET last_read_at = (SELECT sent_at FROM messages WHERE id = $1)
+     SET last_read_at = GREATEST(COALESCE(last_read_at,'epoch'),(SELECT sent_at FROM messages WHERE id = $1))
      WHERE user_id = $2 AND conversation_id = (SELECT conversation_id FROM messages WHERE id = $1)`,
     [messageId, userId]
   );
 
   await query(
-    'UPDATE messages SET read_at = NOW() WHERE id = $1 AND read_at IS NULL',
-    [messageId]
+    'UPDATE messages SET read_at = NOW(), delivered_at = COALESCE(delivered_at,NOW()) WHERE id = $1 AND read_at IS NULL AND sender_id<>$2',
+    [messageId,userId]
   );
 
   res.json({ success: true });
@@ -460,15 +495,16 @@ router.post('/messages/:messageId/read', authMiddleware, safe(async (req: Reques
 // POST /api/v1/devices/link
 router.post('/devices/link', authMiddleware, safe(async (req: Request, res: Response) => {
   const userId = (req as any).userId;
-  const { deviceId, deviceName, platform, publicKey } = req.body;
+  const {deviceId,deviceName,platform,publicKey}=z.object({deviceId:z.string().uuid(),deviceName:z.string().max(100).optional(),platform:z.string().max(30).optional(),publicKey:z.string().regex(/^[0-9a-f]{64}$/)}).parse(req.body);
 
-  await query(
+  const linked=await query(
     `INSERT INTO devices (user_id, id, device_name, platform, public_key, is_linked)
      VALUES ($1, $2, $3, $4, $5, true)
-     ON CONFLICT (id) DO UPDATE SET is_linked = true, last_active_at = NOW()`,
+     ON CONFLICT (id) DO UPDATE SET is_linked = true, last_active_at = NOW() WHERE devices.user_id=EXCLUDED.user_id RETURNING id`,
     [userId, deviceId, deviceName || 'Linked Device', platform || 'unknown', publicKey]
   );
 
+  if(linked.rowCount!==1) return res.status(409).json({error:'Device belongs to another account'});
   res.json({ success: true });
 }));
 

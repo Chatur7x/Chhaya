@@ -200,6 +200,8 @@ class _AppStartupGateState extends ConsumerState<AppStartupGate> {
   bool _showPinPad = false;
   String _enteredPin = '';
   bool _shakeError = false;
+  bool _authenticating = false;
+  bool _validatingPin = false;
 
   @override
   void initState() {
@@ -208,6 +210,9 @@ class _AppStartupGateState extends ConsumerState<AppStartupGate> {
   }
 
   Future<void> _checkAuth() async {
+    if (_authenticating || _validatingPin || !mounted) return;
+    _authenticating = true;
+    try {
     final db = ref.read(localDatabaseProvider);
     final biometricEnabled = db.getBiometricLockEnabled();
 
@@ -227,18 +232,21 @@ class _AppStartupGateState extends ConsumerState<AppStartupGate> {
       }
     }
 
-    setState(() => _showPinPad = true);
+    if (mounted) setState(() => _showPinPad = true);
+    } finally {
+      _authenticating = false;
+    }
   }
 
   void _unlock() {
-    ref.read(appUnlockedProvider.notifier).state = true;
     if (mounted) {
+      ref.read(appUnlockedProvider.notifier).state = true;
       Navigator.of(context).pushReplacementNamed(ChhayaRouter.home);
     }
   }
 
   void _onPinDigit(String digit) {
-    if (_enteredPin.length >= 4) return;
+    if (_authenticating || _validatingPin || _enteredPin.length >= 4) return;
     setState(() => _enteredPin += digit);
 
     if (_enteredPin.length == 4) {
@@ -247,11 +255,14 @@ class _AppStartupGateState extends ConsumerState<AppStartupGate> {
   }
 
   void _onPinDelete() {
-    if (_enteredPin.isEmpty) return;
+    if (_authenticating || _validatingPin || _enteredPin.isEmpty) return;
     setState(() => _enteredPin = _enteredPin.substring(0, _enteredPin.length - 1));
   }
 
   Future<void> _validatePin() async {
+    if (_validatingPin || !mounted) return;
+    _validatingPin = true;
+    try {
     final db = ref.read(localDatabaseProvider);
     final panicPin = db.getPanicPin();
     final appPin = db.getAppPin();
@@ -289,19 +300,18 @@ class _AppStartupGateState extends ConsumerState<AppStartupGate> {
       return;
     }
 
-    if (appPin == null) {
-      ChhayaHaptics.success();
-      _unlock();
-      return;
-    }
-
+    if (!mounted) return;
     ChhayaHaptics.error();
     setState(() {
       _shakeError = true;
       _enteredPin = '';
     });
-    await Future.delayed(const Duration(milliseconds: 500));
+    // Throttle repeated attempts. An unset PIN never grants access.
+    await Future.delayed(const Duration(seconds: 2));
     if (mounted) setState(() => _shakeError = false);
+    } finally {
+      _validatingPin = false;
+    }
   }
 
   @override
@@ -337,9 +347,11 @@ class _AppStartupGateState extends ConsumerState<AppStartupGate> {
                   child: const Icon(Icons.lock_person_outlined, size: 34, color: ChhayaColors.accent),
                 ),
                 const SizedBox(height: ChhayaSpacing.space4),
-                Text('Enter Passcode', style: ChhayaTypography.displaySmall.copyWith(fontSize: 22)),
+                Text('Unlock Chhaya', style: ChhayaTypography.displaySmall.copyWith(fontSize: 22)),
                 const SizedBox(height: ChhayaSpacing.space1),
-                Text('Biometric failed • Use PIN', style: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.labelTertiary)),
+                Text(ref.read(localDatabaseProvider).getAppPin() == null
+                    ? 'Use device authentication to unlock'
+                    : 'Use your app PIN or device authentication', style: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.labelTertiary)),
                 const SizedBox(height: ChhayaSpacing.space5),
                 AnimatedContainer(
                   duration: disableAnimations ? Duration.zero : const Duration(milliseconds: 100),
@@ -419,7 +431,7 @@ class _AppStartupGateState extends ConsumerState<AppStartupGate> {
                 TextButton.icon(
                   onPressed: _checkAuth,
                   icon: const Icon(Icons.fingerprint_rounded, size: 18, color: ChhayaColors.accent),
-                  label: Text('Try Biometrics Again', style: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.accent, fontWeight: FontWeight.w600, fontSize: 14)),
+                  label: Text('Use Device Authentication', style: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.accent, fontWeight: FontWeight.w600, fontSize: 14)),
                 ),
                 const Spacer(flex: 1),
               ],

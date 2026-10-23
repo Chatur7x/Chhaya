@@ -40,7 +40,8 @@ class RatchetMessageCodec {
       Uint8List.fromList(utf8.encode(jsonEncode(['chhaya-message-v1',conversation,messageId,sender])));
 
   Future<String> encrypt(Contact peer, String conversation, String messageId,
-      String sender, Map<String,dynamic> payload) async {
+      String sender, Map<String,dynamic> payload,
+      {Future<void> Function(SessionState state,String envelope)? commit}) async {
     final state = await _state(peer,conversation);
     final step = await TripleRatchet.encrypt(state);
     try {
@@ -48,9 +49,11 @@ class RatchetMessageCodec {
       final aad = Uint8List.fromList([..._aad(conversation,messageId,sender),...header]);
       final bytes = AesGcm.encryptBytes(step.keys.messageKey,
           Uint8List.fromList(utf8.encode(jsonEncode(payload))), nonce:step.keys.nonce,aad:aad);
-      // Persist before transport. A failed send never reuses its ratchet key.
-      await sessions.saveSession(state);
-      return jsonEncode({'v':1,'header':base64Encode(header),'body':base64Encode(bytes)});
+      final envelope=jsonEncode({'v':1,'header':base64Encode(header),'body':base64Encode(bytes)});
+      // Persist before transport; the caller can atomically save its outbox.
+      if(commit!=null) { await commit(state,envelope); }
+      else { await sessions.saveSession(state); }
+      return envelope;
     } finally { step.keys.wipe(); state.wipe(); }
   }
 

@@ -255,6 +255,33 @@ class LocalDatabase {
     });
   }
 
+  /// Commit the ratchet advance, pending message, and exact retry ciphertext
+  /// together. No ciphertext reaches the network before this transaction.
+  Future<void> commitOutgoingMessage(SessionState state,Message message,String envelope) async {
+    _ensureInitialized();
+    await _db!.transaction((transaction) async {
+      await DbQueries.upsert(transaction,DbTables.messages,_messageRow(message));
+      await DbQueries.upsert(transaction,DbTables.kv,{
+        DbCols.key:'$_sessionKeyPrefix${state.peerId}',
+        DbCols.value:_enc(jsonEncode(state.toJson())),
+      });
+      await DbQueries.upsert(transaction,DbTables.kv,{
+        DbCols.key:'${_sessionKeyPrefix}outbox:${message.id}',
+        DbCols.value:_enc(envelope),
+      });
+    });
+  }
+
+  Future<void> commitMessageSent(Message message) async {
+    _ensureInitialized();
+    await _db!.transaction((transaction) async {
+      await DbQueries.upsert(transaction,DbTables.messages,_messageRow(message));
+      await DbQueries.deleteWhere(transaction,DbTables.kv,{
+        DbCols.key:'${_sessionKeyPrefix}outbox:${message.id}',
+      });
+    });
+  }
+
   Future<List<Message>> getMessages(String conversationId) async {
     _ensureInitialized();
     final rows = await DbQueries.find(

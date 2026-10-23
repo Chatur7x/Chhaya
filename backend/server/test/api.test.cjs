@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {randomUUID,randomBytes}=require('node:crypto');
+const {randomUUID,randomBytes,generateKeyPairSync,createPublicKey,diffieHellman,createHmac}=require('node:crypto');
 const {hashCredential,verifyCredential,tokenHash}=require('../dist/session');
 
 test('credentials are salted, verified and reject legacy plaintext',()=>{
@@ -10,6 +10,19 @@ test('credentials are salted, verified and reject legacy plaintext',()=>{
   assert.equal(verifyCredential('wrong',one),false);
   assert.equal(verifyCredential('proof','proof'),false);
   assert.equal(tokenHash('token').length,64);
+});
+
+test('identity challenge binds proof to client private key and transcript',()=>{
+  const {createIdentityChallenge}=require('../dist/identity-proof');
+  const pair=generateKeyPairSync('x25519');
+  const publicKey=Buffer.from(pair.publicKey.export({format:'jwk'}).x,'base64url').toString('hex');
+  const challenge=createIdentityChallenge(publicKey,randomUUID(),'register');
+  const peer=createPublicKey({key:{kty:'OKP',crv:'X25519',x:Buffer.from(challenge.serverPublicKey,'hex').toString('base64url')},format:'jwk'});
+  const shared=diffieHellman({privateKey:pair.privateKey,publicKey:peer});
+  const proof=createHmac('sha256',shared).update(challenge.context).digest('hex');
+  assert.equal(tokenHash(proof),challenge.proofHash);
+  assert.throws(()=>createIdentityChallenge('00'.repeat(32),randomUUID(),'register'));
+  shared.fill(0);
 });
 
 test('real API: registration, authentication, conversations, messages, isolation and revocation',
@@ -32,20 +45,40 @@ test('real API: registration, authentication, conversations, messages, isolation
     const r=await fetch(base+path,{method,headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},body:body?JSON.stringify(body):undefined});
     return {status:r.status,data:await r.json()};
   };
+  const claim=async(pair,body,purpose)=>{
+    const r=await req('POST','/auth/challenge',{publicKey:body.publicKey,deviceId:body.deviceId,purpose});
+    assert.equal(r.status,200);
+    const c=r.data;
+    const key=createPublicKey({key:{kty:'OKP',crv:'X25519',x:Buffer.from(c.serverPublicKey,'hex').toString('base64url')},format:'jwk'});
+    const secret=diffieHellman({privateKey:pair.privateKey,publicKey:key});
+    const context=`chhaya-auth-v1|${purpose}|${c.challengeId}|${body.deviceId}|${body.publicKey}|${c.serverPublicKey}|${c.nonce}`;
+    const identityProof=createHmac('sha256',secret).update(context).digest('hex');
+    secret.fill(0);
+    return {challengeId:c.challengeId,identityProof};
+  };
   const signup=async()=>{
-    const publicKey=randomBytes(32).toString('hex');
+    const pair=generateKeyPairSync('x25519');
+    const publicKey=Buffer.from(pair.publicKey.export({format:'jwk'}).x,'base64url').toString('hex');
     const body={chhayaId:'05'+publicKey,publicKey,displayName:'Test',encryptedPrivateKey:'encrypted-backup',recoveryPhraseHash:randomBytes(32).toString('hex'),deviceId:randomUUID()};
+    Object.assign(body,await claim(pair,body,'register'));
     const r=await req('POST','/auth/register',body);
     assert.equal(r.status,201);
     assert.notEqual(r.data.token,r.data.userId);
     accounts.push(r.data.userId);
-    return {...r.data,body};
+    return {...r.data,body,pair};
   };
   try{
     const alice=await signup(),bob=await signup(),outsider=await signup();
+    // Knowing a public ID and recovery proof is insufficient without its private key.
+    const invalidClaim=await claim(outsider.pair,alice.body,'login');
+    assert.equal((await req('POST','/auth/login',{...alice.body,...invalidClaim})).status,401);
+    const replay=await claim(alice.pair,alice.body,'login');
+    assert.equal((await req('POST','/auth/login',{...alice.body,...replay})).status,200);
+    assert.equal((await req('POST','/auth/login',{...alice.body,...replay})).status,401);
+
     assert.equal((await req('GET','/users/me',null,alice.userId)).status,401);
-    assert.equal((await req('POST','/auth/login',{...alice.body,recoveryPhraseHash:'0'.repeat(64)})).status,401);
-    const login=await req('POST','/auth/login',alice.body);
+    assert.equal((await req('POST','/auth/login',{...alice.body,...await claim(alice.pair,alice.body,'login'),recoveryPhraseHash:'0'.repeat(64)})).status,401);
+    const login=await req('POST','/auth/login',{...alice.body,...await claim(alice.pair,alice.body,'login')});
     assert.equal(login.status,200);
     const contact=await req('POST','/contacts',{chhayaId:bob.body.chhayaId,displayName:'Bob'},alice.token);
     assert.equal(contact.status,201);
@@ -70,9 +103,33 @@ test('real API: registration, authentication, conversations, messages, isolation
     const sent=await req('POST','/messages',{conversationId:cid,content:'opaque-encrypted-envelope'},alice.token);
     assert.equal(sent.status,201);
     assert.equal(sent.data.conversation_id,cid);
+    const retry=await req('POST','/messages',{messageId:sent.data.id,conversationId:cid,content:'opaque-encrypted-envelope'},alice.token);
+    assert.equal(retry.status,200);
+    assert.equal((await req('POST','/messages',{messageId:sent.data.id,conversationId:cid,content:'changed'},alice.token)).status,409);
+    assert.equal((await req('POST','/messages',{messageId:sent.data.id,conversationId:cid,content:'opaque-encrypted-envelope'},bob.token)).status,409);
+    const deviceConflict=await req('POST','/auth/login',{...alice.body,deviceId:bob.body.deviceId,
+      ...await claim(alice.pair,{...alice.body,deviceId:bob.body.deviceId},'login')});
+    assert.equal(deviceConflict.status,409);
+
     const incoming=await req('GET',`/messages/${cid}`,null,bob.token);
     assert.equal(incoming.status,200);
     assert.equal(incoming.data[0].content,'opaque-encrypted-envelope');
+    // Identical timestamps must not drop records at page boundaries.
+    const tiedIds=Array.from({length:4},()=>randomUUID());
+    for(const id of tiedIds) await query(
+      'INSERT INTO messages (id,conversation_id,sender_id,content,sent_at) VALUES ($1,$2,$3,$4,$5)',
+      [id,cid,alice.userId,'pagination','2026-01-01T00:00:00.123456Z']);
+    const seen=[]; let cursor;
+    for(let page=0;page<6;page++) {
+      const response=await req('GET',`/messages/${cid}?limit=1${cursor?'&beforeId='+cursor:''}`,null,bob.token);
+      assert.equal(response.status,200);
+      if(!response.data.length) break;
+      cursor=response.data[0].id; seen.push(cursor);
+    }
+    assert.equal(seen.length,5);
+    assert.equal(new Set(seen).size,5);
+    for(const id of tiedIds) assert.ok(seen.includes(id));
+    assert.equal((await req('GET',`/messages/${cid}?beforeId=invalid`,null,bob.token)).status,400);
     assert.equal((await req('GET','/conversations',null,alice.token)).status,200);
     assert.equal((await req('GET',`/messages/${cid}`,null,outsider.token)).status,403);
     assert.equal((await req('POST',`/messages/${sent.data.id}/read`,{},outsider.token)).status,403);

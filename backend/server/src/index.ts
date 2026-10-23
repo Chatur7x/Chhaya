@@ -14,6 +14,7 @@ import { ZodError } from 'zod';
 import { collectDefaultMetrics, register, Counter } from 'prom-client';
 
 export const app = express();
+app.set('trust proxy',config.TRUST_PROXY_HOPS);
 collectDefaultMetrics();
 const requests = new Counter({name:'chhaya_http_requests_total',help:'Completed HTTP requests',labelNames:['method','status']});
 app.use((req,res,next)=>{ res.on('finish',()=>requests.inc({method:req.method,status:res.statusCode})); next(); });

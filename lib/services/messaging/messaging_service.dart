@@ -34,20 +34,21 @@ class MessagingService {
     if(!api.isAuthenticated) { throw StateError('Connect your server in Settings first'); }
     if(conversation.isGroup||conversation.participants.length!=1) { throw StateError('Encrypted group messaging is not available yet'); }
     final peer=await database.getContact(conversation.participants.single.id) ?? conversation.participants.single;
+    if(peer.isBlocked||database.getBlockedContacts().contains(peer.id)) { throw StateError('Unblock this contact before sending messages'); }
+    final globalTtl=database.getGlobalDisappearingDuration();
+    final effectiveTtl=ttl??(globalTtl>0?Duration(seconds:globalTtl):null);
     final message=Message(id:const Uuid().v4(),conversationId:conversation.id,
-        senderId:'me',content:text,timestamp:DateTime.now(),isSent:false,ttl:ttl);
+        senderId:'me',content:text,timestamp:DateTime.now(),isSent:false,ttl:effectiveTtl);
     final envelope=await (await _codec()).encrypt(peer,conversation.id,message.id,api.userId!,
-        {'content':text,'ttlMs':ttl?.inMilliseconds});
-    await database.saveSessionBlob('outbox:${message.id}',envelope);
-    await database.addMessage(message);
+        {'content':text,'ttlMs':effectiveTtl?.inMilliseconds},
+        commit:(state,envelope)=>database.commitOutgoingMessage(state,message,envelope));
     return _deliver(message,envelope);
   });
 
   Future<Message> _deliver(Message message,String envelope) async {
     await api.sendMessage(conversationId:message.conversationId,content:envelope,messageId:message.id);
     final sent=message.copyWith(isSent:true);
-    await database.addMessage(sent);
-    await database.deleteSessionBlob('outbox:${message.id}');
+    await database.commitMessageSent(sent);
     return sent;
   }
 
@@ -63,6 +64,7 @@ class MessagingService {
     if(!api.isAuthenticated) { return database.getAllConversations(); }
     final contacts=await database.getAllContacts();
     final remote=await api.getConversations();
+    final existing=await database.getAllConversations();
     final result=<Conversation>[];
     for(final conversation in remote) {
       final peers=<Contact>[];
@@ -72,18 +74,20 @@ class MessagingService {
         await database.addContact(contact);
         peers.add(contact);
       }
-      var updated=conversation.copyWith(participants:peers);
+      final previous=existing.where((c)=>c.id==conversation.id).firstOrNull;
+      var updated=conversation.copyWith(participants:peers,
+        isMuted:previous?.isMuted,isPinned:previous?.isPinned);
       await database.addConversation(updated);
       final local=await database.getMessages(conversation.id);
       final known=local.map((m)=>m.id).toSet();
       if(!conversation.isGroup&&peers.length==1&&peers.single.isVerified) {
         final batches=<Message>[];
-        String? before;
+        String? beforeId;
         for(var page=0;page<50;page++) {
-          final batch=await api.getMessages(conversation.id,limit:200,before:before);
+          final batch=await api.getMessages(conversation.id,limit:200,beforeId:beforeId);
           batches.insertAll(0,batch);
           if(batch.length<200||batch.any((m)=>known.contains(m.id))) { break; }
-          before=batch.first.timestamp.toIso8601String();
+          beforeId=batch.first.id;
         }
         final codec=await _codec();
         for(final message in batches) {

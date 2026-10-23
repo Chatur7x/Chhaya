@@ -17,6 +17,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _biometricLock = false;
+  bool _changingLock = false;
   final bool _onionRouting = false;
   bool _readReceipts = true;
   bool _disappearingMessages = false;
@@ -164,8 +165,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             _sectionHeader('SECURITY'),
             _settingsCard([
               _settingsSwitch(Icons.security_rounded, ChhayaColors.info, 'Biometric Lock', _biometricLock, (v) async {
-                await ref.read(localDatabaseProvider).setBiometricLockEnabled(v);
-                setState(() => _biometricLock = v);
+                if (_changingLock) return;
+                _changingLock = true;
+                try {
+                  final db = ref.read(localDatabaseProvider);
+                  final available = await db.isBiometricAvailable();
+                  final authenticated = available && await db.authenticateWithBiometrics(
+                    reason: v ? 'Enable Chhaya device lock' : 'Disable Chhaya device lock',
+                  );
+                  if (!context.mounted) return;
+                  if (!authenticated) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Device authentication is required to change the lock. Set a device passcode first.'),
+                    ));
+                    return;
+                  }
+                  await db.setBiometricLockEnabled(v);
+                  if (mounted) setState(() => _biometricLock = v);
+                } finally {
+                  _changingLock = false;
+                }
               }),
               const Divider(height: 0, indent: 56),
               _settingsTile(Icons.warning_rounded, ChhayaColors.error, 'Panic PIN', subtitle: 'Auto-wipe on entry', onTap: _showPanicPinSetup),
@@ -531,7 +550,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'If entered at the lock screen, ALL data will be permanently erased.',
+                'Entering this PIN at the lock screen removes this device’s account data and keys. Remote copies and backups remain.',
                 style: ChhayaTypography.bodySmall.copyWith(color: ChhayaColors.labelSecondary, height: 1.5),
               ),
               const SizedBox(height: ChhayaSpacing.space3),
@@ -551,7 +570,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             style: TextButton.styleFrom(foregroundColor: ChhayaColors.error),
             child: const Text('Set Panic PIN'),
             onPressed: () async {
-              if(pinCtrl.text.length != 4) { return; }
+              if (!RegExp(r'^\d{4}$').hasMatch(pinCtrl.text)) { return; }
               await ref.read(localDatabaseProvider).setPanicPin(pinCtrl.text);
               if (mounted) Navigator.pop(context);
               ChhayaHaptics.warning();
