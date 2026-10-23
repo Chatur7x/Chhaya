@@ -173,7 +173,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   final authenticated = available && await db.authenticateWithBiometrics(
                     reason: v ? 'Enable Chhaya device lock' : 'Disable Chhaya device lock',
                   );
-                  if (!mounted) return;
+                  if (!context.mounted) return;
                   if (!authenticated) {
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                       content: Text('Device authentication is required to change the lock. Set a device passcode first.'),
