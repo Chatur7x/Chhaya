@@ -14,7 +14,7 @@ The Docker configuration is deployment preparation, not a live service.
 6. Back up the PostgreSQL volume and keep the host/security updates current.
 
 Only HTTPS is published. PostgreSQL is private to the Docker network.
-WebSocket signaling uses /signaling on the same TLS origin. Metrics are blocked
+WebSocket signaling uses `/signaling` on the same TLS origin and API listener. Metrics are blocked
 at the public proxy. Onion transport is disabled pending a vetted implementation.
 Push is optional and unavailable until provider credentials and app registration
 are configured; foreground polling works without push once client integration lands.

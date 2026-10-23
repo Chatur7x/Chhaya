@@ -56,6 +56,7 @@ See [test-builds.md](docs/test-builds.md). The Android artifact is for testing a
 | [Threat model](docs/threat-model.md) | Security assumptions and limitations |
 | [Cryptography](docs/crypto.md) | Implemented primitives and protocol notes |
 | [Self-hosting](docs/self-hosting.md) | Backend setup and operational requirements |
+| [Render deployment](docs/render-deploy.md) | Deploy the API and PostgreSQL with Render |
 | [Test builds](docs/test-builds.md) | Android/iOS test distribution and device testing |
 | [Performance notes](docs/performance.md) | Android sync tuning, APK size, and measured limits |
 | [Contributing](CONTRIBUTING.md) | Contribution workflow |

@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { createServer } from 'http';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -66,13 +67,14 @@ async function start() {
   try {
     await initDb();
     initPushNotifications();
-    startSignalingServer();
+    const server = createServer(app);
+    startSignalingServer(server);
     // Onion transport is not enabled until a vetted relay implementation is configured.
 
-    app.listen(config.PORT, () => {
+    server.listen(config.PORT, () => {
       logger.info(`Chhaya API server listening on port ${config.PORT}`, {
         env: config.NODE_ENV,
-        signalingPort: config.SIGNALING_PORT,
+        signalingPath: '/signaling',
         onionPort: config.ONION_PORT,
       });
     });

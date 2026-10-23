@@ -1,6 +1,8 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
+const {createServer}=require('node:http');
 const {randomUUID,randomBytes,generateKeyPairSync,createPublicKey,diffieHellman,createHmac}=require('node:crypto');
+const WebSocket=require('ws');
 const {hashCredential,verifyCredential,tokenHash}=require('../dist/session');
 
 test('credentials are salted, verified and reject legacy plaintext',()=>{
@@ -23,6 +25,24 @@ test('identity challenge binds proof to client private key and transcript',()=>{
   assert.equal(tokenHash(proof),challenge.proofHash);
   assert.throws(()=>createIdentityChallenge('00'.repeat(32),randomUUID(),'register'));
   shared.fill(0);
+});
+
+test('call signaling can share the public HTTP listener at /signaling',async()=>{
+  const {startSignalingServer}=require('../dist/signaling');
+  const server=createServer();
+  const signaling=startSignalingServer(server);
+  server.listen(0,'127.0.0.1');
+  await new Promise(resolve=>server.once('listening',resolve));
+  const address=server.address();
+  const socket=new WebSocket(`ws://127.0.0.1:${address.port}/signaling`);
+  try {
+    await new Promise((resolve,reject)=>{socket.once('open',resolve);socket.once('error',reject);});
+    assert.equal(socket.readyState,WebSocket.OPEN);
+  } finally {
+    socket.terminate();
+    await new Promise(resolve=>signaling.close(resolve));
+    await new Promise(resolve=>server.close(resolve));
+  }
 });
 
 test('real API: registration, authentication, conversations, messages, isolation and revocation',

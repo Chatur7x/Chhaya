@@ -1,5 +1,5 @@
 import { WebSocket, WebSocketServer } from 'ws';
-import { createServer } from 'http';
+import { createServer, type Server } from 'http';
 import { config } from './config';
 import { logger, createChildLogger } from './log';
 import { v4 as uuidv4 } from 'uuid';
@@ -29,9 +29,13 @@ const userClients = new Map<string, Set<string>>();
 
 const log = createChildLogger({ module: 'signaling' });
 
-export const startSignalingServer = (): WebSocketServer => {
-  const server = createServer();
-  const wss = new WebSocketServer({ server, maxPayload: 65536 });
+export const startSignalingServer = (sharedServer?: Server): WebSocketServer => {
+  const server = sharedServer ?? createServer();
+  const wss = new WebSocketServer({
+    server,
+    maxPayload: 65536,
+    ...(sharedServer ? { path: '/signaling' } : {}),
+  });
 
   wss.on('connection', (ws, req) => {
     const clientId = uuidv4();
@@ -64,13 +68,20 @@ export const startSignalingServer = (): WebSocketServer => {
     ws.on('close', () => clearInterval(pingInterval));
   });
 
-  server.listen(config.SIGNALING_PORT, () => {
-    log.info(`Signaling server listening on port ${config.SIGNALING_PORT}`);
-  });
+  if (!sharedServer) {
+    server.listen(config.SIGNALING_PORT, () => {
+      log.info(`Signaling server listening on port ${config.SIGNALING_PORT}`);
+    });
+  } else {
+    log.info('Signaling server attached to the shared HTTP listener at /signaling');
+  }
 
   // Periodic cleanup
   const cleanup=setInterval(cleanupStaleClients,60000);
-  wss.on('close',()=>{ clearInterval(cleanup); server.close(); });
+  wss.on('close',()=>{
+    clearInterval(cleanup);
+    if (!sharedServer) server.close();
+  });
 
   return wss;
 };

@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: chhaya-api
+    runtime: docker
+    region: singapore
+    plan: 0.5c-512mb
+    rootDir: backend/server
+    dockerfilePath: Dockerfile
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: chhaya-db
+          property: connectionString
+
+databases:
+  - name: chhaya-db
+    region: singapore
+    plan: 0.1c-256mb
+    diskSizeGB: 1
+    postgresMajorVersion: "16"
+    databaseName: chhaya
+    user: chhaya

@@ -1,6 +1,6 @@
 # Current architecture
 
-Chhaya is a Flutter Android/iOS messenger with a Node/Express API, PostgreSQL persistence, and a separate authenticated WebSocket signaling service. The repository contains a test product, not a production deployment.
+Chhaya is a Flutter Android/iOS messenger with a Node/Express API, PostgreSQL persistence, and authenticated WebSocket call signaling at `/signaling` on the same public listener. The repository contains a test product, not a production deployment.
 
 ## Account and storage
 
