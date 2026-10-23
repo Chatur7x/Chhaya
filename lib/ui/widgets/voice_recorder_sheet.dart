@@ -97,8 +97,10 @@ class _VoiceRecorderSheetState extends State<VoiceRecorderSheet> with WidgetsBin
         attachment = MessageAttachment.fromBytes(name: 'Voice message.aac', mimeType: 'audio/aac', bytes: bytes);
       }
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Recording could not be attached. Try a shorter recording.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Recording could not be attached. Try a shorter recording.')));
+      }
     } finally { await _cleanup(); }
     if (mounted) Navigator.pop(context, attachment);
   }

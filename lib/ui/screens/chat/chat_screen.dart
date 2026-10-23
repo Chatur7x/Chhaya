@@ -598,7 +598,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   void _showAttachmentSheet() {
     showModalBottomSheet<void>(context:context,builder:(ctx)=>SafeArea(
       child:Column(mainAxisSize:MainAxisSize.min,children:[
-        const Padding(padding:EdgeInsets.all(24),child:Text('Encrypted attachments · up to 256 KB')),
+        const Padding(padding:EdgeInsets.all(24),child:Text('Encrypted attachments Â· up to 256 KB')),
         ListTile(leading:const Icon(Icons.image_outlined),title:const Text('Photo'),
           subtitle:const Text('PNG, JPEG or WebP'),onTap:(){Navigator.pop(ctx);_pickAttachment(true);}),
         ListTile(leading:const Icon(Icons.mic_rounded),title:const Text('Voice message'),

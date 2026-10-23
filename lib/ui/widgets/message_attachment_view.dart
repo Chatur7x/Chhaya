@@ -24,8 +24,10 @@ class MessageAttachmentView extends StatelessWidget {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('File saved')));
       }
     } catch (_) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not save this file. Try another location.')));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not save this file. Try another location.')));
+      }
     }
   }
 
