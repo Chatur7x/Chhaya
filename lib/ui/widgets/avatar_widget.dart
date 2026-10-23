@@ -27,12 +27,12 @@ class AvatarWidget extends StatelessWidget {
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
     final fontSize = size * 0.40;
 
-    // Flat hacker avatar: dark panel, 1.5px accent hairline, mono initial.
+    // A compact identity tile echoes the pixel wordmark.
     Widget avatar = Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
+        borderRadius: BorderRadius.circular(size * 0.28),
         color: ChhayaColors.coralTint,
         border: Border.all(
           color: ChhayaColors.accent.withValues(alpha: 0.35),
@@ -45,7 +45,9 @@ class AvatarWidget extends StatelessWidget {
           style: TextStyle(
             color: ChhayaColors.accent,
             fontSize: fontSize,
-            fontWeight: FontWeight.w600,
+            fontFamily: 'DepartureMono',
+            fontFamilyFallback: const ['Inter'],
+            fontWeight: FontWeight.w400,
             letterSpacing: 0,
           ),
         ),

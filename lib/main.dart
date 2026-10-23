@@ -53,6 +53,7 @@ void main() async {
 
   LicenseRegistry.addLicense(() async* {
     yield LicenseEntryWithLineBreaks(['Inter'],await rootBundle.loadString('assets/fonts/OFL-Inter.txt'));
+    yield LicenseEntryWithLineBreaks(['Departure Mono'],await rootBundle.loadString('assets/fonts/OFL-DepartureMono.txt'));
     yield LicenseEntryWithLineBreaks(['Roboto Mono'],await rootBundle.loadString('assets/fonts/OFL-RobotoMono.txt'));
   });
   runApp(const ProviderScope(child: ChhayaApp()));

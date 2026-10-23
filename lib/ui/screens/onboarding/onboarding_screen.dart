@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/chhaya_theme.dart';
 import '../../widgets/glass_container.dart';
+import '../../widgets/chhaya_pixel_mark.dart';
 import '../../widgets/chhaya_button.dart';
 import '../../../core/router/chhaya_router.dart';
 import '../../../core/providers/app_providers.dart';
@@ -229,12 +230,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
     padding:const EdgeInsets.fromLTRB(28,32,28,24),
     child:FadeTransition(opacity:disableAnimations?const AlwaysStoppedAnimation(1.0):_heroFadeAnim,child:Column(
       crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Container(width:72,height:72,decoration:BoxDecoration(
-          color:ChhayaColors.coralTint,borderRadius:BorderRadius.circular(20)),
-          child:const Icon(Icons.chat_bubble_outline_rounded,size:36,color:ChhayaColors.accent)),
-        const SizedBox(height:32),
-        Text('CHHAYA',style:ChhayaTypography.title.copyWith(color:ChhayaColors.accent)),
-        const SizedBox(height:16),
+        Row(children:[
+          const ChhayaPixelMark(size:56),
+          const SizedBox(width:20),
+          Expanded(child:Text('CHHAYA',style:ChhayaTypography.displaySmall.copyWith(color:ChhayaColors.accent))),
+        ]),
+        const SizedBox(height:40),
         Text('A quieter place\nto stay close.',style:ChhayaTypography.displayL),
         const SizedBox(height:20),
         Text('No phone number. No email. Just an identity you control, and the people you choose.',
@@ -509,5 +510,3 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
     );
   }
 }
-
-/// Blinking terminal block cursor. Static (visible) under reduced motion.

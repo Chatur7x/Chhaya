@@ -97,6 +97,7 @@ flutter:
     - assets/icons/
     - assets/fonts/OFL-Inter.txt
     - assets/fonts/OFL-RobotoMono.txt
+    - assets/fonts/OFL-DepartureMono.txt
   fonts:
     - family: Inter
       fonts:
@@ -104,3 +105,6 @@ flutter:
     - family: RobotoMono
       fonts:
         - asset: assets/fonts/RobotoMono-Variable.ttf
+    - family: DepartureMono
+      fonts:
+        - asset: assets/fonts/DepartureMono-Regular.otf

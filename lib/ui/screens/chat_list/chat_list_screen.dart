@@ -16,7 +16,14 @@ class ChatListScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatListScreenState extends ConsumerState<ChatListScreen> {
+  final _searchController = TextEditingController();
   String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
   String _filter = 'All';
 
   void _newChat() => Navigator.of(context).push(
@@ -41,9 +48,19 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       floatingActionButton: ChhayaFAB(label: 'New chat', icon: Icons.edit_outlined, onPressed: _newChat),
       body: SafeArea(top: false, child: Column(children: [
         Padding(padding: const EdgeInsets.fromLTRB(24,8,24,12), child: TextField(
-          decoration: const InputDecoration(
+          controller: _searchController,
+          textInputAction: TextInputAction.search,
+          decoration: InputDecoration(
             hintText: 'Search conversations',
-            prefixIcon: Icon(Icons.search_rounded),
+            prefixIcon: const Icon(Icons.search_rounded),
+            suffixIcon: _query.isEmpty ? null : IconButton(
+              tooltip: 'Clear search',
+              icon: const Icon(Icons.close_rounded),
+              onPressed: () {
+                _searchController.clear();
+                setState(() => _query = '');
+              },
+            ),
           ),
           onChanged: (value) => setState(() => _query=value),
         )),
@@ -113,10 +130,10 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               Expanded(child:Text(conversation.displayName,maxLines:largeText?2:1,overflow:TextOverflow.ellipsis,
                 style:ChhayaTypography.bodyLarge.copyWith(fontWeight:unread?FontWeight.w700:FontWeight.w600))),
               const SizedBox(width:8),
-              if(!largeText) Text(stamp,style:ChhayaTypography.caption),
+              if(!largeText) Text(stamp,style:ChhayaTypography.monoCode.copyWith(fontSize:13,color:ChhayaColors.inkMuted)),
             ]),
             if(largeText) Padding(padding:const EdgeInsets.only(top:6),
-              child:Text(stamp,style:ChhayaTypography.caption)),
+              child:Text(stamp,style:ChhayaTypography.monoCode.copyWith(fontSize:13,color:ChhayaColors.inkMuted))),
             const SizedBox(height:6),
             Row(children:[
               if(conversation.isPinned) const Padding(padding:EdgeInsetsDirectional.only(end:4),

@@ -59,6 +59,7 @@ void main() {
     final loader=FontLoader('Inter')..addFont(rootBundle.load('assets/fonts/Inter-Variable.ttf'));
     await loader.load();
     await (FontLoader('MaterialIcons')..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
+    await (FontLoader('DepartureMono')..addFont(rootBundle.load('assets/fonts/DepartureMono-Regular.otf'))).load();
     await (FontLoader('RobotoMono')..addFont(rootBundle.load('assets/fonts/RobotoMono-Variable.ttf'))).load();
   });
   final scenes=<String,Widget>{
