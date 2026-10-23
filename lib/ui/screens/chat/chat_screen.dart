@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/semantics.dart';
 import '../../../core/models/message_attachment.dart';
 import '../../../services/messaging/attachment_service.dart';
 import '../../../services/messaging/messaging_service.dart';
@@ -68,7 +69,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       if(!mounted) { return; }
       setState(() { _messages=msgs.where((message)=>!message.isExpired).toList(); _loading=false; _loadError=null; });
       if (WidgetsBinding.instance.lifecycleState != null &&
-          WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) return;
+          WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) { return; }
       if (ModalRoute.of(context)?.isCurrent == false) return;
       for(final message in msgs.where((m)=>m.senderId!='me'&&!m.isRead&&!m.isExpired)) {
         if(!db.getReadReceiptsEnabled()) { break; }
@@ -125,8 +126,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       await ref.read(messagingServiceProvider).retryPending(widget.conversationId);
       await _loadMessages();
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Still offline. Your message remains queued.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Still offline. Your message remains queued.')));
+      }
     }
   }
 
@@ -153,12 +156,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     } on MessageQueuedException {
       _finishDraft(draft, reply, attachment);
       await _loadMessages();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Message queued. It will retry while the app is open.'),
-        action: SnackBarAction(label: 'Retry', onPressed: _retryPending)));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('Message queued. It will retry while the app is open.'),
+          action: SnackBarAction(label: 'Retry', onPressed: _retryPending)));
+      }
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Message not sent: $error')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Message not sent: $error')));
+      }
     } finally { if (mounted) setState(() => _sending = false); }
   }
 
@@ -167,8 +174,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       final selected = await AttachmentService.pick(imagesOnly: imagesOnly);
       if (mounted && selected != null) setState(() => _attachment = selected);
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not attach the file. Choose a readable file up to 256 KB.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not attach the file. Choose a readable file up to 256 KB.')));
+      }
     }
   }
 
