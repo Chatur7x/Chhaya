@@ -12,6 +12,7 @@
 // [ChhayaTheme.materialLight] is the default. [materialDark] is kept
 // as a compatibility alias over the preserved dark scheme — wire both
 // via ThemeMode.system for an instant, flicker-free switch.
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:ui';
