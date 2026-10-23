@@ -26,30 +26,7 @@ final appInitializationProvider = FutureProvider<bool>((ref) async {
     ref.read(conversationsProvider.notifier).setConversations(convos);
     ref.read(contactsProvider.notifier).setContacts(contacts);
 
-    // Sync with backend if online
-    try {
-      final backendConvos = await apiService.getConversations();
-      final backendContacts = await apiService.getContacts();
-      
-      // Merge with local (backend wins for conflicts)
-      for (final c in backendConvos) {
-        await db.addConversation(c);
-      }
-      for (final c in backendContacts) {
-        await db.addContact(c);
-      }
-      
-      ref.read(conversationsProvider.notifier).setConversations(
-        [...backendConvos, ...(convos.where((c) => !backendConvos.any((bc) => bc.id == c.id)))]
-      );
-      ref.read(contactsProvider.notifier).setContacts(
-        [...backendContacts, ...(contacts.where((c) => !backendContacts.any((bc) => bc.id == c.id)))]
-      );
-    } catch (e) {
-      // Offline mode - use local data
-      // ignore: avoid_print
-      print('Backend sync failed, using local data: $e');
-    }
+
   }
 
   return currentUser != null;
@@ -290,7 +267,7 @@ class _AppStartupGateState extends ConsumerState<AppStartupGate> {
             backgroundColor: ChhayaColors.cardSurface,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ChhayaRadius.xl)),
             title: const Text('Data Erased'),
-            content: const Text('All data has been permanently destroyed.'),
+            content: const Text('Local account data and keys have been removed. Remote copies and backups are not erased.'),
             actions: [
               TextButton(
                 child: const Text('OK'),

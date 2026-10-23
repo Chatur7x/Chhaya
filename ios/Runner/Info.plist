@@ -67,10 +67,33 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Chaaya needs camera access for encrypted video calls and QR code scanning.</string>
+	<string>Chhaya needs the camera to scan contact QR codes and make video calls.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Chaaya needs microphone access for encrypted voice and video calls.</string>
+	<string>Chhaya needs the microphone for voice messages and calls.</string>
 	<key>NSFaceIDUsageDescription</key>
-	<string>Chaaya uses Face ID to unlock your encrypted message database.</string>
+	<string>Chhaya uses Face ID to unlock the app and the encrypted vault.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Chhaya needs photo access to send images and save encrypted screenshots.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>Chhaya uses contacts only if you choose to import them; contacts are never uploaded.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Chhaya uses Bluetooth for offline mesh messaging nearby.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Chhaya uses Bluetooth to communicate with nearby devices offline.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Chhaya uses the local network for offline peer-to-peer mesh messaging.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>bluetooth-central</string>
+		<string>bluetooth-peripheral</string>
+		<string>remote-notification</string>
+		<string>fetch</string>
+	</array>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_chhaya-mesh._tcp</string>
+		<string>_chhaya-mesh._udp</string>
+	</array>
 </dict>
 </plist>

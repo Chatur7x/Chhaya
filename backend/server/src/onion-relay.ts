@@ -69,7 +69,7 @@ export const startOnionRelayServer = async (): Promise<WebSocketServer> => {
 };
 
 const loadNodes = async (): Promise<void> => {
-  const result = await query<OnionNode>(
+  const result = await query(
     'SELECT id, address, public_key, region, latency_ms, reliability, is_active FROM onion_nodes WHERE is_active = true'
   );
 

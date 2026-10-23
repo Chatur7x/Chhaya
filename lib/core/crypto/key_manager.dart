@@ -143,6 +143,7 @@ class KeyManager with WidgetsBindingObserver {
 
   /// In-memory session key cache. Wiped on background. Never logged.
   final Map<String, Uint8List> _sessionCache = {};
+  ChhayaKeyPair? _foregroundIdentity;
 
   /// In-memory rotation epochs per contact.
   final Map<String, int> _rotationEpochs = {};
@@ -153,6 +154,7 @@ class KeyManager with WidgetsBindingObserver {
 
   /// Stores an X25519 key pair in secure storage.
   Future<void> storeKeyPair(ChhayaKeyPair keyPair) async {
+    zeroizeCache();
     await _backend.write(
         key: _publicKeyKey, value: base64Encode(keyPair.publicKey));
     await _backend.write(
@@ -161,13 +163,17 @@ class KeyManager with WidgetsBindingObserver {
 
   /// Loads the stored X25519 key pair, or null when absent.
   Future<ChhayaKeyPair?> getKeyPair() async {
+    final cached=_foregroundIdentity;
+    if(cached!=null) {
+      return ChhayaKeyPair(publicKey:Uint8List.fromList(cached.publicKey),privateKey:Uint8List.fromList(cached.privateKey));
+    }
     final pub = await _backend.read(key: _publicKeyKey);
     final priv = await _backend.read(key: _privateKeyKey);
     if (pub == null || priv == null) {
       return null;
     }
-    return ChhayaKeyPair(
-        publicKey: base64Decode(pub), privateKey: base64Decode(priv));
+    _foregroundIdentity=ChhayaKeyPair(publicKey:base64Decode(pub),privateKey:base64Decode(priv));
+    return ChhayaKeyPair(publicKey:base64Decode(pub),privateKey:base64Decode(priv));
   }
 
   /// Stores the BIP-39 recovery phrase in secure storage.
@@ -199,10 +205,22 @@ class KeyManager with WidgetsBindingObserver {
 
   /// Deletes all V13 keys from secure storage.
   Future<void> clearAllKeys() async {
+    zeroizeCache();
     await _backend.delete(key: _publicKeyKey);
     await _backend.delete(key: _privateKeyKey);
     await _backend.delete(key: _recoveryPhraseKey);
     await _backend.delete(key: _chhayaIdKey);
+  }
+
+  /// Removes account roots as well as legacy identity material.
+  /// Call only after the encrypted database is closed and removed.
+  Future<void> clearAllAccountSecrets() async {
+    zeroizeCache();
+    for(final key in [_publicKeyKey,_privateKeyKey,_recoveryPhraseKey,_chhayaIdKey,
+        _masterSeedKey,_identityEd25519Key,_identityX25519Key,_identityEpochKey]) {
+      await _backend.delete(key:key);
+    }
+    _rotationEpochs.clear();
   }
 
   // ---- V14: master seed + derivation paths ----
@@ -271,6 +289,10 @@ class KeyManager with WidgetsBindingObserver {
   /// Wipes every in-memory session key. Called automatically on
   /// background; callers may also invoke it directly (e.g. lock now).
   void zeroizeCache() {
+    if(_foregroundIdentity!=null) {
+      Csprng.wipe(_foregroundIdentity!.privateKey);
+      _foregroundIdentity=null;
+    }
     for (final key in _sessionCache.values) {
       Csprng.wipe(key);
     }

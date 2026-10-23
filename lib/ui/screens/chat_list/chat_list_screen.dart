@@ -161,7 +161,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
             const SizedBox(height: ChhayaSpacing.space5),
             Text('No conversations yet', style: ChhayaTypography.displaySmall.copyWith(fontSize: 16)),
             const SizedBox(height: ChhayaSpacing.space1),
-            Text('Start a secure chat. Onion-routed, E2E encrypted.\nTap New Chat to begin.', textAlign: TextAlign.center, style: ChhayaTypography.bodySmall.copyWith(color: ChhayaColors.labelTertiary, height: 1.5)),
+            Text('Connect your server and verify a contact.\nTap New Chat to begin.', textAlign: TextAlign.center, style: ChhayaTypography.bodySmall.copyWith(color: ChhayaColors.labelTertiary, height: 1.5)),
             const SizedBox(height: ChhayaSpacing.space5),
             ChhayaSecondaryButton(
               label: 'Add Contact',

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/chhaya_theme.dart';
@@ -30,10 +29,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
   List<Message> _messages = [];
   bool _loading = true;
   bool _isTyping = false;
-  bool _otherTyping = false;
-  bool _steganoMode = false;
+  final bool _otherTyping = false;
+  final bool _steganoMode = false;
   int _ttlMinutes = 0;
-  Timer? _autoReplyTimer;
+  Timer? _refreshTimer;
+  bool _sending=false;
+  bool _refreshing=false;
 
   late AnimationController _fabCtrl;
   late Animation<double> _fabScale;
@@ -53,24 +54,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
       }
     });
     _loadMessages();
+    _refreshTimer=Timer.periodic(const Duration(seconds:2),(_)=>_loadMessages());
   }
 
   Future<void> _loadMessages() async {
-    final db = ref.read(localDatabaseProvider);
-    final msgs = await db.getMessages(widget.conversationId);
-    if (!mounted) return;
-    setState(() {
-      _messages = msgs;
-      _loading = false;
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    if(_refreshing) { return; }
+    _refreshing=true;
+    try {
+      final db=ref.read(localDatabaseProvider);
+      final msgs=await db.getMessages(widget.conversationId);
+      if(!mounted) { return; }
+      setState(() { _messages=msgs.where((message)=>!message.isExpired).toList(); _loading=false; });
+      for(final message in msgs.where((m)=>m.senderId!='me'&&!m.isRead&&!m.isExpired)) {
+        if(!db.getReadReceiptsEnabled()) { break; }
+        try {
+          await ref.read(apiServiceProvider).markMessagesRead(message.id);
+          await db.addMessage(message.copyWith(isRead:true));
+        } catch (_) { break; }
+      }
+    } finally { _refreshing=false; }
   }
 
   @override
   void dispose() {
     _msgCtrl.dispose();
     _scrollCtrl.dispose();
-    _autoReplyTimer?.cancel();
+    _refreshTimer?.cancel();
     _fabCtrl.dispose();
     super.dispose();
   }
@@ -78,7 +87,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
   bool _isSent(Message m) => m.senderId == 'me';
 
   void _scrollToBottom() {
-    if (!_scrollCtrl.hasClients) return;
+    if(!_scrollCtrl.hasClients) { return; }
     _scrollCtrl.animateTo(
       _scrollCtrl.position.maxScrollExtent,
       duration: ChhayaAnimation.normal,
@@ -87,80 +96,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
   }
 
   Future<void> _sendMessage() async {
-    final text = _msgCtrl.text.trim();
-    if (text.isEmpty) return;
-
-    final msg = Message(
-      id: 'm_${DateTime.now().millisecondsSinceEpoch}',
-      conversationId: widget.conversationId,
-      senderId: 'me',
-      content: text,
-      timestamp: DateTime.now(),
-      isSent: true,
-      isDelivered: true,
-      ttl: _ttlMinutes > 0 ? Duration(minutes: _ttlMinutes) : null,
-    );
-
-    final db = ref.read(localDatabaseProvider);
-    await db.addMessage(msg);
-
-    setState(() => _messages = [..._messages, msg]);
-    _msgCtrl.clear();
-    setState(() => _isTyping = false);
-    _fabCtrl.reverse();
-    ChhayaHaptics.medium();
-    _scrollToBottom();
-    _scheduleAutoReply();
-  }
-
-  void _scheduleAutoReply() {
-    _autoReplyTimer?.cancel();
-    _autoReplyTimer = Timer(const Duration(milliseconds: 1400), () {
-      if (!mounted) return;
-      setState(() => _otherTyping = true);
+    final text=_msgCtrl.text.trim();
+    if(text.isEmpty||_sending) { return; }
+    setState(()=>_sending=true);
+    try {
+      final conversation=ref.read(conversationsProvider).where((c)=>c.id==widget.conversationId).firstOrNull;
+      if(conversation==null) { throw StateError('Conversation is unavailable'); }
+      await ref.read(messagingServiceProvider).send(conversation,text,
+          ttl:_ttlMinutes>0?Duration(minutes:_ttlMinutes):null);
+      _msgCtrl.clear();
+      await _loadMessages();
       _scrollToBottom();
-
-      _autoReplyTimer = Timer(const Duration(milliseconds: 2200), () async {
-        if (!mounted) return;
-        setState(() => _otherTyping = false);
-        final contactId = _contactId();
-        final reply = Message(
-          id: 'm_${DateTime.now().millisecondsSinceEpoch}',
-          conversationId: widget.conversationId,
-          senderId: contactId,
-          content: _autoReplyText(),
-          timestamp: DateTime.now(),
-          isRead: true,
-          isDelivered: true,
-        );
-        final db = ref.read(localDatabaseProvider);
-        await db.addMessage(reply);
-        if (!mounted) return;
-        setState(() => _messages = [..._messages, reply]);
-        _scrollToBottom();
-      });
-    });
-  }
-
-  String _contactId() {
-    final convos = ref.read(conversationsProvider);
-    final convo = convos.where((c) => c.id == widget.conversationId).firstOrNull;
-    if (convo != null && convo.participants.isNotEmpty) return convo.participants.first.id;
-    return 'contact';
-  }
-
-  String _autoReplyText() {
-    const replies = [
-      'Got it, thanks!',
-      'Sounds good to me.',
-      'Onion-routed and received 👍',
-      'Let me check and get back to you.',
-      'Agreed.',
-      'Perfect.',
-      'Can we talk about this later?',
-      'Interesting — tell me more.',
-    ];
-    return replies[Random().nextInt(replies.length)];
+    } catch(error) {
+      await _loadMessages();
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Message not sent: $error'),
+          action:SnackBarAction(label:'Retry',onPressed:() async {
+            try {
+              await ref.read(messagingServiceProvider).retryPending(widget.conversationId);
+              await _loadMessages();
+            } catch (_) {
+              if(mounted) { ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content:Text('Still offline. Your message remains queued.'))); }
+            }
+          })));
+      }
+    } finally { if(mounted) setState(()=>_sending=false); }
   }
 
   @override
@@ -192,7 +153,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
                           ),
                           itemCount: _messages.length + (_otherTyping ? 1 : 0),
                           itemBuilder: (ctx, i) {
-                            if (i == _messages.length) return _buildTypingIndicator(disableAnimations);
+                            if(i == _messages.length) { return _buildTypingIndicator(disableAnimations); }
                             return _buildMessageBubble(_messages[i], i);
                           },
                         ),
@@ -247,7 +208,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
                 Text(
                   _ttlMinutes > 0
                       ? 'Disappearing · $_ttlLabel'
-                      : 'Onion-secured',
+                      : 'Verified direct chat',
                   style: ChhayaTypography.labelSmall.copyWith(
                     color: _ttlMinutes > 0
                         ? ChhayaColors.warning
@@ -273,7 +234,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
             icon: Icons.call_rounded,
             onPressed: () => Navigator.of(context).pushNamed(
               ChhayaRouter.call,
-              arguments: {'contactName': widget.contactName, 'isVideo': false},
+              arguments: {'conversationId':widget.conversationId, 'contactName': widget.contactName, 'isVideo': false},
             ),
             size: 36,
             background: ChhayaColors.cardSurface,
@@ -283,7 +244,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
             icon: Icons.videocam_rounded,
             onPressed: () => Navigator.of(context).pushNamed(
               ChhayaRouter.call,
-              arguments: {'contactName': widget.contactName, 'isVideo': true},
+              arguments: {'conversationId':widget.conversationId, 'contactName': widget.contactName, 'isVideo': true},
             ),
             size: 36,
             background: ChhayaColors.cardSurface,
@@ -294,8 +255,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
   }
 
   String get _ttlLabel {
-    if (_ttlMinutes >= 1440) return '${_ttlMinutes ~/ 1440}d';
-    if (_ttlMinutes >= 60) return '${_ttlMinutes ~/ 60}h';
+    if(_ttlMinutes >= 1440) { return '${_ttlMinutes ~/ 1440}d'; }
+    if(_ttlMinutes >= 60) { return '${_ttlMinutes ~/ 60}h'; }
     return '$_ttlMinutes min';
   }
 
@@ -366,7 +327,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
             ),
             const SizedBox(height: ChhayaSpacing.space1),
             Text(
-              'Messages are onion-routed and encrypted\nwith AES-256-GCM + Double Ratchet.',
+              'Verify your contact and connect your server\nto exchange encrypted direct messages.',
               textAlign: TextAlign.center,
               style: ChhayaTypography.bodySmall.copyWith(
                 color: ChhayaColors.labelTertiary,
@@ -662,6 +623,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
     );
   }
 
+  void _attachmentUnavailable() {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Attachments and polls are not available in this test build.')));
+  }
+
   void _showAttachmentSheet() {
     showModalBottomSheet(
       context: context,
@@ -680,10 +645,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _attachAction(Icons.camera_alt_rounded, 'Camera', ChhayaColors.accent, () {}),
-                  _attachAction(Icons.photo_rounded, 'Gallery', ChhayaColors.success, () {}),
-                  _attachAction(Icons.insert_drive_file_rounded, 'File', ChhayaColors.info, () {}),
-                  _attachAction(Icons.how_to_vote_rounded, 'Poll', ChhayaColors.warning, () {}),
+                  _attachAction(Icons.camera_alt_rounded, 'Camera', ChhayaColors.accent, _attachmentUnavailable),
+                  _attachAction(Icons.photo_rounded, 'Gallery', ChhayaColors.success, _attachmentUnavailable),
+                  _attachAction(Icons.insert_drive_file_rounded, 'File', ChhayaColors.info, _attachmentUnavailable),
+                  _attachAction(Icons.how_to_vote_rounded, 'Poll', ChhayaColors.warning, _attachmentUnavailable),
                 ],
               ),
               const SizedBox(height: ChhayaSpacing.space4),
@@ -695,17 +660,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
                 ),
                 child: SwitchListTile(
                   secondary: const Icon(Icons.visibility_off_rounded, color: ChhayaColors.accent, size: 20),
-                  title: Text('Stegano Mode', style: ChhayaTypography.bodyMedium),
+                  title: Text('Steganography (unavailable)', style: ChhayaTypography.bodyMedium),
                   subtitle: Text(
                     'Hide messages inside images',
                     style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.labelTertiary),
                   ),
                   value: _steganoMode,
-                  onChanged: (v) {
-                    setSheetState(() => _steganoMode = v);
-                    setState(() => _steganoMode = v);
-                    ChhayaHaptics.selection();
-                  },
+                  onChanged: null,
                   activeTrackColor: ChhayaColors.accent.withValues(alpha: 0.3),
                   activeThumbColor: ChhayaColors.accent,
                 ),

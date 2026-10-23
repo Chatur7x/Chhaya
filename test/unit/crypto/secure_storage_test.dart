@@ -1,3 +1,4 @@
+import 'dart:convert';
 // Part 2 tests — secure storage adapters.
 //
 // Mock covers behavior; platform adapters are tested with an injected
@@ -148,6 +149,23 @@ void main() {
     });
   });
 
+  group('Android wrapping envelopes', () {
+    test('wraps actual stored values and refuses missing unwrap support', () async {
+      final backing=SecureStorageMock();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,(call) async {
+        if(call.method=='wrapSecret') { return 'ciphertext'; }
+        if(call.method=='unwrapSecret') { return base64Encode(utf8.encode('private')); }
+        return 'tee';
+      });
+      final storage=AndroidSecureStorage(delegate:backing,channel:channel);
+      await storage.write(key:'secret',value:'private');
+      expect(await backing.read(key:'secret'),'chhaya.keystore.v1:ciphertext');
+      expect(await storage.read(key:'secret'),'private');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,null);
+      await expectLater(storage.read(key:'secret'),throwsA(isA<MissingPluginException>()));
+    });
+  });
+
   group('IOSSecureStorage', () {
     test('reads/writes through delegate without platform calls', () async {
       final ios = IOSSecureStorage(delegate: SecureStorageMock());
@@ -172,6 +190,67 @@ void main() {
         await ios.securityLevel(),
         HardwareSecurityLevel.secureEnclave,
       );
+    });
+  });
+
+  group('iOS enclave envelopes', () {
+    test('wraps before Keychain write and unwraps on read', () async {
+      final backing = SecureStorageMock();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        if (call.method == 'wrapSecret') {
+          expect((call.arguments as Map)['value'], base64Encode(utf8.encode('secret')));
+          return 'encrypted-envelope';
+        }
+        if (call.method == 'unwrapSecret') {
+          expect((call.arguments as Map)['value'], 'encrypted-envelope');
+          return base64Encode(utf8.encode('secret'));
+        }
+        return null;
+      });
+      final storage = IOSSecureStorage(delegate: backing, channel: channel);
+      await storage.write(key: 'key', value: 'secret');
+      expect(await backing.read(key: 'key'), 'chhaya.enclave.v1:encrypted-envelope');
+      expect(await storage.read(key: 'key'), 'secret');
+      await storage.delete(key: 'key');
+      expect(await storage.containsKey(key: 'key'), isFalse);
+    });
+
+    test('preserves old entries and falls back on hosts without wrapping', () async {
+      final backing = SecureStorageMock({'old': 'legacy'});
+      final storage = IOSSecureStorage(delegate: backing, channel: channel);
+      expect(await storage.read(key: 'old'), 'legacy');
+      await storage.write(key: 'new', value: 'value');
+      expect(await storage.read(key: 'new'), 'value');
+    });
+
+    test('authentication errors do not overwrite existing secrets', () async {
+      final backing = SecureStorageMock({'key': 'existing'});
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        throw PlatformException(code: 'secure_storage');
+      });
+      final storage = IOSSecureStorage(delegate: backing, channel: channel);
+      await expectLater(storage.write(key: 'key', value: 'replacement'),
+          throwsA(isA<PlatformException>()));
+      expect(await backing.read(key: 'key'), 'existing');
+    });
+
+    test('encrypted values never downgrade when the native host is missing', () async {
+      final storage = IOSSecureStorage(
+          delegate: SecureStorageMock({'key': 'chhaya.enclave.v1:ciphertext'}),
+          channel: channel);
+      await expectLater(storage.read(key: 'key'), throwsA(isA<MissingPluginException>()));
+    });
+
+    test('accepts native underscore and Keychain level names', () async {
+      var level = 'secure_enclave';
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async => level);
+      final storage = IOSSecureStorage(delegate: SecureStorageMock(), channel: channel);
+      expect(await storage.securityLevel(), HardwareSecurityLevel.secureEnclave);
+      level = 'keychain';
+      expect(await storage.securityLevel(), HardwareSecurityLevel.tee);
     });
   });
 

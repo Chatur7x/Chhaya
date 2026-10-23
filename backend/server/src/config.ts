@@ -34,5 +34,8 @@ const envSchema = z.object({
 });
 
 export const config = envSchema.parse(process.env);
+if (config.NODE_ENV === 'production' && (!process.env.JWT_SECRET || /change|replace|dev-secret|production-secret/.test(config.JWT_SECRET))) {
+  throw new Error('Production requires a unique JWT_SECRET of at least 32 characters');
+}
 
 export const regions = config.ONION_REGIONS.split(',').map(r => r.trim());

@@ -71,3 +71,9 @@ backend/server/dist/
 .env
 *.keystore
 *.jks
+
+# Distribution output and TLS/signing secrets
+/dist/
+/certs/
+*.p12
+*.mobileprovision

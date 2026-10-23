@@ -25,6 +25,15 @@ Uint8List hex(String s) {
 }
 
 void main() {
+  test('account removal replaces the database root and clears identity cache',() async {
+    final manager=KeyManager(secureBackend:SecureStorageMock());
+    final before=await manager.getDatabaseKey(userId:'local');
+    await manager.clearAllAccountSecrets();
+    final after=await manager.getDatabaseKey(userId:'local');
+    expect(before,isNot(after));
+    expect(await manager.getKeyPair(),isNull);
+  });
+
   group('V13 API compatibility', () {
     test('key pair round-trips', () async {
       final manager = makeManager();

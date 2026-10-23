@@ -145,10 +145,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         _startChat();
                       }),
                       _actionBtn(Icons.call_rounded, 'Audio Call', ChhayaColors.success, () {
-                        Navigator.of(context).pushNamed(ChhayaRouter.call, arguments: {'contactName': displayName, 'isVideo': false});
+                        Navigator.of(context).pushNamed(ChhayaRouter.call, arguments: {'conversationId':ref.read(conversationsProvider).where((c)=>c.participants.any((p)=>p.id==_contact?.id)).firstOrNull?.id??'', 'contactName': displayName, 'isVideo': false});
                       }),
                       _actionBtn(Icons.videocam_rounded, 'Video Call', ChhayaColors.info, () {
-                        Navigator.of(context).pushNamed(ChhayaRouter.call, arguments: {'contactName': displayName, 'isVideo': true});
+                        Navigator.of(context).pushNamed(ChhayaRouter.call, arguments: {'conversationId':ref.read(conversationsProvider).where((c)=>c.participants.any((p)=>p.id==_contact?.id)).firstOrNull?.id??'', 'contactName': displayName, 'isVideo': true});
                       }),
                       _actionBtn(Icons.qr_code_rounded, 'Verify', ChhayaColors.warning, () {
                         Navigator.of(context).pushNamed(ChhayaRouter.verification);

@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 import 'package:chaaya/ui/theme/chhaya_theme.dart';
 import 'package:chaaya/ui/widgets/avatar_widget.dart';
 import 'package:chaaya/ui/widgets/chhaya_button.dart';
 import 'package:chaaya/ui/widgets/glass_container.dart';
 import 'package:chaaya/core/providers/app_providers.dart';
 import 'package:chaaya/core/models/contact.dart';
-import 'package:chaaya/core/models/chhaya_id.dart';
 import 'package:chaaya/core/models/conversation.dart';
 import 'package:chaaya/core/router/chhaya_router.dart';
 
@@ -68,10 +66,10 @@ class _ContactsTabState extends ConsumerState<ContactsTab> {
                     const SizedBox(width: ChhayaSpacing.space3),
                     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text('${contacts.length} contacts', style: ChhayaTypography.headlineMedium.copyWith(fontSize: 13)),
-                      Text('Verified • Encrypted', style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.online, fontWeight: FontWeight.w600, fontSize: 11)),
+                      Text('Verify identities before messaging', style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.online, fontWeight: FontWeight.w600, fontSize: 11)),
                     ]),
                     const Spacer(),
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: ChhayaColors.accentDim, borderRadius: BorderRadius.circular(ChhayaRadius.pill), border: Border.all(color: ChhayaColors.accent.withValues(alpha: 0.2))), child: Text('All synced', style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.accent, fontWeight: FontWeight.w700, fontSize: 10))),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: ChhayaColors.accentDim, borderRadius: BorderRadius.circular(ChhayaRadius.pill), border: Border.all(color: ChhayaColors.accent.withValues(alpha: 0.2))), child: Text('Contacts', style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.accent, fontWeight: FontWeight.w700, fontSize: 10))),
                   ],
                 ),
               ),
@@ -172,26 +170,31 @@ class _ContactsTabState extends ConsumerState<ContactsTab> {
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           ChhayaInput(controller: nameCtrl, hint: 'Display Name', prefixIcon: Icons.person_outline_rounded, textCapitalization: TextCapitalization.words, autofocus: true),
           const SizedBox(height: ChhayaSpacing.space3),
-          ChhayaInput(controller: keyCtrl, hint: 'Chhaya ID (66 chars, optional)', prefixIcon: Icons.fingerprint_rounded, maxLength: 66, style: ChhayaTypography.code.copyWith(color: ChhayaColors.labelPrimary, fontSize: 11)),
+          ChhayaInput(controller: keyCtrl, hint: 'Chhaya ID (66 characters)', prefixIcon: Icons.fingerprint_rounded, maxLength: 66, style: ChhayaTypography.code.copyWith(color: ChhayaColors.labelPrimary, fontSize: 11)),
           const SizedBox(height: ChhayaSpacing.space2),
-          Text('Leave empty to generate a demo ID', style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.labelQuaternary)),
+          Text('Ask your contact for their full Chhaya ID', style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.labelQuaternary)),
         ]),
         actions: [TextButton(child: const Text('Cancel'), onPressed: () => Navigator.pop(ctx)), ChhayaPrimaryButton(label: 'Add', onPressed: () async {
           final name = nameCtrl.text.trim();
-          if (name.isEmpty) return;
-          var pk = keyCtrl.text.trim().toLowerCase();
-          if (pk.isEmpty || pk.length != 66) pk = List.generate(66, (_) => '0123456789abcdef'[DateTime.now().microsecond % 16]).join();
-          final contactId = 'contact_${const Uuid().v4().substring(0, 8)}';
-          final newContact = Contact(id: contactId, chhayaId: ChhayaId.fromPublicKey(pk), displayName: name, verificationLevel: 1, isOnline: true);
-          final db = ref.read(localDatabaseProvider);
-          await db.addContact(newContact);
-          ref.read(contactsProvider.notifier).addContact(newContact);
-          final convoId = 'convo_$contactId';
-          final newConvo = Conversation(id: convoId, participants: [newContact], createdAt: DateTime.now());
-          await db.addConversation(newConvo);
-          ref.read(conversationsProvider.notifier).addConversation(newConvo);
-          if (ctx.mounted) Navigator.pop(ctx);
-          ChhayaHaptics.success();
+          if(name.isEmpty) { return; }
+          final pk=keyCtrl.text.trim().toLowerCase();
+          if(!RegExp(r'^05[0-9a-f]{64}$').hasMatch(pk)) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enter a valid full Chhaya ID')));
+            return;
+          }
+          try {
+            final api=ref.read(apiServiceProvider);
+            final contact=await api.addContact(chhayaId:pk,displayName:name);
+            await ref.read(localDatabaseProvider).addContact(contact);
+            final conversations=await ref.read(messagingServiceProvider).sync();
+            final contacts=await ref.read(localDatabaseProvider).getAllContacts();
+            ref.read(contactsProvider.notifier).setContacts(contacts);
+            ref.read(conversationsProvider.notifier).setConversations(conversations);
+            if(ctx.mounted) Navigator.pop(ctx);
+            ChhayaHaptics.success();
+          } catch(error) {
+            if(context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Could not add contact: $error')));
+          }
         })],
       ),
     );

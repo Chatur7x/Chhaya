@@ -5,10 +5,9 @@
 // Enclave generation for EC keys when the enclave proves available.
 // Ladder: Secure Enclave → Keychain (TEE) → software (logged warning).
 //
-// NATIVE FOLLOW-UP (pending decision): enclave proof needs a small
-// Swift handler for channel `chhaya/security` (`isSecureEnclaveAvailable`
-// via kSecAttrTokenIDSecureEnclave key generation test). Until it ships,
-// the probe degrades gracefully to the Keychain assumption.
+// Native P-256 ECIES wrapping is provided by ChhayaSecurityPlugin.
+// X25519/Ed25519 bytes are wrapped in Keychain, never imported into SEP.
+import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../log.dart';
@@ -23,7 +22,7 @@ class IOSSecureStorage implements SecureStorage {
             FlutterSecureStorageAdapter(
               const FlutterSecureStorage(
                 iOptions: IOSOptions(
-                  accessibility: KeychainAccessibility.first_unlock_this_device,
+                  accessibility: KeychainAccessibility.unlocked_this_device,
                 ),
               ),
             ),
@@ -32,14 +31,36 @@ class IOSSecureStorage implements SecureStorage {
   final SecureStorage _delegate;
   final MethodChannel _channel;
 
+  static const _prefix = 'chhaya.enclave.v1:';
+
   @override
-  Future<void> write({required String key, required String value}) {
-    return _delegate.write(key: key, value: value);
+  Future<void> write({required String key, required String value}) async {
+    String? wrapped;
+    try {
+      wrapped = await _channel.invokeMethod<String>('wrapSecret', {
+        'value': base64Encode(utf8.encode(value)),
+      });
+    } on MissingPluginException {
+      // Older native hosts retain device-only Keychain protection.
+    }
+    if (wrapped == null) {
+      ChhayaLog.w('Secure Enclave wrapping unavailable; using device-only Keychain',
+          name: 'SecureStorage.ios');
+    }
+    await _delegate.write(
+        key: key, value: wrapped == null ? value : '$_prefix$wrapped');
   }
 
   @override
-  Future<String?> read({required String key}) {
-    return _delegate.read(key: key);
+  Future<String?> read({required String key}) async {
+    final stored = await _delegate.read(key: key);
+    if (stored == null || !stored.startsWith(_prefix)) return stored;
+    // An existing encrypted envelope must never fall back to plaintext.
+    final plain = await _channel.invokeMethod<String>('unwrapSecret', {
+      'value': stored.substring(_prefix.length),
+    });
+    if (plain == null) throw StateError('Secure Enclave unwrap unavailable');
+    return utf8.decode(base64Decode(plain));
   }
 
   @override

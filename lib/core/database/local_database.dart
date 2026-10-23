@@ -19,6 +19,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite_sqlcipher/sqflite.dart';
 import '../crypto/key_manager.dart';
+import '../crypto/ratchet/session_state.dart';
 import '../crypto/primitives/rng.dart';
 import '../models/message.dart';
 import '../models/contact.dart';
@@ -201,6 +202,12 @@ class LocalDatabase {
     _deviceCache = null;
   }
 
+  Future<void> destroy() async {
+    final path=_dbPathOverride??p.join(await getDatabasesPath(),_dbName);
+    await close();
+    await deleteDatabase(path);
+  }
+
   void _ensureInitialized() {
     if (!_initialized || _db == null || _dbKey == null) {
       throw StateError('LocalDatabase not initialized. Call init() first.');
@@ -214,9 +221,7 @@ class LocalDatabase {
       DatabaseKey.decryptField(envelope, _dbKey!);
 
   // ---- Messages
-  Future<void> addMessage(Message message) async {
-    _ensureInitialized();
-    await DbQueries.upsert(_db!, DbTables.messages, {
+  Map<String,Object?> _messageRow(Message message) => {
       DbCols.id: message.id,
       DbCols.conversationId: message.conversationId,
       DbCols.senderId: message.senderId,
@@ -230,6 +235,23 @@ class LocalDatabase {
           message.isDelivered ? message.timestamp.millisecondsSinceEpoch : null,
       DbCols.readAt:
           message.isRead ? message.timestamp.millisecondsSinceEpoch : null,
+    };
+
+  Future<void> addMessage(Message message) async {
+    _ensureInitialized();
+    await DbQueries.upsert(_db!,DbTables.messages,_messageRow(message));
+  }
+
+  /// Ratchet advancement and the plaintext's encrypted database row commit
+  /// together, so a crash cannot consume a key without preserving its message.
+  Future<void> commitReceivedMessage(SessionState state,Message message) async {
+    _ensureInitialized();
+    await _db!.transaction((transaction) async {
+      await DbQueries.upsert(transaction,DbTables.messages,_messageRow(message));
+      await DbQueries.upsert(transaction,DbTables.kv,{
+        DbCols.key:'$_sessionKeyPrefix${state.peerId}',
+        DbCols.value:_enc(jsonEncode(state.toJson())),
+      });
     });
   }
 
