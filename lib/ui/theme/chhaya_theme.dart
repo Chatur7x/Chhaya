@@ -68,7 +68,8 @@ class ChhayaTheme {
 
   static ThemeData get materialLight => _material(colorScheme);
 
-  static ThemeData _material(ColorScheme scheme, {TargetPlatform platform = defaultTargetPlatform}) {
+  static ThemeData _material(ColorScheme scheme, {TargetPlatform? platform}) {
+    platform ??= defaultTargetPlatform;
     final palette = ChhayaPalette(scheme);
     TextStyle type(TextStyle style) => ChhayaTypography.forPlatform(style, platform);
 

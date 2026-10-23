@@ -1,0 +1,38 @@
+name: PQC Native Provider
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'codex/**']
+    paths:
+      - 'packages/chhaya_pqc/**'
+      - 'lib/core/crypto/pqc/**'
+      - '.github/workflows/pqc-native.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/chhaya_pqc/**'
+      - 'lib/core/crypto/pqc/**'
+      - '.github/workflows/pqc-native.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  host-vectors:
+    name: AWS-LC pinned host known-answer tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Configure provider and test harness
+        run: cmake -S packages/chhaya_pqc/native -B build/pqc-host -DCMAKE_BUILD_TYPE=Release -DCHHAYA_HOST_TESTS=ON
+      - name: Build provider and vector harness
+        run: cmake --build build/pqc-host --parallel 4
+      - name: Run FIPS KAT and failure checks
+        run: ctest --test-dir build/pqc-host --output-on-failure

@@ -1,45 +1,44 @@
-# Decision: Post-quantum crypto library (`pqcrypto`)
+# Decision: Post-quantum crypto provider (AWS-LC)
 
-- **Date:** 2026-10-09
-- **Status:** Accepted — supersedes the Part 5 placeholder-only approach
+- **Date:** 2026-10-23
+- **Status:** Approved dependency; native integration and platform acceptance checks in progress
 - **Applies to:** Part 5 (Post-Quantum Hybrid KEX)
 
 ## Context
 
-Part 5 shipped `lib/core/crypto/pqc/` as audit-gated placeholders that
-throw `PqcUnavailableException`. Two paths were offered: approve a vetted
-dependency, or fund an audit of a from-scratch FIPS 203/204 implementation.
+Part 5 initially shipped `lib/core/crypto/pqc/` as provider abstractions.
+The user approved adding a pinned native library after reviewing the proposal.
 
 The frozen stack ships no PQC primitive, and writing ML-KEM/ML-DSA by hand
 would violate master rule §2.10 (only audited primitives may be used).
 
 ## Decision
 
-Use the pure-Dart **`pqcrypto`** package.
+Use the version-pinned AWS-LC native provider for ML-KEM-1024 and ML-DSA-87.
+See [the detailed proposal and remaining acceptance gates](../pqc-provider-proposal.md).
 
 ## Rationale
 
 | Property | Why it matters |
 |---|---|
-| No FFI | No native compilation; no `ndk`, no ABI breakage across Android/iOS/Windows |
-| Pure Dart | Builds everywhere Flutter builds, including where the local dev host and CI runners differ |
-| Auditable | Reviewable Dart source rather than an opaque binary |
-| NIST vectors | Validated against FIPS 203/204 known-answer tests |
+| Pinned upstream | Builds from an exact AWS-LC commit with a checked source archive hash |
+| Narrow bridge | Exposes bounded primitive operations through native platform channels |
+| Platform limits | Android ARM64 and iOS are targeted; unsupported ABIs report unavailable |
+| Acceptance | KATs, native builds, and mobile builds must pass before release claims |
 
-FFI-free matters most here: the repo already cannot verify an Android
-build locally (no SDK on host), so a native toolchain would add another
-unverifiable axis.
+The local Windows workspace lacks Flutter, Android and Apple build tools, so
+GitHub-hosted CI is required to verify Android and iOS native builds.
 
 ## Consequences
 
-- `pqcrypto` is added to `pubspec.yaml` when Part 5 work resumes.
-  Adding it is a dependency change, so it needs explicit approval at that
-  point even though the library itself is now chosen.
-- ML-KEM-1024 and ML-DSA-87 become real rather than throwing.
-- Part 5 moves from "audit-gated placeholder" toward real readiness.
+- The approved provider is integrated as a local Flutter plugin and stays
+  unavailable unless its native self-check passes.
+- This primitive provider does not activate PQXDH in identity distribution,
+  key negotiation, ratchets, or live messaging.
+- Device interoperability, benchmarking, release provenance, and independent
+  protocol/security review remain outstanding.
 
 ## Revisit condition
 
-If the Part F3 benchmarks show unacceptable performance or binary-size
-cost from the pure-Dart path, revisit **oqs** (liboqs via FFI). F3 is the
-designated place that decision gets evidence.
+Revisit only if required platforms cannot build or AWS-LC's maintained API,
+security status, performance, or licensing changes materially.
