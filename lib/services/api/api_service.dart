@@ -8,6 +8,7 @@ import '../../core/models/contact.dart';
 import '../../core/models/conversation.dart';
 import '../../core/models/chhaya_id.dart';
 import '../../core/crypto/key_manager.dart';
+import '../auth/identity_challenge_proof.dart';
 import '../../core/crypto/chhaya_crypto_engine.dart';
 import '../../core/crypto/storage/secure_storage.dart';
 import 'package:uuid/uuid.dart';
@@ -53,14 +54,25 @@ class ApiService {
     final wrappingKey = ChhayaCryptoEngine.keyFromRecoveryPhrase(profile.recoveryPhrase.join(' '));
     final encrypted = await ChhayaCryptoEngine().encryptMessage(base64Encode(pair.privateKey), wrappingKey);
     wrappingKey.fillRange(0, wrappingKey.length, 0);
+    final registration=await _identityClaim('register',pair,_deviceId!);
     try {
       await register(chhayaId: profile.chhayaId.publicKey, displayName: profile.displayName,
         publicKey: pair.publicKeyHex, encryptedPrivateKey: encrypted, recoveryPhraseHash: proof,
-        deviceId: _deviceId!, platform: 'flutter');
+        deviceId: _deviceId!, platform: 'flutter',
+        challengeId:registration['challengeId'],identityProof:registration['proof']);
     } on ApiException catch (error) {
       if (error.statusCode != 409) rethrow;
-      await login(chhayaId: profile.chhayaId.publicKey, recoveryPhraseHash: proof, deviceId: _deviceId!);
+      final loginClaim=await _identityClaim('login',pair,_deviceId!);
+      await login(chhayaId:profile.chhayaId.publicKey,recoveryPhraseHash:proof,deviceId:_deviceId!,
+        challengeId:loginClaim['challengeId'],identityProof:loginClaim['proof']);
     }
+  }
+
+  Future<Map<String,String>> _identityClaim(String purpose,ChhayaKeyPair pair,String deviceId) async {
+    final challenge=await _request<Map<String,dynamic>>('POST','/api/v1/auth/challenge',
+      body:{'purpose':purpose,'publicKey':pair.publicKeyHex,'deviceId':deviceId});
+    final proof=await IdentityChallengeProof.create(identity:pair,purpose:purpose,deviceId:deviceId,challenge:challenge);
+    return {'challengeId':challenge['challengeId'] as String,'proof':proof};
   }
 
   Future<void> init() async {
@@ -163,6 +175,8 @@ class ApiService {
     required String encryptedPrivateKey,
     required String recoveryPhraseHash,
     required String deviceId,
+    String? challengeId,
+    String? identityProof,
     String? deviceName,
     String? platform,
     String? fcmToken,
@@ -189,6 +203,8 @@ class ApiService {
     required String chhayaId,
     required String recoveryPhraseHash,
     required String deviceId,
+    String? challengeId,
+    String? identityProof,
     String? deviceName,
     String? platform,
     String? fcmToken,

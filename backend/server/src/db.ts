@@ -154,6 +154,10 @@ const runMigrations = async (p: Pool): Promise<void> => {
     `ALTER TABLE users ALTER COLUMN recovery_phrase_hash TYPE TEXT;
      ALTER TABLE conversation_participants ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMPTZ DEFAULT 'epoch';
      ALTER TABLE conversation_participants ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ DEFAULT NOW();`,
+    `CREATE TABLE IF NOT EXISTS identity_challenges (
+      id UUID PRIMARY KEY, public_key CHAR(64) NOT NULL, device_id UUID NOT NULL,
+      purpose TEXT NOT NULL, proof_hash CHAR(64) NOT NULL, expires_at TIMESTAMPTZ NOT NULL
+    )`,
     `CREATE TABLE IF NOT EXISTS auth_sessions (
       token_hash CHAR(64) PRIMARY KEY, user_id UUID REFERENCES users(id) ON DELETE CASCADE,
       expires_at TIMESTAMPTZ NOT NULL
