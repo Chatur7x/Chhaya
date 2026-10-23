@@ -25,3 +25,36 @@ The approved warm light surface is the app default. Legacy dark theme APIs remai
 ## Verification
 
 Render actual Flutter screens at 360dp, 320×568dp with 200% text, and 768dp. Capture loading/error states, voice calling, the adaptive app shell, chats, contacts, calls, settings, onboarding, signup, restore, conversation, profile, and verification. Review one batched set, repair defects together, and confirm once. Unit tests check primary-action and message text contrast, layout exceptions, and existing behavioral regressions. Physical Android/iPhone screen-reader, keyboard, camera, and call testing is still necessary; screenshot tests are not a claim of full WCAG conformance.
+
+## Apple-informed interaction refinement
+
+The user requested Apple-inspired motion while preserving Departure Mono. Everyday
+text now requests Flutter's CupertinoSystemText platform family with bundled Inter
+fallback; no Apple font files are redistributed. Reading text is 17sp, labels remain
+legible and scalable, and display/identity lettering remains Departure Mono.
+
+The warm light scheme has a semantic warm dark counterpart. Screen/widget colors
+and type resolve from the active interpolated ColorScheme rather than a global
+mutable palette. Appearance defaults to device preference and offers persisted
+light/dark/device selection. Changes use a short coordinated theme transition.
+
+Native iOS routes retain interactive back navigation. Shared avatar Heroes preserve
+conversation identity across navigation. New message content appears once with a
+small settle; reply swipes follow touch with resistance and spring back. Long press
+uses Cupertino contextual preview/actions; reduced motion uses a static action sheet.
+The tab bar retains standard destination semantics behind a shared moving indicator.
+Search expands on focus and follows Scaffold keyboard resizing. Images expand into
+a Hero-backed zoomable viewer; export is always an explicit separate action.
+
+Recorder waveform bars use measured plugin decibels (documented 0–120), not simulated
+signal. Recording and playback retain cancellation/background cleanup. Sheets have
+bounded scrolling, drag handles when dismissible and reduced-motion durations.
+
+Every custom motion checks reduced-motion/accessibility navigation preferences.
+App-opening/authenticated-home appearance is subtle. A secure vault is still absent;
+there is no decorative vault unlock screen implying an implemented vault.
+
+References read: dickwu/apple-design-skill SKILL.md; accessibility, layout,
+typography, color, designing-for-ios, motion, gestures, sheets, context-menus,
+search-fields, tab-bars and cross-platform references. The taste-skill source
+excludes native mobile; its visual restraint does not replace native conventions.

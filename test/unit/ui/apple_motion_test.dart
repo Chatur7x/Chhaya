@@ -51,7 +51,7 @@ void main() {
     final image=MessageAttachment.fromBytes(name:'Sample.png',mimeType:'image/png',bytes:base64Decode(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='));
     await tester.pumpWidget(MaterialApp(home:Scaffold(body:Center(child:MessageAttachmentView(
-      attachment:image,foreground:ChhayaColors.ink,heroTag:'sample-image'))))));
+      attachment:image,foreground:ChhayaColors.ink,heroTag:'sample-image')))));
     await tester.pumpAndSettle();
     await tester.tap(find.byType(Image));
     await tester.pumpAndSettle();
