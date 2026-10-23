@@ -47,7 +47,8 @@ else()
   add_library(chhaya_pqc STATIC chhaya_pqc.c)
 endif()
 target_include_directories(chhaya_pqc PUBLIC include PRIVATE
-  "${CMAKE_CURRENT_BINARY_DIR}/awslc/symbol_prefix_include" "${CHHAYA_AWS_SOURCE}/include")
+  "${CMAKE_CURRENT_BINARY_DIR}/awslc/symbol_prefix_include" "${CHHAYA_AWS_SOURCE}/include"
+  "${CHHAYA_AWS_SOURCE}/crypto/fipsmodule")
 target_compile_definitions(chhaya_pqc PRIVATE BORINGSSL_PREFIX=chhaya_awslc)
 add_dependencies(chhaya_pqc boringssl_prefix_symbols)
 target_link_libraries(chhaya_pqc PRIVATE crypto)
