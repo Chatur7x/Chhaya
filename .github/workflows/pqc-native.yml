@@ -34,6 +34,9 @@ jobs:
       - name: Configure provider and test harness
         run: cmake -S packages/chhaya_pqc/native -B build/pqc-host -DCMAKE_BUILD_TYPE=Release -DCHHAYA_HOST_TESTS=ON
       - name: Build provider and vector harness
-        run: cmake --build build/pqc-host --parallel 4
+        run: cmake --build build/pqc-host --target chhaya_pqc chhaya_pqc_test crypto_test --parallel 4
       - name: Run FIPS KAT and failure checks
         run: ctest --test-dir build/pqc-host --output-on-failure
+      - name: Run AWS-LC ML-DSA ACVP known-answer tests
+        working-directory: build/pqc-host/pinned-awslc/source/aws-lc-fa9bc8d6f7cfb2cf849b247fb06bbbfc41ecc9d6
+        run: ../../../awslc/crypto/crypto_test --gtest_filter='*ACVPSigVer*'
