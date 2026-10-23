@@ -298,7 +298,7 @@ class ChhayaTheme {
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: scheme.primary,
         foregroundColor: scheme.onPrimary,
-        elevation: 8,
+        elevation: 0,
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(ChhayaRadius.xl)),
         extendedTextStyle: ChhayaTypography.headlineMedium

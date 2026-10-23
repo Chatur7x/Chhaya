@@ -92,6 +92,10 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
 
   Widget _conversation(Conversation conversation) {
     final unread=conversation.unreadCount>0;
+    final largeText=MediaQuery.textScalerOf(context).scale(16)>22;
+    final last=conversation.lastMessage;
+    final preview=last==null?'Start a conversation':last.isExpired?'Message expired':
+      !conversation.participants.every((p)=>p.isVerified)?'Verify identity to read messages':last.content;
     final time=conversation.lastMessage?.timestamp??conversation.createdAt;
     final age=DateTime.now().difference(time);
     final stamp=age.inDays>0?'${time.day}/${time.month}':'${time.hour.toString().padLeft(2,'0')}:${time.minute.toString().padLeft(2,'0')}';
@@ -106,16 +110,18 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           const SizedBox(width:16),
           Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             Row(children:[
-              Expanded(child:Text(conversation.displayName,maxLines:1,overflow:TextOverflow.ellipsis,
+              Expanded(child:Text(conversation.displayName,maxLines:largeText?2:1,overflow:TextOverflow.ellipsis,
                 style:ChhayaTypography.bodyLarge.copyWith(fontWeight:unread?FontWeight.w700:FontWeight.w600))),
               const SizedBox(width:8),
-              Text(stamp,style:ChhayaTypography.caption),
+              if(!largeText) Text(stamp,style:ChhayaTypography.caption),
             ]),
+            if(largeText) Padding(padding:const EdgeInsets.only(top:6),
+              child:Text(stamp,style:ChhayaTypography.caption)),
             const SizedBox(height:6),
             Row(children:[
               if(conversation.isPinned) const Padding(padding:EdgeInsetsDirectional.only(end:4),
                 child:Icon(Icons.push_pin_outlined,size:16,color:ChhayaColors.inkMuted)),
-              Expanded(child:Text(conversation.lastMessage?.content??'Start a conversation',
+              Expanded(child:Text(preview,
                 maxLines:2,overflow:TextOverflow.ellipsis,
                 style:ChhayaTypography.body.copyWith(color:ChhayaColors.inkMuted))),
               if(unread) Padding(padding:const EdgeInsetsDirectional.only(start:8),child:Badge(

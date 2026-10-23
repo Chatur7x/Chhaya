@@ -8,7 +8,7 @@ class ChhayaTypography {
 
   static const String _fontFamily = 'Inter';
   static const String _displayFontFamily = 'Inter';
-  static const String _monoFontFamily = 'monospace';
+  static const String _monoFontFamily = 'RobotoMono';
 
   // Spec scale — Claude Light
   static const TextStyle displayXl = TextStyle(

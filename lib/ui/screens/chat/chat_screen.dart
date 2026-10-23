@@ -359,7 +359,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 if (isSent) ...[
                   const SizedBox(width: 3),
                   Icon(
-                    msg.isRead ? Icons.done_all_rounded : Icons.done_rounded,
+                    !msg.isSent ? Icons.schedule_rounded : msg.isRead ? Icons.done_all_rounded : Icons.done_rounded,
                     size: 13,
                     color: msg.isRead
                         ? ChhayaColors.accent

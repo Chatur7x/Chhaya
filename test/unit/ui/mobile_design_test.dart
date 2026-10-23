@@ -48,6 +48,8 @@ void main() {
   setUpAll(() async {
     final loader=FontLoader('Inter')..addFont(rootBundle.load('assets/fonts/Inter-Variable.ttf'));
     await loader.load();
+    await (FontLoader('MaterialIcons')..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
+    await (FontLoader('RobotoMono')..addFont(rootBundle.load('assets/fonts/RobotoMono-Variable.ttf'))).load();
   });
   final scenes=<String,Widget>{
     'chats':const ChatListScreen(),
@@ -55,6 +57,8 @@ void main() {
     'calls':const CallsTab(),
     'settings':const SettingsScreen(),
     'onboarding':const OnboardingScreen(),
+    'signup':const OnboardingScreen(),
+    'restore':const OnboardingScreen(),
     'conversation':const ChatScreen(conversationId:'design-chat',contactName:'Maya Rao'),
     'profile':const ProfileScreen(contactId:'maya'),
     'verification':const VerificationScreen(),
@@ -74,13 +78,22 @@ void main() {
           displayName:'Alex Morgan',recoveryPhrase:List.filled(12,'example'),createdAt:DateTime(2026,10,23));
         final capture=GlobalKey();
         await tester.pumpWidget(UncontrolledProviderScope(container:container,
-          child:RepaintBoundary(key:capture,child:MaterialApp(theme:ChhayaTheme.materialLight,
+          child:RepaintBoundary(key:capture,child:MaterialApp(debugShowCheckedModeBanner:false,theme:ChhayaTheme.materialLight,
             builder:(context,child)=>MediaQuery(data:MediaQuery.of(context).copyWith(
               disableAnimations:true,textScaler:TextScaler.linear(viewport.$2)),child:child!),
             home:entry.value)),
         ));
         await tester.pump();
         await tester.pump(const Duration(seconds:2));
+        if(entry.key=='signup') {
+          await tester.tap(find.text('Skip'));
+          await tester.pumpAndSettle();
+        }
+        if(entry.key=='restore') {
+          await tester.ensureVisible(find.text('Restore an account'));
+          await tester.tap(find.text('Restore an account'));
+          await tester.pumpAndSettle();
+        }
         expect(tester.takeException(),isNull,reason:'No layout or runtime errors at large text');
         if(entry.key=='conversation') {
           expect(find.byTooltip('Send message'),findsOneWidget);

@@ -204,7 +204,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
             _sectionHeader('ABOUT'),
             _settingsCard([
-              _settingsTile(Icons.info_rounded, ChhayaColors.labelSecondary, 'Version', trailing: Text('14.0.0 test build', style: ChhayaTypography.labelMedium), onTap: () {
+              _settingsTile(Icons.info_rounded, ChhayaColors.labelSecondary, 'Version', subtitle: '14.0.0 test build', onTap: () {
                 showDialog(context: context, builder: (_) => AlertDialog(
                   backgroundColor: ChhayaColors.cardSurfaceElevated,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ChhayaRadius.xxl)),
@@ -280,17 +280,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _settingsCard(List<Widget> children) {
-    return Container(
-      decoration: BoxDecoration(
-        color: ChhayaColors.cardSurface,
-        borderRadius: BorderRadius.circular(ChhayaRadius.lg),
-        border: Border.all(color: ChhayaColors.opaqueSeparator.withValues(alpha: 0.45), width: 0.7),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(children: children),
-    );
-  }
+  Widget _settingsCard(List<Widget> children) => Material(
+    color:ChhayaColors.cardSurface,
+    shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(16),
+      side:const BorderSide(color:ChhayaColors.borderSoft)),
+    clipBehavior:Clip.antiAlias,
+    child:Column(children:children),
+  );
 
   Widget _settingsTile(IconData icon, Color color, String title, {String? subtitle, Widget? trailing, VoidCallback? onTap}) {
     return ListTile(
@@ -367,7 +363,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               children: [
                 Text('${i + 1}.', style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.accent, fontWeight: FontWeight.w700)),
                 const SizedBox(width: ChhayaSpacing.space2),
-                Text(phrase[i], style: ChhayaTypography.bodyMedium.copyWith(fontSize: 13, fontFamily: 'JetBrains Mono')),
+                Text(phrase[i], style: ChhayaTypography.bodyMedium.copyWith(fontSize: 13, fontFamily: 'RobotoMono')),
               ],
             ),
           )),

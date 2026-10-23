@@ -386,7 +386,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
                   children: [
                     Text('${i + 1}.', style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.accent, fontWeight: FontWeight.w700)),
                     const SizedBox(width: ChhayaSpacing.space2),
-                    Text(_generatedPhrase![i], style: ChhayaTypography.bodyMedium.copyWith(fontSize: 13, fontWeight: FontWeight.w600, fontFamily: 'JetBrains Mono')),
+                    Text(_generatedPhrase![i], style: ChhayaTypography.bodyMedium.copyWith(fontSize: 13, fontWeight: FontWeight.w600, fontFamily: 'RobotoMono')),
                   ],
                 ),
               );
@@ -431,7 +431,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
             children: [
               ChhayaIconButton(icon: Icons.arrow_back_rounded, tooltip: 'Back', onPressed: () => _pageCtrl.animateToPage(2, duration: ChhayaAnimation.normal, curve: ChhayaAnimation.springCurve), size: 40, background: ChhayaColors.cardSurface),
               const SizedBox(width: ChhayaSpacing.space3),
-              Text('Welcome Back', style: ChhayaTypography.displaySmall.copyWith(fontSize: 20)),
+              Expanded(child:Text('Welcome Back', style: ChhayaTypography.displaySmall.copyWith(fontSize: 20))),
             ],
           ),
           const SizedBox(height: ChhayaSpacing.space2),
@@ -444,7 +444,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
             maxLines: 3,
             minLines: 2,
             obscureText: _loginObscure,
-            style: ChhayaTypography.bodyMedium.copyWith(fontFamily: 'JetBrains Mono', fontSize: 13, height: 1.5),
+            style: ChhayaTypography.bodyMedium.copyWith(fontFamily: 'RobotoMono', fontSize: 13, height: 1.5),
             decoration: InputDecoration(
               hintText: '12 words separated by spaces  •  e.g. abandon ability able ...',
               hintStyle: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.labelQuaternary),

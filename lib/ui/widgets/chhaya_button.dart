@@ -359,7 +359,7 @@ class ChhayaIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final disableAnimations = MediaQuery.of(context).disableAnimations;
-    final double buttonSize = size < 44.0 ? 44.0 : size;
+    final double buttonSize = size < 48.0 ? 48.0 : size;
 
     final child = isLoading
         ? SizedBox(
@@ -440,7 +440,7 @@ class ChhayaFAB extends StatelessWidget {
               },
         backgroundColor: scheme.primary,
         foregroundColor: scheme.onPrimary,
-        elevation: 8,
+        elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(ChhayaRadius.xl),
         ),
@@ -483,7 +483,7 @@ class ChhayaFAB extends StatelessWidget {
             },
       backgroundColor: scheme.primary,
       foregroundColor: scheme.onPrimary,
-      elevation: 8,
+      elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(ChhayaRadius.xl),
       ),
