@@ -38,6 +38,7 @@ void main() {
     expect(container.read(appUnlockedProvider), isFalse);
     expect(find.byType(AppStartupGate), findsOneWidget);
     expect(find.text('Use Device Authentication'), findsOneWidget);
+    await tester.ensureVisible(find.text('Use Device Authentication'));
     await tester.tap(find.text('Use Device Authentication'));
     await tester.pump();
     expect(container.read(appUnlockedProvider), isFalse);

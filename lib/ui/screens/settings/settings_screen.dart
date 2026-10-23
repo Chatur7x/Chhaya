@@ -65,6 +65,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final user = ref.watch(currentUserProvider);
     final chhayaIdText = user?.chhayaId.publicKey ?? '—';
     final displayName = user?.displayName ?? 'Chhaya User';
+    final largeText = MediaQuery.textScalerOf(context).scale(16) > 22;
 
     return Scaffold(
       backgroundColor: ChhayaColors.primaryBackground,
@@ -89,13 +90,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 padding: const EdgeInsets.all(ChhayaSpacing.space4),
                 child: Row(
                   children: [
-                    AvatarWidget(name: displayName, size: 56, showGradientRing: true),
-                    const SizedBox(width: ChhayaSpacing.space4),
+                    if (!largeText) ...[
+                      AvatarWidget(name: displayName, size: 56, showGradientRing: true),
+                      const SizedBox(width: ChhayaSpacing.space4),
+                    ],
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(displayName, style: ChhayaTypography.headlineLarge),
+                          Text(displayName, style: ChhayaTypography.title.copyWith(fontSize: 24)),
                           const SizedBox(height: 2),
                           GestureDetector(
                             onTap: () {

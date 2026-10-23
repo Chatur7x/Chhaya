@@ -1,4 +1,4 @@
-// Bundled Inter serves headings and controls; monospace is reserved for IDs.
+// Departure Mono gives the app its pixel identity; Inter keeps conversations readable.
 import 'package:flutter/material.dart';
 
 import 'chhaya_colors.dart';
@@ -7,33 +7,36 @@ class ChhayaTypography {
   ChhayaTypography._();
 
   static const String _fontFamily = 'Inter';
-  static const String _displayFontFamily = 'Inter';
-  static const String _monoFontFamily = 'RobotoMono';
+  static const String _displayFontFamily = 'DepartureMono';
+  static const String _monoFontFamily = 'DepartureMono';
 
-  // Spec scale — Claude Light
+  // Pixel display scale — Claude Light
   static const TextStyle displayXl = TextStyle(
     fontFamily: _displayFontFamily,
+    fontFamilyFallback: ['Inter'],
     fontSize: 44,
-    fontWeight: FontWeight.w500,
-    letterSpacing: -0.5,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0,
     height: 1.05,
     color: ChhayaColors.ink,
   );
 
   static const TextStyle displayL = TextStyle(
     fontFamily: _displayFontFamily,
-    fontSize: 36,
-    fontWeight: FontWeight.w500,
-    letterSpacing: -0.4,
+    fontFamilyFallback: ['Inter'],
+    fontSize: 33,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0,
     height: 1.1,
     color: ChhayaColors.ink,
   );
 
   static const TextStyle headline = TextStyle(
-    fontFamily: _fontFamily,
-    fontSize: 24,
-    fontWeight: FontWeight.w600,
-    letterSpacing: -0.2,
+    fontFamily: _displayFontFamily,
+    fontFamilyFallback: ['Inter'],
+    fontSize: 22,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0,
     height: 1.25,
     color: ChhayaColors.ink,
   );
@@ -85,55 +88,61 @@ class ChhayaTypography {
 
   static const TextStyle monoHash = TextStyle(
     fontFamily: _monoFontFamily,
-    fontSize: 12,
-    fontWeight: FontWeight.w500,
+    fontFamilyFallback: ['Inter'],
+    fontSize: 16.5,
+    fontWeight: FontWeight.w400,
     letterSpacing: 0.4,
     height: 1.5,
-    color: ChhayaColors.coralDeep,
+    color: ChhayaColors.accent,
   );
 
   static const TextStyle monoCode = TextStyle(
     fontFamily: _monoFontFamily,
-    fontSize: 13,
+    fontFamilyFallback: ['Inter'],
+    fontSize: 16.5,
     fontWeight: FontWeight.w400,
     letterSpacing: 0.2,
     height: 1.5,
-    color: ChhayaColors.coralDeep,
+    color: ChhayaColors.accent,
   );
 
-  // Legacy names (call sites unchanged; display moves to Tiempos)
+  // Compatibility names share the same bundled display voice.
   static const TextStyle displayHero = TextStyle(
     fontFamily: _displayFontFamily,
-    fontSize: 40,
-    fontWeight: FontWeight.w500,
-    letterSpacing: -0.5,
+    fontFamilyFallback: ['Inter'],
+    fontSize: 44,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0,
     height: 1.0,
     color: ChhayaColors.ink,
   );
 
   static const TextStyle displayLarge = TextStyle(
     fontFamily: _displayFontFamily,
-    fontSize: 34,
-    fontWeight: FontWeight.w500,
-    letterSpacing: -0.4,
+    fontFamilyFallback: ['Inter'],
+    fontSize: 33,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0,
     height: 1.1,
     color: ChhayaColors.ink,
   );
 
   static const TextStyle displayMedium = TextStyle(
     fontFamily: _displayFontFamily,
-    fontSize: 28,
-    fontWeight: FontWeight.w500,
-    letterSpacing: -0.3,
+    fontFamilyFallback: ['Inter'],
+    fontSize: 27.5,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0,
     height: 1.15,
     color: ChhayaColors.ink,
   );
 
   static const TextStyle displaySmall = TextStyle(
     fontFamily: _displayFontFamily,
+    fontFamilyFallback: ['Inter'],
     fontSize: 22,
-    fontWeight: FontWeight.w500,
-    letterSpacing: -0.2,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0,
     height: 1.2,
     color: ChhayaColors.ink,
   );

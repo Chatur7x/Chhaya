@@ -1,23 +1,6 @@
-// Claude Light color tokens (V14 Part 6).
-//
-// Coral (#D97757) on Cream (#F5F4EF). All legacy member names are
-// preserved so every call site compiles unchanged — values are
-// re-mapped from the V13 hacker-terminal to the light palette.
-// The V13 dark values live on untouched in chhaya_dark_theme.dart.
-//
-// WCAG AA (verified, see test/unit/ui/theme_test.dart):
-//   PASS normal text: ink/cream 15.1, inkSoft/cream 10.2,
-//     inkMuted/cream 5.0, ink/surface 15.8
-//   PASS UI components (3:1): white/coral 3.1, white/coralDeep 4.2,
-//     coralDeep/cream 3.8, success/cream 3.6, error/cream 3.8,
-//     info/cream 3.3
-//   RESTRICTED (documented, never sole indicators):
-//     inkFaint/cream 2.7 — hairlines and decorative marks only,
-//       never text, never the only affordance.
-//     coral/cream 2.8 — large graphics and accents only, never text
-//       (use coralDeep for small semibold labels).
-//     warning/cream 2.3 — status dots must always pair with an ink
-//       text label; warning is never color-alone.
+// Warm cream/coral primitives and semantic mobile UI colors.
+// Small text uses ink, action coral, or semantic states tested at >= 4.5:1.
+// Decorative coral and pale tints are not small-text foregrounds.
 import 'package:flutter/material.dart';
 
 class ChhayaColors {
@@ -45,10 +28,10 @@ class ChhayaColors {
   static const Color inkFaint = Color(0xFF9A9690);
   static const Color borderSoft = Color(0xFFE5E2D9);
   static const Color borderMed = Color(0xFFD5D1C5);
-  static const Color success = Color(0xFF5C8A5C);
-  static const Color warning = Color(0xFFC89A3C);
-  static const Color error = Color(0xFFC15F3C);
-  static const Color info = Color(0xFF6B8AA5);
+  static const Color success = Color(0xFF3E6B43);
+  static const Color warning = Color(0xFF825B15);
+  static const Color error = Color(0xFFA84D34);
+  static const Color info = Color(0xFF46677D);
 
   // Legacy names, re-mapped to Light (call sites unchanged)
   static const Color black = Color(0xFF050705); // scrims only
