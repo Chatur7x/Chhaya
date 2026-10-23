@@ -43,14 +43,14 @@ class ChhayaAvatar extends StatelessWidget {
             width: badgeSize,
             height: badgeSize,
             decoration: BoxDecoration(
-              color: ChhayaColors.coralDeep,
+              color: ChhayaPalette.of(context).coralDeep,
               shape: BoxShape.circle,
-              border: Border.all(color: ChhayaColors.white, width: 2),
+              border: Border.all(color: ChhayaPalette.of(context).white, width: 2),
             ),
             child: Icon(
               Icons.check,
               size: badgeSize * 0.55,
-              color: ChhayaColors.white,
+              color: ChhayaPalette.of(context).white,
             ),
           ),
         ),

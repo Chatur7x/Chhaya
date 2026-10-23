@@ -6,7 +6,7 @@ import 'chhaya_colors.dart';
 class ChhayaTypography {
   ChhayaTypography._();
 
-  static const String _fontFamily = 'Inter';
+  static const String _fontFamily = 'CupertinoSystemText';
   static const String _displayFontFamily = 'DepartureMono';
   static const String _monoFontFamily = 'DepartureMono';
 
@@ -43,6 +43,7 @@ class ChhayaTypography {
 
   static const TextStyle title = TextStyle(
     fontFamily: _fontFamily,
+    fontFamilyFallback: ['Inter'],
     fontSize: 18,
     fontWeight: FontWeight.w600,
     letterSpacing: -0.1,
@@ -52,7 +53,8 @@ class ChhayaTypography {
 
   static const TextStyle bodyLarge = TextStyle(
     fontFamily: _fontFamily,
-    fontSize: 16,
+    fontFamilyFallback: ['Inter'],
+    fontSize: 17,
     fontWeight: FontWeight.w400,
     letterSpacing: 0.0,
     height: 1.5,
@@ -61,6 +63,7 @@ class ChhayaTypography {
 
   static const TextStyle body = TextStyle(
     fontFamily: _fontFamily,
+    fontFamilyFallback: ['Inter'],
     fontSize: 14,
     fontWeight: FontWeight.w400,
     letterSpacing: 0.0,
@@ -70,6 +73,7 @@ class ChhayaTypography {
 
   static const TextStyle caption = TextStyle(
     fontFamily: _fontFamily,
+    fontFamilyFallback: ['Inter'],
     fontSize: 13,
     fontWeight: FontWeight.w500,
     letterSpacing: 0.1,
@@ -79,6 +83,7 @@ class ChhayaTypography {
 
   static const TextStyle label = TextStyle(
     fontFamily: _fontFamily,
+    fontFamilyFallback: ['Inter'],
     fontSize: 12,
     fontWeight: FontWeight.w600,
     letterSpacing: 0.3,
@@ -151,6 +156,7 @@ class ChhayaTypography {
   static const TextStyle headlineMedium = title;
   static const TextStyle headlineSmall = TextStyle(
     fontFamily: _fontFamily,
+    fontFamilyFallback: ['Inter'],
     fontSize: 14,
     fontWeight: FontWeight.w600,
     letterSpacing: 0.0,
@@ -164,6 +170,7 @@ class ChhayaTypography {
   static const TextStyle labelLarge = label;
   static const TextStyle labelMedium = TextStyle(
     fontFamily: _fontFamily,
+    fontFamilyFallback: ['Inter'],
     fontSize: 12,
     fontWeight: FontWeight.w400,
     letterSpacing: 0.2,
@@ -172,6 +179,7 @@ class ChhayaTypography {
   );
   static const TextStyle labelSmall = TextStyle(
     fontFamily: _fontFamily,
+    fontFamilyFallback: ['Inter'],
     fontSize: 11,
     fontWeight: FontWeight.w500,
     letterSpacing: 0.4,

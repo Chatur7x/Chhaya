@@ -4,6 +4,7 @@ import '../../theme/chhaya_theme.dart';
 import '../../widgets/avatar_widget.dart';
 import '../../widgets/chhaya_button.dart';
 import '../../widgets/chhaya_app_bar.dart';
+import '../../widgets/chhaya_search.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/router/chhaya_router.dart';
@@ -47,23 +48,9 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       appBar: const ChhayaAppBar(title: 'Chats'),
       floatingActionButton: ChhayaFAB(label: 'New chat', icon: Icons.edit_outlined, onPressed: _newChat),
       body: SafeArea(top: false, child: Column(children: [
-        Padding(padding: const EdgeInsets.fromLTRB(24,8,24,12), child: TextField(
-          controller: _searchController,
-          textInputAction: TextInputAction.search,
-          decoration: InputDecoration(
-            hintText: 'Search conversations',
-            prefixIcon: const Icon(Icons.search_rounded),
-            suffixIcon: _query.isEmpty ? null : IconButton(
-              tooltip: 'Clear search',
-              icon: const Icon(Icons.close_rounded),
-              onPressed: () {
-                _searchController.clear();
-                setState(() => _query = '');
-              },
-            ),
-          ),
-          onChanged: (value) => setState(() => _query=value),
-        )),
+        Padding(padding: const EdgeInsets.only(top:8,bottom:12),child:ChhayaSearch(
+          controller:_searchController,hint:'Search conversations',
+          onChanged:(value)=>setState(()=>_query=value))),
         Padding(padding: const EdgeInsets.symmetric(horizontal:24), child: Align(
           alignment: AlignmentDirectional.centerStart,
           child: Wrap(spacing:8, runSpacing:4, children: [
@@ -90,14 +77,14 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       constraints:BoxConstraints(minHeight:constraints.maxHeight),
       child: Padding(padding:const EdgeInsets.all(32),child:Column(
         mainAxisAlignment:MainAxisAlignment.center,children:[
-          const Icon(Icons.chat_bubble_outline_rounded,size:48,color:ChhayaColors.accent),
+          Icon(Icons.chat_bubble_outline_rounded,size:48,color:ChhayaPalette.of(context).accent),
           const SizedBox(height:24),
           Text(noChats?'Your conversations start here':'No matching conversations',
-            textAlign:TextAlign.center,style:ChhayaTypography.headline),
+            textAlign:TextAlign.center,style:ChhayaType.of(context).headline),
           const SizedBox(height:12),
           Text(noChats?'Connect a server in Settings, then add and verify a contact to start chatting.'
             :'Try another name or choose a different filter.',
-            textAlign:TextAlign.center,style:ChhayaTypography.bodyLarge.copyWith(color:ChhayaColors.inkMuted)),
+            textAlign:TextAlign.center,style:ChhayaType.of(context).bodyLarge.copyWith(color:ChhayaPalette.of(context).inkMuted)),
           if(noChats) ...[
             const SizedBox(height:24),
             ChhayaSecondaryButton(label:'Add a contact',icon:Icons.person_add_outlined,onPressed:_newChat,expanded:false),
@@ -123,26 +110,26 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       onLongPress:()=>_options(conversation),
       child:Padding(padding:const EdgeInsets.symmetric(horizontal:8,vertical:16),child:Row(
         crossAxisAlignment:CrossAxisAlignment.start,children:[
-          AvatarWidget(name:conversation.displayName,size:52),
+          Hero(tag:'conversation-avatar-${conversation.id}',child:AvatarWidget(name:conversation.displayName,size:52)),
           const SizedBox(width:16),
           Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             Row(children:[
               Expanded(child:Text(conversation.displayName,maxLines:largeText?2:1,overflow:TextOverflow.ellipsis,
-                style:ChhayaTypography.bodyLarge.copyWith(fontWeight:unread?FontWeight.w700:FontWeight.w600))),
+                style:ChhayaType.of(context).bodyLarge.copyWith(fontWeight:unread?FontWeight.w700:FontWeight.w600))),
               const SizedBox(width:8),
-              if(!largeText) Text(stamp,style:ChhayaTypography.monoCode.copyWith(fontSize:13,color:ChhayaColors.inkMuted)),
+              if(!largeText) Text(stamp,style:ChhayaType.of(context).monoCode.copyWith(fontSize:13,color:ChhayaPalette.of(context).inkMuted)),
             ]),
             if(largeText) Padding(padding:const EdgeInsets.only(top:6),
-              child:Text(stamp,style:ChhayaTypography.monoCode.copyWith(fontSize:13,color:ChhayaColors.inkMuted))),
+              child:Text(stamp,style:ChhayaType.of(context).monoCode.copyWith(fontSize:13,color:ChhayaPalette.of(context).inkMuted))),
             const SizedBox(height:6),
             Row(children:[
-              if(conversation.isPinned) const Padding(padding:EdgeInsetsDirectional.only(end:4),
-                child:Icon(Icons.push_pin_outlined,size:16,color:ChhayaColors.inkMuted)),
+              if(conversation.isPinned) Padding(padding:EdgeInsetsDirectional.only(end:4),
+                child:Icon(Icons.push_pin_outlined,size:16,color:ChhayaPalette.of(context).inkMuted)),
               Expanded(child:Text(preview,
                 maxLines:2,overflow:TextOverflow.ellipsis,
-                style:ChhayaTypography.body.copyWith(color:ChhayaColors.inkMuted))),
+                style:ChhayaType.of(context).body.copyWith(color:ChhayaPalette.of(context).inkMuted))),
               if(unread) Padding(padding:const EdgeInsetsDirectional.only(start:8),child:Badge(
-                backgroundColor:ChhayaColors.accent,textColor:ChhayaColors.white,
+                backgroundColor:ChhayaPalette.of(context).accent,textColor:ChhayaPalette.of(context).white,
                 label:Text('${conversation.unreadCount}'),)),
             ]),
           ])),

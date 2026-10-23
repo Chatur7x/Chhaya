@@ -36,7 +36,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       if(context.mounted) Navigator.of(context).pop();
     },child:Scaffold(appBar:AppBar(title:Text(widget.contactName),automaticallyImplyLeading:false),
       body:SafeArea(child:Padding(padding:const EdgeInsets.all(ChhayaSpacing.space4),child:Column(children:[
-        Semantics(liveRegion:true,child:Text(_error??call.status,textAlign:TextAlign.center,style:ChhayaTypography.bodyLarge)),
+        Semantics(liveRegion:true,child:Text(_error??call.status,textAlign:TextAlign.center,style:ChhayaType.of(context).bodyLarge)),
         if(widget.isVideo&&_error==null) Expanded(child:Stack(children:[
           Positioned.fill(child:RTCVideoView(call.remoteRenderer,objectFit:RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)),
           Align(alignment:Alignment.topRight,child:SizedBox(width:120,height:160,child:RTCVideoView(call.localRenderer,mirror:true))),
@@ -44,7 +44,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         )) else Expanded(child:Center(child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
           AvatarWidget(name:widget.contactName,size:96),
           const SizedBox(height:24),
-          Text(widget.contactName,textAlign:TextAlign.center,style:ChhayaTypography.title.copyWith(fontSize:24)),
+          Text(widget.contactName,textAlign:TextAlign.center,style:ChhayaType.of(context).title.copyWith(fontSize:24)),
         ])))),
         const Text('Keep both apps open during your call.',textAlign:TextAlign.center),
         const SizedBox(height:16),

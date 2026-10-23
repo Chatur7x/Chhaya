@@ -12,12 +12,14 @@ class ChhayaPixelMark extends StatelessWidget {
   Widget build(BuildContext context) => ExcludeSemantics(
     child: SizedBox.square(
       dimension: size,
-      child: CustomPaint(painter: _PixelMarkPainter()),
+      child: CustomPaint(painter: _PixelMarkPainter(ChhayaPalette.of(context).accent)),
     ),
   );
 }
 
 class _PixelMarkPainter extends CustomPainter {
+  _PixelMarkPainter(this.color);
+  final Color color;
   static const _rows = [
     '0111110',
     '1100011',
@@ -32,7 +34,7 @@ class _PixelMarkPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final cell = size.shortestSide / 7;
     final paint = Paint()
-      ..color = ChhayaColors.accent
+      ..color = color
       ..isAntiAlias = false;
     for (var y = 0; y < _rows.length; y++) {
       for (var x = 0; x < _rows[y].length; x++) {
@@ -44,5 +46,5 @@ class _PixelMarkPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _PixelMarkPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _PixelMarkPainter oldDelegate) => oldDelegate.color != color;
 }

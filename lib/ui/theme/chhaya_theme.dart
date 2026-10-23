@@ -17,7 +17,6 @@ import 'package:flutter/services.dart';
 import 'dart:ui';
 
 import 'chhaya_colors.dart';
-import 'chhaya_dark_theme.dart';
 import 'chhaya_elevation.dart';
 import 'chhaya_radius.dart';
 import 'chhaya_spacing.dart';
@@ -29,6 +28,9 @@ export 'chhaya_elevation.dart';
 export 'chhaya_radius.dart';
 export 'chhaya_spacing.dart';
 export 'chhaya_typography.dart';
+export 'chhaya_palette.dart';
+export 'chhaya_motion.dart';
+import 'chhaya_palette.dart';
 
 class ChhayaTheme {
   ChhayaTheme._();
@@ -63,12 +65,14 @@ class ChhayaTheme {
     );
   }
 
-  static ThemeData get materialLight {
-    final scheme = colorScheme;
+  static ThemeData get materialLight => _material(colorScheme);
+
+  static ThemeData _material(ColorScheme scheme) {
+    final palette = ChhayaPalette(scheme);
 
     return ThemeData(
       useMaterial3: true,
-      brightness: Brightness.light,
+      brightness: scheme.brightness,
       colorScheme: scheme,
       scaffoldBackgroundColor: scheme.surface,
       canvasColor: scheme.surface,
@@ -91,12 +95,12 @@ class ChhayaTheme {
         titleTextStyle: ChhayaTypography.headlineMedium
             .copyWith(color: scheme.onSurface),
         surfaceTintColor: Colors.transparent,
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: ChhayaColors.primaryBackground,
-          statusBarIconBrightness: Brightness.dark,
-          statusBarBrightness: Brightness.light,
-          systemNavigationBarColor: ChhayaColors.primaryBackground,
-          systemNavigationBarIconBrightness: Brightness.dark,
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: scheme.surface,
+          statusBarIconBrightness: scheme.brightness == Brightness.dark ? Brightness.light : Brightness.dark,
+          statusBarBrightness: scheme.brightness,
+          systemNavigationBarColor: scheme.surface,
+          systemNavigationBarIconBrightness: scheme.brightness == Brightness.dark ? Brightness.light : Brightness.dark,
         ),
       ),
       bottomAppBarTheme: const BottomAppBarThemeData(
@@ -157,9 +161,9 @@ class ChhayaTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: ChhayaColors.inputSurface,
+        fillColor: scheme.surfaceContainerHighest,
         hintStyle: ChhayaTypography.bodyMedium.copyWith(
-          color: ChhayaColors.labelTertiary,
+          color: palette.inkMuted,
           fontSize: 16,
         ),
         labelStyle: ChhayaTypography.labelMedium
@@ -333,8 +337,16 @@ class ChhayaTheme {
     );
   }
 
-  /// Compatibility alias: the preserved V13 dark scheme.
-  static ThemeData get materialDark => ChhayaDarkTheme.material;
+  /// Warm dark counterpart. The legacy V13 theme remains separately exported.
+  static ThemeData get materialDark => _material(const ColorScheme.dark(
+    primary: Color(0xFFF0A38B), onPrimary: Color(0xFF2D1912), primaryContainer: Color(0xFF45302A),
+    secondary: Color(0xFFA9CADD), onSecondary: Color(0xFF18252E), secondaryContainer: Color(0xFF293B45),
+    tertiary: Color(0xFFA4CEA2), error: Color(0xFFFFB4A5), onError: Color(0xFF4C1B13), errorContainer: Color(0xFF4C2923),
+    surface: Color(0xFF181918), onSurface: Color(0xFFF2EFE8), onSurfaceVariant: Color(0xFFD1CCC1),
+    surfaceContainerLowest: Color(0xFF181918), surfaceContainerLow: Color(0xFF20211F),
+    surfaceContainer: Color(0xFF292A27), surfaceContainerHigh: Color(0xFF30312D), surfaceContainerHighest: Color(0xFF353631),
+    outline: Color(0xFF66665E), outlineVariant: Color(0xFF46473F), scrim: ChhayaColors.black,
+  ));
 
   static TextTheme _textTheme(ColorScheme scheme) {
     return TextTheme(

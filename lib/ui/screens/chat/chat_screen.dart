@@ -2,11 +2,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/semantics.dart';
+import 'package:flutter/cupertino.dart' show CupertinoContextMenuAction;
 import '../../../core/models/message_attachment.dart';
 import '../../../services/messaging/attachment_service.dart';
 import '../../../services/messaging/messaging_service.dart';
 import '../../widgets/message_attachment_view.dart';
 import '../../widgets/voice_recorder_sheet.dart';
+import '../../widgets/chhaya_context_menu.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/chhaya_theme.dart';
 import '../../widgets/avatar_widget.dart';
@@ -44,6 +46,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   Message? _replyTo;
   MessageAttachment? _attachment;
   String? _loadError;
+  final _animatedMessages = <String>{};
 
 
   @override
@@ -67,6 +70,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       final db=ref.read(localDatabaseProvider);
       final msgs=await db.getMessages(widget.conversationId);
       if(!mounted) { return; }
+      if (!_loading) {
+        final oldIds = _messages.map((m) => m.id).toSet();
+        _animatedMessages.addAll(msgs.where((m) => !oldIds.contains(m.id)).map((m) => m.id));
+      }
       setState(() { _messages=msgs.where((message)=>!message.isExpired).toList(); _loading=false; _loadError=null; });
       if (WidgetsBinding.instance.lifecycleState != null &&
           WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) { return; }
@@ -182,14 +189,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   }
 
   Future<void> _recordVoice() async {
-    final attachment = await showModalBottomSheet<MessageAttachment>(
-      context: context, isDismissible: false, enableDrag: false,
-      builder: (_) => const VoiceRecorderSheet());
+    final attachment = await ChhayaMotion.sheet<MessageAttachment>(context, (_) => const VoiceRecorderSheet(), dismissible:false);
     if (mounted && attachment != null) setState(() => _attachment = attachment);
   }
 
-  Future<void> _messageActions(Message message) => showModalBottomSheet<void>(
-    context: context, builder: (ctx) => SafeArea(child: Column(
+  Future<void> _messageActions(Message message) => ChhayaMotion.sheet<void>(context, (ctx) => SafeArea(child: Column(
       mainAxisSize: MainAxisSize.min, children: [
         ListTile(leading: const Icon(Icons.reply_rounded), title: const Text('Reply'),
           onTap: () { Navigator.pop(ctx); setState(() => _replyTo = message); }),
@@ -209,10 +213,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     return Padding(padding: const EdgeInsets.only(bottom: 8), child: Column(
       crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(original == null ? 'Reply' : _isSent(original) ? 'Reply to you' : 'Reply to ${widget.contactName}',
-          style: ChhayaTypography.caption.copyWith(color: foreground, fontWeight: FontWeight.w700)),
+          style: ChhayaType.of(context).caption.copyWith(color: foreground, fontWeight: FontWeight.w700)),
         Text(original == null ? 'Original message unavailable' : original.attachment?.name ?? original.content,
           maxLines: 2, overflow: TextOverflow.ellipsis,
-          style: ChhayaTypography.body.copyWith(color: foreground)),
+          style: ChhayaType.of(context).body.copyWith(color: foreground)),
         Divider(color: foreground.withValues(alpha: 0.3)),
       ],
     ));
@@ -225,7 +229,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     final convo = conversations.where((c) => c.id == widget.conversationId).firstOrNull;
 
     return Scaffold(
-      backgroundColor: ChhayaColors.primaryBackground,
+      backgroundColor: ChhayaPalette.of(context).primaryBackground,
       body: SafeArea(
         child: Column(
           children: [
@@ -235,7 +239,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
               actions: [TextButton(onPressed: _loadMessages, child: const Text('Retry'))]),
             Expanded(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator(color: ChhayaColors.accent))
+                  ? Center(child: CircularProgressIndicator(color: ChhayaPalette.of(context).accent))
                   : _messages.isEmpty
                       ? _buildEmptyChat()
                       : ListView.builder(
@@ -266,12 +270,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     child:Row(children:[
       IconButton(tooltip:'Back',icon:const Icon(Icons.arrow_back_rounded),
         onPressed:()=>Navigator.of(context).pop()),
-      AvatarWidget(name:widget.contactName,size:40),
+      Hero(tag:'conversation-avatar-${widget.conversationId}',child:AvatarWidget(name:widget.contactName,size:40)),
       const SizedBox(width:12),
       Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Text(widget.contactName,maxLines:MediaQuery.viewInsetsOf(context).bottom>0?1:2,overflow:TextOverflow.ellipsis,style:ChhayaTypography.title),
+        Text(widget.contactName,maxLines:MediaQuery.viewInsetsOf(context).bottom>0?1:2,overflow:TextOverflow.ellipsis,style:ChhayaType.of(context).title),
         if(MediaQuery.viewInsetsOf(context).bottom==0) Text(convo?.participants.firstOrNull?.isVerified==true?'Verified identity':'Verify identity before messaging',
-          maxLines:2,style:ChhayaTypography.caption),
+          maxLines:2,style:ChhayaType.of(context).caption),
       ])),
       PopupMenuButton<String>(tooltip:'Chat options',onSelected:(action){
         if(action=='timer') { _showTtlSheet(); return; }
@@ -297,26 +301,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            ChhayaColors.accent.withValues(alpha: 0.18),
-            ChhayaColors.info.withValues(alpha: 0.12),
+            ChhayaPalette.of(context).accent.withValues(alpha: 0.18),
+            ChhayaPalette.of(context).info.withValues(alpha: 0.12),
           ],
         ),
-        border: const Border(
-          bottom: BorderSide(color: ChhayaColors.borderMed, width: 0.5),
+        border: Border(
+          bottom: BorderSide(color: ChhayaPalette.of(context).borderMed, width: 0.5),
         ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.visibility_off_rounded, size: 14, color: ChhayaColors.accent),
+          Icon(Icons.visibility_off_rounded, size: 14, color: ChhayaPalette.of(context).accent),
           const SizedBox(width: ChhayaSpacing.space1),
           Text(
             'STEGANO MODE — messages hidden in images',
-            style: ChhayaTypography.labelSmall.copyWith(
-              color: ChhayaColors.accent,
+            style: ChhayaType.of(context).labelSmall.copyWith(
+              color: ChhayaPalette.of(context).accent,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.6,
-              fontSize: 10,
+              fontSize: 11,
             ),
           ),
         ],
@@ -335,27 +339,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: ChhayaColors.cardSurface,
+                color: ChhayaPalette.of(context).cardSurface,
                 borderRadius: BorderRadius.circular(ChhayaRadius.xxl),
-                border: Border.all(color: ChhayaColors.glassBorder.withValues(alpha: 0.12)),
+                border: Border.all(color: ChhayaPalette.of(context).glassBorder.withValues(alpha: 0.12)),
               ),
               child: Icon(
                 Icons.lock_outline_rounded,
                 size: 36,
-                color: ChhayaColors.accent.withValues(alpha: 0.7),
+                color: ChhayaPalette.of(context).accent.withValues(alpha: 0.7),
               ),
             ),
             const SizedBox(height: ChhayaSpacing.space5),
             Text(
               'End-to-End Encrypted',
-              style: ChhayaTypography.headlineMedium.copyWith(fontSize: 15),
+              style: ChhayaType.of(context).headlineMedium.copyWith(fontSize: 15),
             ),
             const SizedBox(height: ChhayaSpacing.space1),
             Text(
               'Verify your contact and connect your server\nto exchange encrypted direct messages.',
               textAlign: TextAlign.center,
-              style: ChhayaTypography.bodySmall.copyWith(
-                color: ChhayaColors.labelTertiary,
+              style: ChhayaType.of(context).bodySmall.copyWith(
+                color: ChhayaPalette.of(context).labelTertiary,
                 height: 1.5,
               ),
             ),
@@ -372,8 +376,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     final isStegano = _steganoMode && isSent && index == _messages.length - 1;
 
     return Semantics(
-      customSemanticsActions: {CustomSemanticsAction(label: 'Message actions'): () => _messageActions(msg)},
-      child: GestureDetector(onLongPress: () => _messageActions(msg), child: Align(
+      customSemanticsActions: {
+        CustomSemanticsAction(label: 'Message actions'): () => _messageActions(msg),
+        CustomSemanticsAction(label: 'Reply'): () => setState(() => _replyTo = msg),
+      },
+      child: MessageEntrance(key:ValueKey(msg.id),animate:_animatedMessages.remove(msg.id),
+        child: SwipeReply(onReply:()=>setState(()=>_replyTo=msg), child: Align(
       alignment: isSent ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: EdgeInsets.only(
@@ -384,7 +392,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         child: Column(
           crossAxisAlignment: isSent ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            Container(
+            ChhayaContextMenu(onStaticMenu:()=>_messageActions(msg),actions:[
+              CupertinoContextMenuAction(trailingIcon:Icons.reply_rounded,child:const Text('Reply'),
+                onPressed:(){Navigator.pop(context);setState(()=>_replyTo=msg);}),
+              if(msg.content.isNotEmpty) CupertinoContextMenuAction(trailingIcon:Icons.copy_rounded,
+                child:const Text('Copy text'),onPressed:(){Clipboard.setData(ClipboardData(text:msg.content));Navigator.pop(context);}),
+              if(isSent&&!msg.isSent) CupertinoContextMenuAction(trailingIcon:Icons.refresh_rounded,
+                child:const Text('Retry queued messages'),onPressed:(){Navigator.pop(context);_retryPending();}),
+            ],child:Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: ChhayaSpacing.space4,
                 vertical: ChhayaSpacing.space3,
@@ -394,7 +409,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
               ),
               decoration: BoxDecoration(
 
-                color: isSent ? ChhayaColors.bubbleSent : ChhayaColors.bubbleReceived,
+                color: isSent ? ChhayaPalette.of(context).bubbleSent : ChhayaPalette.of(context).bubbleReceived,
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(ChhayaRadius.lg),
                   topRight: const Radius.circular(ChhayaRadius.lg),
@@ -405,8 +420,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                     ? null
                     : Border.all(
                         color: isStegano
-                            ? ChhayaColors.info.withValues(alpha: 0.3)
-                            : ChhayaColors.separator,
+                            ? ChhayaPalette.of(context).info.withValues(alpha: 0.3)
+                            : ChhayaPalette.of(context).separator,
                         width: 0.6,
                       ),
 
@@ -415,17 +430,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (isStegano)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.only(bottom: ChhayaSpacing.space1),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.visibility_off_rounded, size: 12, color: ChhayaColors.accent),
+                          Icon(Icons.visibility_off_rounded, size: 12, color: ChhayaPalette.of(context).accent),
                           SizedBox(width: 4),
                           Text(
                             'STEGANO',
                             style: TextStyle(
-                              color: ChhayaColors.accent,
+                              color: ChhayaPalette.of(context).accent,
                               fontSize: 9,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.5,
@@ -435,36 +450,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                       ),
                     ),
                   if (msg.replyToId != null) _replyPreview(msg.replyToId!,
-                    isSent ? ChhayaColors.bubbleSentText : ChhayaColors.bubbleReceivedText),
-                  if (msg.attachment != null) MessageAttachmentView(attachment: msg.attachment!,
-                    foreground: isSent ? ChhayaColors.bubbleSentText : ChhayaColors.bubbleReceivedText),
+                    isSent ? ChhayaPalette.of(context).bubbleSentText : ChhayaPalette.of(context).bubbleReceivedText),
+                  if (msg.attachment != null) MessageAttachmentView(attachment: msg.attachment!, heroTag:'message-image-${msg.id}',
+                    foreground: isSent ? ChhayaPalette.of(context).bubbleSentText : ChhayaPalette.of(context).bubbleReceivedText),
                   if (msg.content.isNotEmpty) Text(
                     msg.content,
-                    style: ChhayaTypography.bodyMedium.copyWith(
-                      color: isSent && !isStegano ? ChhayaColors.bubbleSentText : ChhayaColors.bubbleReceivedText,
-                      fontSize: 16,
+                    style: ChhayaType.of(context).bodyMedium.copyWith(
+                      color: isSent && !isStegano ? ChhayaPalette.of(context).bubbleSentText : ChhayaPalette.of(context).bubbleReceivedText,
+                      fontSize: 17,
                       height: 1.4,
                     ),
                   ),
                 ],
               ),
-            ),
+            )),
             const SizedBox(height: ChhayaSpacing.space1),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (msg.ttl != null)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.only(right: ChhayaSpacing.space1),
-                    child: Icon(Icons.timer_outlined, size: 11, color: ChhayaColors.labelQuaternary),
+                    child: Icon(Icons.timer_outlined, size: 11, color: ChhayaPalette.of(context).labelQuaternary),
                   ),
                 Text(
                   timeStr,
-                  style: ChhayaTypography.labelSmall.copyWith(
+                  style: ChhayaType.of(context).labelSmall.copyWith(
                     color: isSent
-                        ? ChhayaColors.labelPrimary.withValues(alpha: 0.6)
-                        : ChhayaColors.labelTertiary,
-                    fontSize: 10,
+                        ? ChhayaPalette.of(context).inkMuted
+                        : ChhayaPalette.of(context).labelTertiary,
+                    fontSize: 11,
                   ),
                 ),
                 if (isSent) ...[
@@ -473,8 +488,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                     !msg.isSent ? Icons.schedule_rounded : msg.isRead ? Icons.done_all_rounded : Icons.done_rounded,
                     size: 13,
                     color: msg.isRead
-                        ? ChhayaColors.accent
-                        : ChhayaColors.labelPrimary.withValues(alpha: 0.5),
+                        ? ChhayaPalette.of(context).accent
+                        : ChhayaPalette.of(context).inkMuted,
                   ),
                 ],
               ],
@@ -482,7 +497,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
           ],
         ),
       ),
-    )));
+    ))));
   }
 
   Widget _buildTypingIndicator(bool disableAnimations) {
@@ -495,14 +510,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
           vertical: ChhayaSpacing.space3,
         ),
         decoration: BoxDecoration(
-          color: ChhayaColors.bubbleReceived,
+          color: ChhayaPalette.of(context).bubbleReceived,
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(ChhayaRadius.lg),
             topRight: Radius.circular(ChhayaRadius.lg),
             bottomRight: Radius.circular(ChhayaRadius.lg),
             bottomLeft: Radius.circular(ChhayaRadius.sm),
           ),
-          border: Border.all(color: ChhayaColors.separator, width: 0.6),
+          border: Border.all(color: ChhayaPalette.of(context).separator, width: 0.6),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -515,7 +530,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
               width: 7,
               height: 7,
               decoration: BoxDecoration(
-                color: ChhayaColors.accent.withValues(alpha: 0.3 + (i * 0.25)),
+                color: ChhayaPalette.of(context).accent.withValues(alpha: 0.3 + (i * 0.25)),
                 shape: BoxShape.circle,
               ),
             );
@@ -527,18 +542,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
 
   Widget _buildInputBar(bool disableAnimations) => Container(
     padding:const EdgeInsets.fromLTRB(12,12,12,12),
-    decoration:const BoxDecoration(color:ChhayaColors.surface,
-      border:Border(top:BorderSide(color:ChhayaColors.borderSoft))),
+    decoration:BoxDecoration(color:ChhayaPalette.of(context).surface,
+      border:Border(top:BorderSide(color:ChhayaPalette.of(context).borderSoft))),
     child:Column(mainAxisSize:MainAxisSize.min,children:[
       if (_replyTo != null) Row(children:[
         Expanded(child:Text('Replying to ${_isSent(_replyTo!) ? 'you' : widget.contactName}',
-          maxLines:2,overflow:TextOverflow.ellipsis,style:ChhayaTypography.caption)),
+          maxLines:2,overflow:TextOverflow.ellipsis,style:ChhayaType.of(context).caption)),
         IconButton(tooltip:'Cancel reply',onPressed:()=>setState(()=>_replyTo=null),icon:const Icon(Icons.close_rounded)),
       ]),
       if (_attachment != null) Row(children:[
-        const Icon(Icons.attach_file_rounded,color:ChhayaColors.accent),
+        Icon(Icons.attach_file_rounded,color:ChhayaPalette.of(context).accent),
         const SizedBox(width:8),
-        Expanded(child:Text(_attachment!.name,maxLines:2,overflow:TextOverflow.ellipsis,style:ChhayaTypography.caption)),
+        Expanded(child:Text(_attachment!.name,maxLines:2,overflow:TextOverflow.ellipsis,style:ChhayaType.of(context).caption)),
         IconButton(tooltip:'Remove attachment',onPressed:()=>setState(()=>_attachment=null),icon:const Icon(Icons.close_rounded)),
       ]),
       Row(crossAxisAlignment:CrossAxisAlignment.end,children:[
@@ -546,7 +561,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       const SizedBox(width:8),
       Expanded(child:TextField(controller:_msgCtrl,minLines:1,
         maxLines:MediaQuery.viewInsetsOf(context).bottom>0?2:4,
-        style:ChhayaTypography.bodyLarge,textCapitalization:TextCapitalization.sentences,
+        style:ChhayaType.of(context).bodyLarge,textCapitalization:TextCapitalization.sentences,
         decoration:const InputDecoration(hintText:'Write a message',
           contentPadding:EdgeInsets.symmetric(horizontal:16,vertical:12)),
       )),
@@ -561,21 +576,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
 
   void _showTtlSheet() {
     const options = [0, 1, 5, 30, 60, 1440];
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: ChhayaColors.sheetBackground,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(ChhayaRadius.xxl)),
-      ),
-      builder: (_) => Padding(
+    ChhayaMotion.sheet<void>(context, (_) => Padding(
         padding: const EdgeInsets.all(ChhayaSpacing.space5),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Disappearing Messages', style: ChhayaTypography.displaySmall.copyWith(fontSize: 18)),
+            Text('Disappearing Messages', style: ChhayaType.of(context).displaySmall.copyWith(fontSize: 18)),
             const SizedBox(height: ChhayaSpacing.space1),
-            Text('Hide expired messages from this conversation', style: ChhayaTypography.labelMedium),
+            Text('Hide expired messages from this conversation', style: ChhayaType.of(context).labelMedium),
             const SizedBox(height: ChhayaSpacing.space4),
             ...options.map((m) {
               final label = m == 0
@@ -586,9 +595,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
               final selected = _ttlMinutes == m;
               return ListTile(
                 dense: true,
-                title: Text(label, style: ChhayaTypography.bodyMedium),
+                title: Text(label, style: ChhayaType.of(context).bodyMedium),
                 trailing: selected
-                    ? const Icon(Icons.check_circle_rounded, color: ChhayaColors.accent, size: 20)
+                    ? Icon(Icons.check_circle_rounded, color: ChhayaPalette.of(context).accent, size: 20)
                     : null,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ChhayaRadius.md)),
                 onTap: () {
@@ -605,7 +614,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   }
 
   void _showAttachmentSheet() {
-    showModalBottomSheet<void>(context:context,builder:(ctx)=>SafeArea(
+    ChhayaMotion.sheet<void>(context,(ctx)=>SafeArea(
       child:Column(mainAxisSize:MainAxisSize.min,children:[
         const Padding(padding:EdgeInsets.all(24),child:Text('Encrypted attachments · up to 256 KB')),
         ListTile(leading:const Icon(Icons.image_outlined),title:const Text('Photo'),

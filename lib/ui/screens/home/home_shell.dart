@@ -1,6 +1,7 @@
 import '../../../services/call/call_service.dart';
 import '../call/call_screen.dart';
 import '../../widgets/chhaya_pixel_mark.dart';
+import '../../widgets/chhaya_navigation.dart';
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/app_providers.dart';
@@ -104,7 +105,7 @@ class _HomeShellState extends ConsumerState<HomeShell> with WidgetsBindingObserv
           leading: const Padding(padding: EdgeInsets.symmetric(vertical:24),child:ChhayaPixelMark(size:32)),
           selectedIndex:_selectedIndex,onDestinationSelected:_select,
           labelType:NavigationRailLabelType.all,groupAlignment:-0.7,
-          backgroundColor:ChhayaColors.surface,
+          backgroundColor:ChhayaPalette.of(context).surface,
           destinations:[for(var i=0;i<labels.length;i++) NavigationRailDestination(
             icon:Icon(icons[i]),selectedIcon:Icon(selectedIcons[i]),label:Text(labels[i]))],
         ),
@@ -117,9 +118,9 @@ class _HomeShellState extends ConsumerState<HomeShell> with WidgetsBindingObserv
         ))),
       ]),
       bottomNavigationBar:wide?null:DecoratedBox(
-        decoration:const BoxDecoration(border:Border(top:BorderSide(color:ChhayaColors.borderSoft))),
-        child:NavigationBar(
-        selectedIndex:_selectedIndex,onDestinationSelected:_select,
+        decoration:BoxDecoration(border:Border(top:BorderSide(color:ChhayaPalette.of(context).borderSoft))),
+        child:ChhayaNavigation(
+        index:_selectedIndex,onSelect:_select,
         destinations:[for(var i=0;i<labels.length;i++) NavigationDestination(
           icon:Icon(icons[i]),selectedIcon:Icon(selectedIcons[i]),label:labels[i])],
       )),

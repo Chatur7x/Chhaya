@@ -33,9 +33,9 @@ class AvatarWidget extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(size * 0.28),
-        color: ChhayaColors.coralTint,
+        color: ChhayaPalette.of(context).coralTint,
         border: Border.all(
-          color: ChhayaColors.accent.withValues(alpha: 0.35),
+          color: ChhayaPalette.of(context).accent.withValues(alpha: 0.35),
           width: 0,
         ),
       ),
@@ -43,7 +43,7 @@ class AvatarWidget extends StatelessWidget {
         child: Text(
           initial,
           style: TextStyle(
-            color: ChhayaColors.accent,
+            color: ChhayaPalette.of(context).accent,
             fontSize: fontSize,
             fontFamily: 'DepartureMono',
             fontFamilyFallback: const ['Inter'],
@@ -62,7 +62,7 @@ class AvatarWidget extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(
-            color: ChhayaColors.accent.withValues(alpha: 0.6),
+            color: ChhayaPalette.of(context).accent.withValues(alpha: 0.6),
             width: 0,
           ),
         ),
@@ -92,7 +92,7 @@ class AvatarWidget extends StatelessWidget {
                 color: statusColor,
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: ChhayaColors.primaryBackground,
+                  color: ChhayaPalette.of(context).primaryBackground,
                   width: 2.2,
                 ),
                 boxShadow: !reduceMotion
@@ -141,7 +141,7 @@ class AvatarStack extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: ChhayaColors.primaryBackground,
+                  color: ChhayaPalette.of(context).primaryBackground,
                   width: 2,
                 ),
               ),
@@ -196,12 +196,12 @@ class AvatarWithBadge extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: badgeColor != null
                     ? LinearGradient(colors: [badgeColor!, badgeColor!])
-                    : ChhayaColors.accentGradient,
+                    : ChhayaPalette.of(context).accentGradient,
                 borderRadius: BorderRadius.circular(ChhayaRadius.pill),
-                border: Border.all(color: ChhayaColors.primaryBackground, width: 2),
+                border: Border.all(color: ChhayaPalette.of(context).primaryBackground, width: 2),
                 boxShadow: !disableAnimations
                     ? [BoxShadow(
-                        color: (badgeColor ?? ChhayaColors.accent).withValues(alpha: 0.4),
+                        color: (badgeColor ?? ChhayaPalette.of(context).accent).withValues(alpha: 0.4),
                         blurRadius: 6,
                       )]
                     : null,
@@ -209,8 +209,8 @@ class AvatarWithBadge extends StatelessWidget {
               child: Center(
                 child: Text(
                   count > 99 ? '99+' : count.toString(),
-                  style: const TextStyle(
-                    color: ChhayaColors.onAccent,
+                  style: TextStyle(
+                    color: ChhayaPalette.of(context).onAccent,
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
                   ),

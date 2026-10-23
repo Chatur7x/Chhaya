@@ -119,10 +119,10 @@ class _VoiceRecorderSheetState extends State<VoiceRecorderSheet> with WidgetsBin
   @override
   Widget build(BuildContext context) => SafeArea(child: SingleChildScrollView(
     padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
-      Text('Voice message', style: ChhayaTypography.headline),
+      Text('Voice message', style: ChhayaType.of(context).headline),
       const SizedBox(height: 16),
       Text(_recording ? 'Recording · ${_seconds}s / 60s' : 'Record up to one minute. Review the attachment before sending.',
-        textAlign: TextAlign.center, style: ChhayaTypography.bodyLarge),
+        textAlign: TextAlign.center, style: ChhayaType.of(context).bodyLarge),
       if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!)),
       const SizedBox(height: 16),
       Wrap(spacing: 12, runSpacing: 8, children: [

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'ui/theme/appearance_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -71,7 +72,17 @@ class ChhayaApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: ChhayaTheme.materialLight,
       darkTheme: ChhayaTheme.materialDark,
-      themeMode: ThemeMode.light,
+      themeMode: ref.watch(appearanceProvider),
+      themeAnimationDuration: ChhayaMotion.duration(context, 300),
+      themeAnimationCurve: Curves.easeInOutCubic,
+      builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle(
+          statusBarColor: Theme.of(context).colorScheme.surface,
+          statusBarIconBrightness: Theme.of(context).brightness == Brightness.dark ? Brightness.light : Brightness.dark,
+          statusBarBrightness: Theme.of(context).brightness,
+          systemNavigationBarColor: Theme.of(context).colorScheme.surface,
+          systemNavigationBarIconBrightness: Theme.of(context).brightness == Brightness.dark ? Brightness.light : Brightness.dark),
+        child: HeroMode(enabled: !ChhayaMotion.reduced(context), child: child!)),
       home: initAsync.when(
         data: (isLoggedIn) {
           if (isLoggedIn) {
@@ -98,18 +109,18 @@ class _SplashScreen extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
     body:SafeArea(child:Center(child:SingleChildScrollView(
       padding:const EdgeInsets.all(32),child:Column(mainAxisSize:MainAxisSize.min,children:[
-        const Icon(Icons.chat_bubble_outline_rounded,size:56,color:ChhayaColors.accent),
+        Icon(Icons.chat_bubble_outline_rounded,size:56,color:ChhayaPalette.of(context).accent),
         const SizedBox(height:24),
-        Text('Chhaya',style:ChhayaTypography.displayLarge),
+        Text('Chhaya',style:ChhayaType.of(context).displayLarge),
         const SizedBox(height:24),
         if(errorMessage!=null) ...[
-          Text(errorMessage!,textAlign:TextAlign.center,style:ChhayaTypography.bodyLarge),
+          Text(errorMessage!,textAlign:TextAlign.center,style:ChhayaType.of(context).bodyLarge),
           if(onRetry!=null) Padding(padding:const EdgeInsets.only(top:16),
             child:FilledButton(onPressed:onRetry,child:const Text('Try again'))),
         ] else ...[
           const SizedBox(width:24,height:24,child:CircularProgressIndicator(strokeWidth:2)),
           const SizedBox(height:16),
-          Text('Opening your account…',style:ChhayaTypography.body),
+          Text('Opening your account…',style:ChhayaType.of(context).body),
         ],
       ]),
     ))),
@@ -223,7 +234,7 @@ class _AppStartupGateState extends ConsumerState<AppStartupGate> {
         showDialog(
           context: context,
           builder: (_) => AlertDialog(
-            backgroundColor: ChhayaColors.cardSurface,
+            backgroundColor: ChhayaPalette.of(context).cardSurface,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ChhayaRadius.xl)),
             title: const Text('Data Erased'),
             content: const Text('Local account data and keys have been removed. Remote copies and backups are not erased.'),
@@ -268,18 +279,18 @@ class _AppStartupGateState extends ConsumerState<AppStartupGate> {
     final hasPin=ref.read(localDatabaseProvider).getAppPin()!=null;
     return Scaffold(body:SafeArea(child:ListView(
       padding:const EdgeInsets.symmetric(horizontal:24,vertical:32),children:[
-        const Icon(Icons.lock_outline,size:48,color:ChhayaColors.accent),
+        Icon(Icons.lock_outline,size:48,color:ChhayaPalette.of(context).accent),
         const SizedBox(height:24),
-        Text('Unlock Chhaya',textAlign:TextAlign.center,style:ChhayaTypography.headline),
+        Text('Unlock Chhaya',textAlign:TextAlign.center,style:ChhayaType.of(context).headline),
         const SizedBox(height:12),
         Text(hasPin?'Use your app PIN or device authentication':'Use device authentication to unlock',
-          textAlign:TextAlign.center,style:ChhayaTypography.bodyLarge.copyWith(color:ChhayaColors.inkMuted)),
+          textAlign:TextAlign.center,style:ChhayaType.of(context).bodyLarge.copyWith(color:ChhayaPalette.of(context).inkMuted)),
         const SizedBox(height:24),
         Semantics(label:'${_enteredPin.length} of 4 passcode digits entered',excludeSemantics:true,
           child:Row(mainAxisAlignment:MainAxisAlignment.center,children:List.generate(4,(i)=>Container(
             margin:const EdgeInsets.symmetric(horizontal:8),width:14,height:14,
             decoration:BoxDecoration(shape:BoxShape.circle,
-              color:_shakeError?ChhayaColors.error:i<_enteredPin.length?ChhayaColors.accent:ChhayaColors.borderMed),
+              color:_shakeError?ChhayaPalette.of(context).error:i<_enteredPin.length?ChhayaPalette.of(context).accent:ChhayaPalette.of(context).borderMed),
           )))),
         const SizedBox(height:24),
         for(final row in [['1','2','3'],['4','5','6'],['7','8','9'],['','0','delete']])
@@ -290,7 +301,7 @@ class _AppStartupGateState extends ConsumerState<AppStartupGate> {
                 tooltip:'Delete passcode digit',onPressed:_onPinDelete,icon:const Icon(Icons.backspace_outlined)):
                 OutlinedButton(onPressed:()=>_onPinDigit(digit),
                   style:OutlinedButton.styleFrom(padding:EdgeInsets.zero,shape:const CircleBorder()),
-                  child:Text(digit,style:ChhayaTypography.title)),
+                  child:Text(digit,style:ChhayaType.of(context).title)),
             )],
           )),
         const SizedBox(height:12),
