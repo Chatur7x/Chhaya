@@ -6,7 +6,6 @@ import 'package:chaaya/ui/widgets/avatar_widget.dart';
 import 'package:chaaya/ui/widgets/chhaya_button.dart';
 import 'package:chaaya/core/providers/app_providers.dart';
 import 'package:chaaya/core/models/contact.dart';
-import 'package:chaaya/core/models/conversation.dart';
 import 'package:chaaya/core/router/chhaya_router.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -33,6 +32,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Future<void> _loadContact() async {
     final db = ref.read(localDatabaseProvider);
     _contact = await db.getContact(widget.contactId!);
+    _blocked = db.getBlockedContacts().contains(widget.contactId)||(_contact?.isBlocked??false);
     if (mounted) setState(() {});
   }
 
@@ -123,8 +123,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                     _buildActionRow([
                       _actionBtn(_blocked ? Icons.check_circle_rounded : Icons.block_rounded, _blocked ? 'Unblock' : 'Block', _blocked ? ChhayaColors.success : ChhayaColors.error, () {
-                        setState(() => _blocked = !_blocked);
-                        ChhayaHaptics.warning();
+                        _toggleBlock();
                       }, bgColor: (_blocked ? ChhayaColors.success : ChhayaColors.error).withValues(alpha: 0.1), textColor: _blocked ? ChhayaColors.success : ChhayaColors.error),
                     ]),
                   ],
@@ -135,6 +134,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _toggleBlock() async {
+    final contact=_contact;
+    if(contact==null) return;
+    try {
+      final db=ref.read(localDatabaseProvider);
+      if(_blocked) { await db.unblockContact(contact.id); }
+      else { await db.blockContact(contact.id); }
+      final updated=contact.copyWith(isBlocked:!_blocked);
+      await db.updateContact(updated);
+      if(!mounted) return;
+      ref.read(contactsProvider.notifier).updateContact(updated);
+      setState(() { _blocked=!_blocked; _contact=updated; });
+    } catch(_) {
+      if(mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Could not save this change. Try again.'))); }
+    }
   }
 
   Color _verificationColor(int level) {
@@ -202,13 +218,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  void _startChat() {
-    if (_contact == null) return;
-    final convoId = 'convo_${_contact!.id}';
-    final newConvo = Conversation(id: convoId, participants: [_contact!], createdAt: DateTime.now());
-    ref.read(localDatabaseProvider).addConversation(newConvo);
-    ref.read(conversationsProvider.notifier).addConversation(newConvo);
-    Navigator.of(context).pushNamed(ChhayaRouter.chat, arguments: {'conversationId': convoId, 'contactName': _contact!.displayName});
+  Future<void> _startChat() async {
+    final contact=_contact;
+    if(contact==null) return;
+    try {
+      var conversation=ref.read(conversationsProvider).where((c)=>!c.isGroup&&
+        c.participants.any((p)=>p.id==contact.id)).firstOrNull;
+      if(conversation==null) {
+        conversation=(await ref.read(apiServiceProvider).createConversation(
+          type:'direct',participantIds:[contact.id])).copyWith(participants:[contact]);
+        await ref.read(localDatabaseProvider).addConversation(conversation);
+        if(!mounted) return;
+        ref.read(conversationsProvider.notifier).addConversation(conversation);
+      }
+      if(mounted) { Navigator.of(context).pushNamed(ChhayaRouter.chat,arguments:{
+        'conversationId':conversation.id,'contactName':contact.displayName}); }
+    } catch(_) {
+      if(mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content:Text('Could not open this chat. Check your server connection and try again.'))); }
+    }
   }
 
   Widget _buildInfoCard({required String title, required Widget child}) {

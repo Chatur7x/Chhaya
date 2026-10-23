@@ -286,8 +286,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 maxWidth: MediaQuery.of(context).size.width * 0.74,
               ),
               decoration: BoxDecoration(
-                gradient: isSent && !isStegano ? ChhayaColors.accentGradient : null,
-                color: isSent ? (isStegano ? ChhayaColors.cardSurfaceElevated : null) : ChhayaColors.bubbleReceived,
+
+                color: isSent ? ChhayaColors.bubbleSent : ChhayaColors.bubbleReceived,
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(ChhayaRadius.lg),
                   topRight: const Radius.circular(ChhayaRadius.lg),
@@ -302,9 +302,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             : ChhayaColors.separator,
                         width: 0.6,
                       ),
-                boxShadow: isSent && !isStegano && !disableAnimationsSafe
-                    ? ChhayaShadows.glowBlue
-                    : null,
+
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -375,9 +373,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
     );
   }
-
-  bool get disableAnimationsSafe =>
-      WidgetsBinding.instance.platformDispatcher.accessibilityFeatures.disableAnimations;
 
   Widget _buildTypingIndicator(bool disableAnimations) {
     return Align(
