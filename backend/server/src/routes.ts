@@ -432,7 +432,8 @@ router.get('/messages/:conversationId', authMiddleware, safe(async (req: Request
   const userId = (req as any).userId;
   const { conversationId } = req.params;
   const limit = Math.max(1, Math.min(200, parseInt(req.query.limit as string) || 50));
-  const before = req.query.before as string;
+  const before = z.string().datetime({offset:true}).optional().parse(req.query.before);
+  const beforeId = z.string().uuid().optional().parse(req.query.beforeId);
 
   // Verify participant
   const participantCheck = await query(
@@ -453,12 +454,15 @@ router.get('/messages/:conversationId', authMiddleware, safe(async (req: Request
   `;
   const params: any[] = [conversationId];
 
-  if (before) {
+  if (beforeId) {
+    queryStr += ` AND (m.sent_at,m.id) < (SELECT sent_at,id FROM messages WHERE id=$${params.length + 1} AND conversation_id=$1)`;
+    params.push(beforeId);
+  } else if (before) {
     queryStr += ` AND m.sent_at < $${params.length + 1}`;
     params.push(before);
   }
 
-  queryStr += ` ORDER BY m.sent_at DESC LIMIT $${params.length + 1}`;
+  queryStr += ` ORDER BY m.sent_at DESC, m.id DESC LIMIT $${params.length + 1}`;
   params.push(limit);
 
   const result = await query(queryStr, params);

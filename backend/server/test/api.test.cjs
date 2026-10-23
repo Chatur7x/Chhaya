@@ -114,6 +114,22 @@ test('real API: registration, authentication, conversations, messages, isolation
     const incoming=await req('GET',`/messages/${cid}`,null,bob.token);
     assert.equal(incoming.status,200);
     assert.equal(incoming.data[0].content,'opaque-encrypted-envelope');
+    // Identical timestamps must not drop records at page boundaries.
+    const tiedIds=Array.from({length:4},()=>randomUUID());
+    for(const id of tiedIds) await query(
+      'INSERT INTO messages (id,conversation_id,sender_id,content,sent_at) VALUES ($1,$2,$3,$4,$5)',
+      [id,cid,alice.userId,'pagination','2026-01-01T00:00:00.123456Z']);
+    const seen=[]; let cursor;
+    for(let page=0;page<6;page++) {
+      const response=await req('GET',`/messages/${cid}?limit=1${cursor?'&beforeId='+cursor:''}`,null,bob.token);
+      assert.equal(response.status,200);
+      if(!response.data.length) break;
+      cursor=response.data[0].id; seen.push(cursor);
+    }
+    assert.equal(seen.length,5);
+    assert.equal(new Set(seen).size,5);
+    for(const id of tiedIds) assert.ok(seen.includes(id));
+    assert.equal((await req('GET',`/messages/${cid}?beforeId=invalid`,null,bob.token)).status,400);
     assert.equal((await req('GET','/conversations',null,alice.token)).status,200);
     assert.equal((await req('GET',`/messages/${cid}`,null,outsider.token)).status,403);
     assert.equal((await req('POST',`/messages/${sent.data.id}/read`,{},outsider.token)).status,403);

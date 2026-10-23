@@ -314,9 +314,9 @@ class ApiService {
     );
   }
 
-  Future<List<Message>> getMessages(String conversationId, {int limit = 50, String? before}) async {
+  Future<List<Message>> getMessages(String conversationId, {int limit = 50, String? before, String? beforeId}) async {
     final uri = Uri.parse('$_baseUrl/api/v1/messages/$conversationId')
-        .replace(queryParameters: {'limit': limit.toString(), if (before != null) 'before': before});
+        .replace(queryParameters: {'limit': limit.toString(), if (before != null) 'before': before, if (beforeId != null) 'beforeId': beforeId});
     final path = uri.toString().replaceFirst(_baseUrl, '');
     return await _request('GET', path,
       parser: (d) => (d as List).map((e) => _message(Map<String, dynamic>.from(e as Map))).toList(),
