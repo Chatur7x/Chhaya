@@ -12,7 +12,7 @@ Pod::Spec.new do |s|
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
     'HEADER_SEARCH_PATHS' => '$(inherited) "${PODS_TARGET_SRCROOT}/../native/include"',
-    'OTHER_LDFLAGS' => '$(inherited) -force_load "$(DERIVED_FILE_DIR)/chhaya-pqc/$(SDK_NAME)-$(CURRENT_ARCH)/libchhaya_pqc_combined.a"'
+    'OTHER_LDFLAGS' => '$(inherited) -force_load "$(DERIVED_FILE_DIR)/chhaya-pqc/$(SDK_NAME)/libchhaya_pqc_combined.a"'
   }
   s.script_phase = {
     :name => 'Build pinned AWS-LC for Chhaya',
@@ -24,6 +24,6 @@ Pod::Spec.new do |s|
       '${PODS_TARGET_SRCROOT}/../native/include/chhaya_pqc.h',
       '${PODS_TARGET_SRCROOT}/../tool/prepare.py'
     ],
-    :output_files => ['$(DERIVED_FILE_DIR)/chhaya-pqc/$(SDK_NAME)-$(CURRENT_ARCH)/libchhaya_pqc_combined.a']
+    :output_files => ['$(DERIVED_FILE_DIR)/chhaya-pqc/$(SDK_NAME)/libchhaya_pqc_combined.a']
   }
 end
