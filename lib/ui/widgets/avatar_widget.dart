@@ -33,20 +33,19 @@ class AvatarWidget extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: ChhayaColors.cardSurfaceElevated,
+        color: ChhayaColors.coralTint,
         border: Border.all(
           color: ChhayaColors.accent.withValues(alpha: 0.35),
-          width: 1.5,
+          width: 0,
         ),
       ),
       child: Center(
         child: Text(
           initial,
           style: TextStyle(
-            fontFamily: 'JetBrains Mono',
             color: ChhayaColors.accent,
             fontSize: fontSize,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
             letterSpacing: 0,
           ),
         ),
@@ -62,7 +61,7 @@ class AvatarWidget extends StatelessWidget {
           shape: BoxShape.circle,
           border: Border.all(
             color: ChhayaColors.accent.withValues(alpha: 0.6),
-            width: 1.5,
+            width: 0,
           ),
         ),
         padding: const EdgeInsets.all(2.2),

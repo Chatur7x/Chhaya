@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/chhaya_theme.dart';
 import '../../widgets/avatar_widget.dart';
-import '../../widgets/chhaya_button.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/models/message.dart';
 import '../../../core/providers/app_providers.dart';
@@ -23,7 +22,7 @@ class ChatScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStateMixin {
+class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _msgCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   List<Message> _messages = [];
@@ -36,21 +35,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
   bool _sending=false;
   bool _refreshing=false;
 
-  late AnimationController _fabCtrl;
-  late Animation<double> _fabScale;
 
   @override
   void initState() {
     super.initState();
-    _fabCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
-    _fabScale = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _fabCtrl, curve: ChhayaAnimation.springCurve),
-    );
     _msgCtrl.addListener(() {
       final hasText = _msgCtrl.text.trim().isNotEmpty;
       if (hasText != _isTyping) {
         setState(() => _isTyping = hasText);
-        if (hasText) _fabCtrl.forward();
       }
     });
     _loadMessages();
@@ -80,7 +72,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
     _msgCtrl.dispose();
     _scrollCtrl.dispose();
     _refreshTimer?.cancel();
-    _fabCtrl.dispose();
     super.dispose();
   }
 
@@ -165,100 +156,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
     );
   }
 
-  Widget _buildAppBar(BuildContext context, Conversation? convo) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: ChhayaSpacing.space3,
-        vertical: ChhayaSpacing.space2,
-      ),
-      decoration: BoxDecoration(
-        color: ChhayaColors.primaryBackground.withValues(alpha: 0.82),
-        border: const Border(
-          bottom: BorderSide(color: ChhayaColors.separator, width: 0.5),
-        ),
-      ),
-      child: Row(
-        children: [
-          ChhayaIconButton(
-            icon: Icons.arrow_back_rounded,
-            onPressed: () => Navigator.of(context).pop(),
-            size: 38,
-            background: ChhayaColors.cardSurface,
-          ),
-          const SizedBox(width: ChhayaSpacing.space2),
-          AvatarWidget(
-            name: widget.contactName,
-            size: 36,
-            statusColor: convo?.participants.firstOrNull?.isOnline == true
-                ? ChhayaColors.online
-                : null,
-          ),
-          const SizedBox(width: ChhayaSpacing.space3),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.contactName,
-                  style: ChhayaTypography.headlineMedium.copyWith(fontSize: 15),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  _ttlMinutes > 0
-                      ? 'Disappearing · $_ttlLabel'
-                      : 'Verified direct chat',
-                  style: ChhayaTypography.labelSmall.copyWith(
-                    color: _ttlMinutes > 0
-                        ? ChhayaColors.warning
-                        : ChhayaColors.accent,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 10,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ChhayaIconButton(
-            icon: Icons.timer_outlined,
-            onPressed: _showTtlSheet,
-            size: 36,
-            background: _ttlMinutes > 0
-                ? ChhayaColors.warning.withValues(alpha: 0.15)
-                : ChhayaColors.cardSurface,
-            color: _ttlMinutes > 0 ? ChhayaColors.warning : ChhayaColors.labelPrimary,
-          ),
-          const SizedBox(width: ChhayaSpacing.space1),
-          ChhayaIconButton(
-            icon: Icons.call_rounded,
-            onPressed: () => Navigator.of(context).pushNamed(
-              ChhayaRouter.call,
-              arguments: {'conversationId':widget.conversationId, 'contactName': widget.contactName, 'isVideo': false},
-            ),
-            size: 36,
-            background: ChhayaColors.cardSurface,
-          ),
-          const SizedBox(width: ChhayaSpacing.space1),
-          ChhayaIconButton(
-            icon: Icons.videocam_rounded,
-            onPressed: () => Navigator.of(context).pushNamed(
-              ChhayaRouter.call,
-              arguments: {'conversationId':widget.conversationId, 'contactName': widget.contactName, 'isVideo': true},
-            ),
-            size: 36,
-            background: ChhayaColors.cardSurface,
-          ),
-        ],
-      ),
-    );
-  }
-
-  String get _ttlLabel {
-    if(_ttlMinutes >= 1440) { return '${_ttlMinutes ~/ 1440}d'; }
-    if(_ttlMinutes >= 60) { return '${_ttlMinutes ~/ 60}h'; }
-    return '$_ttlMinutes min';
-  }
+  Widget _buildAppBar(BuildContext context,Conversation? convo) => Padding(
+    padding:const EdgeInsets.symmetric(horizontal:8,vertical:8),
+    child:Row(children:[
+      IconButton(tooltip:'Back',icon:const Icon(Icons.arrow_back_rounded),
+        onPressed:()=>Navigator.of(context).pop()),
+      AvatarWidget(name:widget.contactName,size:40),
+      const SizedBox(width:12),
+      Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text(widget.contactName,maxLines:2,overflow:TextOverflow.ellipsis,style:ChhayaTypography.title),
+        Text(convo?.participants.firstOrNull?.isVerified==true?'Verified identity':'Verify identity before messaging',
+          maxLines:2,style:ChhayaTypography.caption),
+      ])),
+      PopupMenuButton<String>(tooltip:'Chat options',onSelected:(action){
+        if(action=='timer') { _showTtlSheet(); return; }
+        Navigator.of(context).pushNamed(ChhayaRouter.call,arguments:{
+          'conversationId':widget.conversationId,'contactName':widget.contactName,'isVideo':action=='video'});
+      },itemBuilder:(_)=>const [
+        PopupMenuItem(value:'voice',child:Text('Voice call')),
+        PopupMenuItem(value:'video',child:Text('Video call')),
+        PopupMenuItem(value:'timer',child:Text('Disappearing messages')),
+      ]),
+    ]),
+  );
 
   Widget _buildSteganoBanner(bool disableAnimations) {
     return AnimatedContainer(
@@ -366,8 +286,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
                 maxWidth: MediaQuery.of(context).size.width * 0.74,
               ),
               decoration: BoxDecoration(
-                gradient: isSent && !isStegano ? ChhayaColors.accentGradient : null,
-                color: isSent ? (isStegano ? ChhayaColors.cardSurfaceElevated : null) : ChhayaColors.bubbleReceived,
+
+                color: isSent ? ChhayaColors.bubbleSent : ChhayaColors.bubbleReceived,
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(ChhayaRadius.lg),
                   topRight: const Radius.circular(ChhayaRadius.lg),
@@ -382,9 +302,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
                             : ChhayaColors.separator,
                         width: 0.6,
                       ),
-                boxShadow: isSent && !isStegano && !disableAnimationsSafe
-                    ? ChhayaShadows.glowBlue
-                    : null,
+
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -413,7 +331,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
                     msg.content,
                     style: ChhayaTypography.bodyMedium.copyWith(
                       color: isSent && !isStegano ? ChhayaColors.bubbleSentText : ChhayaColors.bubbleReceivedText,
-                      fontSize: 14.5,
+                      fontSize: 16,
                       height: 1.4,
                     ),
                   ),
@@ -441,7 +359,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
                 if (isSent) ...[
                   const SizedBox(width: 3),
                   Icon(
-                    msg.isRead ? Icons.done_all_rounded : Icons.done_rounded,
+                    !msg.isSent ? Icons.schedule_rounded : msg.isRead ? Icons.done_all_rounded : Icons.done_rounded,
                     size: 13,
                     color: msg.isRead
                         ? ChhayaColors.accent
@@ -455,9 +373,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
       ),
     );
   }
-
-  bool get disableAnimationsSafe =>
-      WidgetsBinding.instance.platformDispatcher.accessibilityFeatures.disableAnimations;
 
   Widget _buildTypingIndicator(bool disableAnimations) {
     return Align(
@@ -499,84 +414,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
     );
   }
 
-  Widget _buildInputBar(bool disableAnimations) {
-    return Container(
-      padding: EdgeInsets.only(
-        left: ChhayaSpacing.space3,
-        right: ChhayaSpacing.space3,
-        top: ChhayaSpacing.space2,
-        bottom: MediaQuery.of(context).viewInsets.bottom + ChhayaSpacing.space3,
-      ),
-      decoration: const BoxDecoration(
-        color: ChhayaColors.secondaryBackground,
-        border: Border(
-          top: BorderSide(color: ChhayaColors.separator, width: 0.5),
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          ChhayaIconButton(
-            icon: Icons.add_rounded,
-            onPressed: _showAttachmentSheet,
-            size: 42,
-            background: ChhayaColors.cardSurface,
-          ),
-          const SizedBox(width: ChhayaSpacing.space2),
-          Expanded(
-            child: Container(
-              constraints: const BoxConstraints(maxHeight: 120),
-              decoration: BoxDecoration(
-                color: ChhayaColors.inputSurface,
-                borderRadius: BorderRadius.circular(ChhayaRadius.xl),
-                border: Border.all(
-                  color: _isTyping
-                      ? ChhayaColors.accent.withValues(alpha: 0.4)
-                      : ChhayaColors.glassBorder.withValues(alpha: 0.12),
-                  width: _isTyping ? 1.2 : 1,
-                ),
-              ),
-              child: TextField(
-                controller: _msgCtrl,
-                maxLines: 4,
-                minLines: 1,
-                textCapitalization: TextCapitalization.sentences,
-                style: ChhayaTypography.bodyMedium.copyWith(fontSize: 14.5),
-                decoration: InputDecoration(
-                  hintText: _steganoMode ? 'Hidden message…' : 'Message…',
-                  hintStyle: ChhayaTypography.bodyMedium.copyWith(
-                    color: ChhayaColors.labelQuaternary,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: ChhayaSpacing.space4,
-                    vertical: ChhayaSpacing.space3,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: ChhayaSpacing.space2),
-          AnimatedBuilder(
-            animation: _fabScale,
-            builder: (context, child) {
-              return Transform.scale(
-                scale: disableAnimations ? 1.0 : _fabScale.value,
-                child: child!,
-              );
-            },
-            child: ChhayaIconButton(
-              icon: _isTyping ? Icons.arrow_upward_rounded : Icons.mic_rounded,
-              onPressed: _isTyping ? _sendMessage : () {},
-              size: 42,
-              background: ChhayaColors.accent,
-              color: ChhayaColors.onAccent,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildInputBar(bool disableAnimations) => Container(
+    padding:const EdgeInsets.fromLTRB(12,12,12,12),
+    decoration:const BoxDecoration(color:ChhayaColors.surface,
+      border:Border(top:BorderSide(color:ChhayaColors.borderSoft))),
+    child:Row(crossAxisAlignment:CrossAxisAlignment.end,children:[
+      IconButton(tooltip:'Attachment availability',icon:const Icon(Icons.add_rounded),onPressed:_showAttachmentSheet),
+      const SizedBox(width:8),
+      Expanded(child:TextField(controller:_msgCtrl,minLines:1,maxLines:4,
+        style:ChhayaTypography.bodyLarge,textCapitalization:TextCapitalization.sentences,
+        decoration:const InputDecoration(hintText:'Write a message',
+          contentPadding:EdgeInsets.symmetric(horizontal:16,vertical:12)),
+      )),
+      const SizedBox(width:8),
+      IconButton.filled(tooltip:'Send message',
+        onPressed:_isTyping&&!_sending?_sendMessage:null,
+        icon:_sending?const SizedBox(width:20,height:20,child:CircularProgressIndicator(strokeWidth:2))
+          :const Icon(Icons.arrow_upward_rounded)),
+    ]),
+  );
 
   void _showTtlSheet() {
     const options = [0, 1, 5, 30, 60, 1440];
@@ -594,11 +450,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
           children: [
             Text('Disappearing Messages', style: ChhayaTypography.displaySmall.copyWith(fontSize: 18)),
             const SizedBox(height: ChhayaSpacing.space1),
-            Text('Auto-delete after timer expires', style: ChhayaTypography.labelMedium),
+            Text('Hide expired messages from this conversation', style: ChhayaTypography.labelMedium),
             const SizedBox(height: ChhayaSpacing.space4),
             ...options.map((m) {
               final label = m == 0
-                  ? 'Off'
+                  ? 'Use global default'
                   : m == 1440
                       ? '24 hours'
                       : '$m minute${m > 1 ? 's' : ''}';
@@ -623,86 +479,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with TickerProviderStat
     );
   }
 
-  void _attachmentUnavailable() {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Attachments and polls are not available in this test build.')));
-  }
-
   void _showAttachmentSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: ChhayaColors.sheetBackground,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(ChhayaRadius.xxl)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) => Padding(
-          padding: const EdgeInsets.all(ChhayaSpacing.space5),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Attach', style: ChhayaTypography.headlineMedium),
-              const SizedBox(height: ChhayaSpacing.space4),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _attachAction(Icons.camera_alt_rounded, 'Camera', ChhayaColors.accent, _attachmentUnavailable),
-                  _attachAction(Icons.photo_rounded, 'Gallery', ChhayaColors.success, _attachmentUnavailable),
-                  _attachAction(Icons.insert_drive_file_rounded, 'File', ChhayaColors.info, _attachmentUnavailable),
-                  _attachAction(Icons.how_to_vote_rounded, 'Poll', ChhayaColors.warning, _attachmentUnavailable),
-                ],
-              ),
-              const SizedBox(height: ChhayaSpacing.space4),
-              Container(
-                decoration: BoxDecoration(
-                  color: ChhayaColors.cardSurface,
-                  borderRadius: BorderRadius.circular(ChhayaRadius.lg),
-                  border: Border.all(color: ChhayaColors.separator),
-                ),
-                child: SwitchListTile(
-                  secondary: const Icon(Icons.visibility_off_rounded, color: ChhayaColors.accent, size: 20),
-                  title: Text('Steganography (unavailable)', style: ChhayaTypography.bodyMedium),
-                  subtitle: Text(
-                    'Hide messages inside images',
-                    style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.labelTertiary),
-                  ),
-                  value: _steganoMode,
-                  onChanged: null,
-                  activeTrackColor: ChhayaColors.accent.withValues(alpha: 0.3),
-                  activeThumbColor: ChhayaColors.accent,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _attachAction(IconData icon, String label, Color color, VoidCallback onTap) {
-    return Column(
-      children: [
-        InkWell(
-          onTap: () {
-            ChhayaHaptics.light();
-            Navigator.pop(context);
-            onTap();
-          },
-          customBorder: const CircleBorder(),
-          child: Container(
-            width: 54,
-            height: 54,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.14),
-              shape: BoxShape.circle,
-              border: Border.all(color: color.withValues(alpha: 0.22)),
-            ),
-            child: Icon(icon, color: color, size: 24),
-          ),
-        ),
-        const SizedBox(height: ChhayaSpacing.space1),
-        Text(label, style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.labelTertiary)),
-      ],
-    );
+    showModalBottomSheet<void>(context:context,builder:(ctx)=>SafeArea(
+      child:Padding(padding:const EdgeInsets.all(24),child:Column(
+        mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text('Attachments are not available yet',style:ChhayaTypography.title),
+          const SizedBox(height:12),
+          Text('This build supports direct text messages. Photos, files, voice messages and polls are still being developed.',
+            style:ChhayaTypography.bodyLarge),
+          const SizedBox(height:16),
+          TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Got it')),
+        ],
+      )),
+    ));
   }
 
   String _formatTime(DateTime time) {

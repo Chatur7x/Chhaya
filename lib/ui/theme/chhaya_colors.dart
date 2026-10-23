@@ -25,6 +25,7 @@ class ChhayaColors {
 
   // Spec palette — Claude Light
   static const Color coral = Color(0xFFD97757);
+  static const Color coralAction = Color(0xFFA84D34);
   static const Color coralDeep = Color(0xFFC15F3C);
   static const Color coralSoft = Color(0xFFE8A88E);
   static const Color coralTint = Color(0xFFF5E5DD);
@@ -67,7 +68,7 @@ class ChhayaColors {
   static const Color labelPrimary = ink;
   static const Color labelSecondary = inkSoft;
   static const Color labelTertiary = inkMuted;
-  static const Color labelQuaternary = inkFaint;
+  static const Color labelQuaternary = inkMuted;
 
   static const Color separator = borderSoft;
   static const Color opaqueSeparator = borderMed;
@@ -76,12 +77,12 @@ class ChhayaColors {
   static const Color fillTertiary = coralTint;
   static const Color fillQuaternary = surface;
 
-  static const Color accent = coral;
+  static const Color accent = coralAction;
   static const Color accentDim = coralTint;
   static const Color accentStrong = coralSoft;
   static const Color onAccent = white;
 
-  static const Color bubbleSent = coral;
+  static const Color bubbleSent = coralAction;
   static const Color bubbleReceived = white;
   static const Color bubbleSentText = white;
   static const Color bubbleReceivedText = ink;

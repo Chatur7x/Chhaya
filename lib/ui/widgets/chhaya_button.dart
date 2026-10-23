@@ -26,7 +26,8 @@ class ChhayaPrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double buttonHeight = height < 44.0 ? 44.0 : height;
+    final contentHeight = MediaQuery.textScalerOf(context).scale(16) * 1.5 + 24;
+    final double buttonHeight = height < contentHeight ? contentHeight : height;
 
     final Widget child = isLoading
         ? const SizedBox(
@@ -50,8 +51,8 @@ class ChhayaPrimaryButton extends StatelessWidget {
                   label,
                   style: ChhayaTypography.headlineMedium.copyWith(
                     color: ChhayaColors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
                     letterSpacing: 0.1,
                   ),
                   overflow: TextOverflow.ellipsis,
@@ -69,7 +70,7 @@ class ChhayaPrimaryButton extends StatelessWidget {
           width: expanded ? double.infinity : width,
           child: FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: ChhayaColors.coral,
+              backgroundColor: ChhayaColors.accent,
               foregroundColor: ChhayaColors.white,
               disabledBackgroundColor: ChhayaColors.warmGray,
               disabledForegroundColor: ChhayaColors.inkFaint,
@@ -122,7 +123,8 @@ class ChhayaSecondaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double buttonHeight = height < 44.0 ? 44.0 : height;
+    final contentHeight = MediaQuery.textScalerOf(context).scale(16) * 1.5 + 24;
+    final double buttonHeight = height < contentHeight ? contentHeight : height;
 
     return ConstrainedBox(
       constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
@@ -175,7 +177,7 @@ class ChhayaSecondaryButton extends StatelessWidget {
                         label,
                         style: ChhayaTypography.headlineMedium.copyWith(
                           color: ChhayaColors.coralDeep,
-                          fontSize: 15,
+                          fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -213,7 +215,8 @@ class ChhayaPillButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double buttonHeight = height < 44.0 ? 44.0 : height;
+    final contentHeight = MediaQuery.textScalerOf(context).scale(16) * 1.5 + 24;
+    final double buttonHeight = height < contentHeight ? contentHeight : height;
 
     return ConstrainedBox(
       constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
@@ -356,7 +359,7 @@ class ChhayaIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final disableAnimations = MediaQuery.of(context).disableAnimations;
-    final double buttonSize = size < 44.0 ? 44.0 : size;
+    final double buttonSize = size < 48.0 ? 48.0 : size;
 
     final child = isLoading
         ? SizedBox(
@@ -437,7 +440,7 @@ class ChhayaFAB extends StatelessWidget {
               },
         backgroundColor: scheme.primary,
         foregroundColor: scheme.onPrimary,
-        elevation: 8,
+        elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(ChhayaRadius.xl),
         ),
@@ -462,7 +465,7 @@ class ChhayaFAB extends StatelessWidget {
                 style: ChhayaTypography.headlineMedium.copyWith(
                   color: scheme.onPrimary,
                   fontSize: 13,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
         icon: icon != null && !isLoading
@@ -480,7 +483,7 @@ class ChhayaFAB extends StatelessWidget {
             },
       backgroundColor: scheme.primary,
       foregroundColor: scheme.onPrimary,
-      elevation: 8,
+      elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(ChhayaRadius.xl),
       ),

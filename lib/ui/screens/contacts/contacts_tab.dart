@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:chaaya/ui/theme/chhaya_theme.dart';
 import 'package:chaaya/ui/widgets/avatar_widget.dart';
+import '../../widgets/chhaya_app_bar.dart';
 import 'package:chaaya/ui/widgets/chhaya_button.dart';
 import 'package:chaaya/ui/widgets/glass_container.dart';
 import 'package:chaaya/core/providers/app_providers.dart';
 import 'package:chaaya/core/models/contact.dart';
-import 'package:chaaya/core/models/conversation.dart';
 import 'package:chaaya/core/router/chhaya_router.dart';
 
 class ContactsTab extends ConsumerStatefulWidget {
@@ -21,141 +21,84 @@ class _ContactsTabState extends ConsumerState<ContactsTab> {
 
   @override
   Widget build(BuildContext context) {
-    final contacts = ref.watch(contactsProvider);
-    final filtered = contacts.where((c) => c.displayName.toLowerCase().contains(_query.toLowerCase())).toList();
-
+    final contacts=ref.watch(contactsProvider);
+    final query=_query.toLowerCase();
+    final filtered=contacts.where((c)=>c.displayName.toLowerCase().contains(query)||
+      c.chhayaId.publicKey.toLowerCase().contains(query)).toList()
+      ..sort((a,b)=>a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()));
     return Scaffold(
-      backgroundColor: ChhayaColors.primaryBackground,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(64),
-        child: AppBar(
-          backgroundColor: ChhayaColors.primaryBackground,
-          elevation: 0,
-          title: Text('Contacts', style: ChhayaTypography.displayMedium.copyWith(fontSize: 20)),
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: ChhayaPrimaryButton(label: 'Add', icon: Icons.person_add_rounded, onPressed: () => _showAddContact(context, ref), height: 38, expanded: false),
-            ),
+      appBar:ChhayaAppBar(title:'Contacts',actions:[
+        IconButton(tooltip:'Add contact',icon:const Icon(Icons.person_add_outlined),
+          onPressed:()=>_showAddContact(context,ref)),
+        const SizedBox(width:16),
+      ]),
+      body:SafeArea(top:false,child:Column(children:[
+        Padding(padding:const EdgeInsets.fromLTRB(24,8,24,16),child:TextField(
+          decoration:const InputDecoration(hintText:'Search by name or ID',prefixIcon:Icon(Icons.search)),
+          onChanged:(value)=>setState(()=>_query=value),
+        )),
+        Padding(padding:const EdgeInsets.symmetric(horizontal:24),child:Row(
+          crossAxisAlignment:CrossAxisAlignment.start,children:[
+            const Icon(Icons.verified_user_outlined,size:20,color:ChhayaColors.accent),
+            const SizedBox(width:12),
+            Expanded(child:Text('Verify each contact’s identity before messaging.',
+              style:ChhayaTypography.body.copyWith(color:ChhayaColors.inkMuted))),
           ],
-        ),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(ChhayaSpacing.space4, ChhayaSpacing.space3, ChhayaSpacing.space4, ChhayaSpacing.space3),
-              child: TextField(
-                decoration: InputDecoration(
-                  hintText: 'Search by name or ID…',
-                  prefixIcon: const Icon(Icons.search_rounded, size: 20, color: ChhayaColors.labelTertiary),
-                  filled: true, fillColor: ChhayaColors.inputSurface,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(ChhayaRadius.lg), borderSide: BorderSide(color: ChhayaColors.glassBorder.withValues(alpha: 0.12))),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(ChhayaRadius.lg), borderSide: BorderSide(color: ChhayaColors.glassBorder.withValues(alpha: 0.12))),
-                ),
-                onChanged: (v) => setState(() => _query = v),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: ChhayaSpacing.space4),
-              child: GlassContainer(
-                padding: const EdgeInsets.all(ChhayaSpacing.space4),
-                child: Row(
-                  children: [
-                    AvatarStack(names: contacts.map((c) => c.displayName).toList()),
-                    const SizedBox(width: ChhayaSpacing.space3),
-                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('${contacts.length} contacts', style: ChhayaTypography.headlineMedium.copyWith(fontSize: 13)),
-                      Text('Verify identities before messaging', style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.online, fontWeight: FontWeight.w600, fontSize: 11)),
-                    ]),
-                    const Spacer(),
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: ChhayaColors.accentDim, borderRadius: BorderRadius.circular(ChhayaRadius.pill), border: Border.all(color: ChhayaColors.accent.withValues(alpha: 0.2))), child: Text('Contacts', style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.accent, fontWeight: FontWeight.w700, fontSize: 10))),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: ChhayaSpacing.space3),
-            Expanded(
-              child: filtered.isEmpty
-                  ? Center(
-                      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Container(width: 88, height: 88, decoration: BoxDecoration(color: ChhayaColors.cardSurface, borderRadius: BorderRadius.circular(ChhayaRadius.xxl)), child: const Icon(Icons.people_outline_rounded, size: 40, color: ChhayaColors.labelTertiary)),
-                        const SizedBox(height: ChhayaSpacing.space5),
-                        Text('No contacts', style: ChhayaTypography.headlineMedium.copyWith(fontSize: 16)),
-                        const SizedBox(height: ChhayaSpacing.space1),
-                        Text('Add your first secure contact', style: ChhayaTypography.bodySmall.copyWith(color: ChhayaColors.labelTertiary)),
-                      ]),
-                    )
-                  : ListView.separated(
-                      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                      padding: const EdgeInsets.fromLTRB(ChhayaSpacing.space3, ChhayaSpacing.space2, ChhayaSpacing.space3, ChhayaSpacing.space12),
-                      itemCount: filtered.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: ChhayaSpacing.space2),
-                      itemBuilder: (ctx, i) => _buildContactCard(ctx, ref, filtered[i]),
-                    ),
-            ),
-          ],
-        ),
-      ),
+        )),
+        const SizedBox(height:16),
+        Expanded(child:filtered.isEmpty?SingleChildScrollView(child:Padding(
+          padding:const EdgeInsets.fromLTRB(32,48,32,32),child:Column(children:[
+            const Icon(Icons.people_outline,size:48,color:ChhayaColors.accent),
+            const SizedBox(height:24),
+            Text(contacts.isEmpty?'Keep your people close':'No contacts found',
+              style:ChhayaTypography.headline,textAlign:TextAlign.center),
+            const SizedBox(height:12),
+            Text(contacts.isEmpty?'Add someone using their Chhaya ID. No phone number or email is needed.'
+              :'Try another name or Chhaya ID.',textAlign:TextAlign.center,style:ChhayaTypography.bodyLarge),
+            if(contacts.isEmpty) ...[const SizedBox(height:24),
+              ChhayaPrimaryButton(label:'Add a contact',expanded:false,
+                onPressed:()=>_showAddContact(context,ref))],
+          ]),
+        )):ListView.separated(
+          padding:const EdgeInsets.fromLTRB(16,0,16,24),itemCount:filtered.length,
+          separatorBuilder:(_,index)=>const Divider(height:1,indent:80),
+          itemBuilder:(_,index)=>_buildContactCard(context,ref,filtered[index]),
+        )),
+      ])),
     );
   }
 
-  Widget _buildContactCard(BuildContext context, WidgetRef ref, Contact contact) {
-    final levelColor = contact.verificationLevel == 3 ? ChhayaColors.verifiedLevel3 : contact.verificationLevel == 2 ? ChhayaColors.verifiedLevel2 : ChhayaColors.verifiedLevel1;
-    final levelText = contact.verificationLevel == 3 ? 'Verified' : contact.verificationLevel == 2 ? 'Matched' : 'Unverified';
-    return Container(
-      decoration: BoxDecoration(color: ChhayaColors.cardSurface, borderRadius: BorderRadius.circular(ChhayaRadius.lg), border: Border.all(color: ChhayaColors.glassBorder.withValues(alpha: 0.10))),
-      child: InkWell(
-        onTap: () {
-          ChhayaHaptics.selection();
-          Navigator.of(context).pushNamed(ChhayaRouter.profile, arguments: {'contactId': contact.id});
-        },
-        borderRadius: BorderRadius.circular(ChhayaRadius.lg),
-        child: Padding(
-          padding: const EdgeInsets.all(ChhayaSpacing.space3),
-          child: Row(
-            children: [
-              AvatarWidget(name: contact.displayName, size: 48, statusColor: contact.isOnline ? ChhayaColors.online : null),
-              const SizedBox(width: ChhayaSpacing.space3),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(contact.displayName, style: ChhayaTypography.headlineMedium.copyWith(fontSize: 14)),
-                  const SizedBox(height: ChhayaSpacing.space1),
-                  Row(children: [
-                    Container(width: 7, height: 7, decoration: BoxDecoration(color: levelColor, shape: BoxShape.circle, boxShadow: [BoxShadow(color: levelColor.withValues(alpha: 0.5), blurRadius: 6)])),
-                    const SizedBox(width: ChhayaSpacing.space2),
-                    Text(levelText, style: ChhayaTypography.labelSmall.copyWith(color: levelColor, fontWeight: FontWeight.w700, fontSize: 11)),
-                    const SizedBox(width: ChhayaSpacing.space2),
-                    Text('• ${contact.chhayaId.publicKey.substring(0, 8)}…', style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.labelTertiary, fontSize: 10)),
-                  ]),
-                ]),
-              ),
-              ChhayaIconButton(
-                icon: Icons.chat_bubble_rounded,
-                onPressed: () {
-                  ChhayaHaptics.light();
-                  final convos = ref.read(conversationsProvider);
-                  final existing = convos.where((c) => c.participants.any((p) => p.id == contact.id)).toList();
-                  if (existing.isNotEmpty) {
-                    Navigator.of(context).pushNamed(ChhayaRouter.chat, arguments: {'conversationId': existing.first.id, 'contactName': contact.displayName});
-                  } else {
-                    final convoId = 'convo_${contact.id}';
-                    final newConvo = Conversation(id: convoId, participants: [contact], createdAt: DateTime.now());
-                    ref.read(localDatabaseProvider).addConversation(newConvo);
-                    ref.read(conversationsProvider.notifier).addConversation(newConvo);
-                    Navigator.of(context).pushNamed(ChhayaRouter.chat, arguments: {'conversationId': convoId, 'contactName': contact.displayName});
-                  }
-                },
-                size: 40,
-                background: ChhayaColors.accent,
-                color: ChhayaColors.onAccent,
-              ),
-              const Icon(Icons.chevron_right_rounded, size: 16, color: ChhayaColors.labelQuaternary),
-            ],
-          ),
-        ),
-      ),
-    );
+  Widget _buildContactCard(BuildContext context,WidgetRef ref,Contact contact) => ListTile(
+    contentPadding:const EdgeInsets.symmetric(horizontal:8,vertical:12),
+    leading:AvatarWidget(name:contact.displayName,size:48),
+    title:Text(contact.displayName,style:ChhayaTypography.bodyLarge.copyWith(fontWeight:FontWeight.w600)),
+    subtitle:Padding(padding:const EdgeInsets.only(top:6),child:Text(
+      contact.isVerified?'Verified identity':'Identity not verified',
+      style:ChhayaTypography.caption,
+    )),
+    onTap:()=>Navigator.of(context).pushNamed(ChhayaRouter.profile,arguments:{'contactId':contact.id}),
+    trailing:IconButton(tooltip:'Message ${contact.displayName}',
+      icon:const Icon(Icons.chat_bubble_outline,color:ChhayaColors.accent),
+      onPressed:()=>_startChat(contact)),
+  );
+
+  Future<void> _startChat(Contact contact) async {
+    try {
+      var conversation=ref.read(conversationsProvider).where((c)=>!c.isGroup&&
+        c.participants.any((p)=>p.id==contact.id)).firstOrNull;
+      if(conversation==null) {
+        conversation=(await ref.read(apiServiceProvider).createConversation(
+          type:'direct',participantIds:[contact.id])).copyWith(participants:[contact]);
+        await ref.read(localDatabaseProvider).addConversation(conversation);
+        if(!mounted) return;
+        ref.read(conversationsProvider.notifier).addConversation(conversation);
+      }
+      if(mounted) { Navigator.of(context).pushNamed(ChhayaRouter.chat,arguments:{
+        'conversationId':conversation.id,'contactName':contact.displayName}); }
+    } catch(_) {
+      if(mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content:Text('Could not open this chat. Check your server connection and try again.'))); }
+    }
   }
 
   void _showAddContact(BuildContext context, WidgetRef ref) {
@@ -168,9 +111,9 @@ class _ContactsTabState extends ConsumerState<ContactsTab> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ChhayaRadius.xl)),
         title: Row(children: [Container(width: 36, height: 36, decoration: BoxDecoration(color: ChhayaColors.accent, borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.person_add_rounded, size: 18, color: ChhayaColors.onAccent)), const SizedBox(width: 10), Text('Add Contact', style: ChhayaTypography.displaySmall.copyWith(fontSize: 18))]),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          ChhayaInput(controller: nameCtrl, hint: 'Display Name', prefixIcon: Icons.person_outline_rounded, textCapitalization: TextCapitalization.words, autofocus: true),
+          ChhayaInput(controller: nameCtrl, hint: 'Display name', label: 'Display name', prefixIcon: Icons.person_outline_rounded, textCapitalization: TextCapitalization.words, autofocus: true),
           const SizedBox(height: ChhayaSpacing.space3),
-          ChhayaInput(controller: keyCtrl, hint: 'Chhaya ID (66 characters)', prefixIcon: Icons.fingerprint_rounded, maxLength: 66, style: ChhayaTypography.code.copyWith(color: ChhayaColors.labelPrimary, fontSize: 11)),
+          ChhayaInput(controller: keyCtrl, hint: '05…', label: 'Full Chhaya ID', prefixIcon: Icons.fingerprint_rounded, maxLength: 66, style: ChhayaTypography.code.copyWith(color: ChhayaColors.labelPrimary, fontSize: 11)),
           const SizedBox(height: ChhayaSpacing.space2),
           Text('Ask your contact for their full Chhaya ID', style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.labelQuaternary)),
         ]),

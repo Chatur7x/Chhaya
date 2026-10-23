@@ -95,3 +95,12 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    - assets/fonts/OFL-Inter.txt
+    - assets/fonts/OFL-RobotoMono.txt
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Variable.ttf
+    - family: RobotoMono
+      fonts:
+        - asset: assets/fonts/RobotoMono-Variable.ttf

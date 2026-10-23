@@ -22,15 +22,16 @@ class ChhayaAppBar extends StatelessWidget implements PreferredSizeWidget {
   });
 
   @override
-  Size get preferredSize => const Size.fromHeight(56);
+  Size get preferredSize => const Size.fromHeight(64);
 
   @override
   Widget build(BuildContext context) {
     return AppBar(
-      backgroundColor: ChhayaColors.cream.withValues(alpha: 0.9),
+      backgroundColor: ChhayaColors.cream,
       elevation: 0,
       scrolledUnderElevation: 0,
-      toolbarHeight: 56,
+      toolbarHeight: 64,
+      titleSpacing: 24,
       leading: leading,
       actions: actions,
       title: Column(
@@ -39,7 +40,7 @@ class ChhayaAppBar extends StatelessWidget implements PreferredSizeWidget {
         children: [
           Text(
             title,
-            style: ChhayaTypography.title.copyWith(
+            style: ChhayaTypography.headline.copyWith(
               color: ChhayaColors.ink,
             ),
             maxLines: 1,

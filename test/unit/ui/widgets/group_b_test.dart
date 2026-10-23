@@ -20,7 +20,7 @@ void main() {
       const ChhayaChatBubble(message: 'Hello there', isMine: true),
     ));
     expect(find.text('Hello there'), findsOneWidget);
-    expect(_bubbleDecoration(tester).color, ChhayaColors.coral);
+    expect(_bubbleDecoration(tester).color, ChhayaColors.bubbleSent);
   });
 
   testWidgets('received bubble shows message with white fill', (tester) async {

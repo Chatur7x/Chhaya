@@ -1,11 +1,4 @@
-// Claude Light typography (V14 Part 6).
-//
-// Inter for UI text, Tiempos for display, Departure Mono for technical
-// readouts. Legacy member names are preserved (values follow the spec
-// scale); new spec names are added alongside. NOTE: Tiempos and
-// Departure Mono are not bundled as font assets yet — the family names
-// resolve through the platform fallback stack until F6 ships the
-// files. No call site changes required when they land.
+// Bundled Inter serves headings and controls; monospace is reserved for IDs.
 import 'package:flutter/material.dart';
 
 import 'chhaya_colors.dart';
@@ -14,8 +7,8 @@ class ChhayaTypography {
   ChhayaTypography._();
 
   static const String _fontFamily = 'Inter';
-  static const String _displayFontFamily = 'Tiempos';
-  static const String _monoFontFamily = 'Departure Mono';
+  static const String _displayFontFamily = 'Inter';
+  static const String _monoFontFamily = 'RobotoMono';
 
   // Spec scale — Claude Light
   static const TextStyle displayXl = TextStyle(

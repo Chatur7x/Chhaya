@@ -122,13 +122,13 @@ class ChhayaTheme {
           }
           return IconThemeData(color: scheme.onSurfaceVariant, size: 22);
         }),
-        height: 72,
+        height: 76,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: scheme.surfaceContainerHigh,
         modalBackgroundColor: scheme.surfaceContainerHigh,
-        showDragHandle: false,
+        showDragHandle: true,
         shape: const RoundedRectangleBorder(
           borderRadius:
               BorderRadius.vertical(top: Radius.circular(ChhayaRadius.xxl)),
@@ -160,7 +160,7 @@ class ChhayaTheme {
         fillColor: ChhayaColors.inputSurface,
         hintStyle: ChhayaTypography.bodyMedium.copyWith(
           color: ChhayaColors.labelTertiary,
-          fontSize: 15,
+          fontSize: 16,
         ),
         labelStyle: ChhayaTypography.labelMedium
             .copyWith(color: scheme.onSurfaceVariant),
@@ -248,7 +248,7 @@ class ChhayaTheme {
             borderRadius: BorderRadius.circular(ChhayaRadius.pill),
           ),
           textStyle: ChhayaTypography.headlineMedium
-              .copyWith(fontSize: 15, fontWeight: FontWeight.w700),
+              .copyWith(fontSize: 16, fontWeight: FontWeight.w700),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -268,7 +268,7 @@ class ChhayaTheme {
             borderRadius: BorderRadius.circular(ChhayaRadius.pill),
           ),
           textStyle: ChhayaTypography.headlineMedium
-              .copyWith(fontSize: 15, fontWeight: FontWeight.w600),
+              .copyWith(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -283,7 +283,7 @@ class ChhayaTheme {
             borderRadius: BorderRadius.circular(ChhayaRadius.pill),
           ),
           textStyle: ChhayaTypography.headlineMedium
-              .copyWith(fontSize: 15, fontWeight: FontWeight.w600),
+              .copyWith(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
@@ -298,7 +298,7 @@ class ChhayaTheme {
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: scheme.primary,
         foregroundColor: scheme.onPrimary,
-        elevation: 8,
+        elevation: 0,
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(ChhayaRadius.xl)),
         extendedTextStyle: ChhayaTypography.headlineMedium
