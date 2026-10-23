@@ -6,32 +6,80 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/router/chhaya_router.dart';
 import 'ui/theme/chhaya_theme.dart';
 import 'core/providers/app_providers.dart';
+import 'core/log.dart';
+
+/// Identifies which local startup stage failed without exposing exception
+/// messages that could contain paths or other device-specific details.
+class AppInitializationFailure implements Exception {
+  const AppInitializationFailure({required this.stage, required Object cause})
+      : causeType = cause.runtimeType.toString();
+
+  final String stage;
+  final String causeType;
+
+  @override
+  String toString() => 'AppInitializationFailure($stage, $causeType)';
+}
+
+/// Notifications are useful after account setup, but must never prevent the
+/// user from opening local chats or onboarding when Android notification setup
+/// is unavailable or denied.
+Future<void> initializeNotificationsBestEffort(
+  Future<void> Function() initialize,
+) async {
+  try {
+    await initialize();
+  } catch (error) {
+    ChhayaLog.w(
+      'Notification setup failed; continuing app startup',
+      name: 'Startup',
+      error: error,
+    );
+  }
+}
 
 final appInitializationProvider = FutureProvider<bool>((ref) async {
-  final authService = ref.read(authServiceProvider);
-  final db = ref.read(localDatabaseProvider);
-  final apiService = ref.read(apiServiceProvider);
+  var stage = 'secure device storage';
+  try {
+    final authService = ref.read(authServiceProvider);
+    final db = ref.read(localDatabaseProvider);
+    final apiService = ref.read(apiServiceProvider);
 
-  // Part 2: wipe in-memory session keys when the app backgrounds.
-  ref.read(keyManagerProvider).startObserving();
+    // Part 2: wipe in-memory session keys when the app backgrounds.
+    ref.read(keyManagerProvider).startObserving();
 
-  await apiService.init();
-  await authService.init();
-  await ref.read(notificationServiceProvider).init();
+    stage = 'server settings';
+    await apiService.init();
+    stage = 'encrypted local database';
+    await authService.init();
 
-  final currentUser = authService.currentUser;
-  ref.read(currentUserProvider.notifier).state = currentUser;
+    final currentUser = authService.currentUser;
+    ref.read(currentUserProvider.notifier).state = currentUser;
 
-  if (currentUser != null) {
-    final convos = await db.getAllConversations();
-    final contacts = await db.getAllContacts();
-    ref.read(conversationsProvider.notifier).setConversations(convos);
-    ref.read(contactsProvider.notifier).setContacts(contacts);
+    if (currentUser != null) {
+      stage = 'saved conversations';
+      final convos = await db.getAllConversations();
+      final contacts = await db.getAllContacts();
+      ref.read(conversationsProvider.notifier).setConversations(convos);
+      ref.read(contactsProvider.notifier).setContacts(contacts);
+    }
 
+    // Notification setup is optional and cannot gate account access. Keep
+    // existing permission/registration behavior while degrading gracefully.
+    await initializeNotificationsBestEffort(
+      () => ref.read(notificationServiceProvider).init(),
+    );
 
+    return currentUser != null;
+  } catch (error, stackTrace) {
+    ChhayaLog.e(
+      'App startup failed during $stage',
+      name: 'Startup',
+      error: error,
+      stackTrace: stackTrace,
+    );
+    throw AppInitializationFailure(stage: stage, cause: error);
   }
-
-  return currentUser != null;
 });
 
 final appUnlockedProvider = StateProvider<bool>((ref) => false);
@@ -92,8 +140,13 @@ class ChhayaApp extends ConsumerWidget {
           }
         },
         loading: () => const _SplashScreen(),
-        error: (e, stack) => _SplashScreen(errorMessage: 'Could not open your account. Try again.',
-          onRetry:()=>ref.invalidate(appInitializationProvider)),
+        error: (e, stack) => _SplashScreen(
+          errorMessage: 'Could not open your account. Try again.',
+          errorDetails: e is AppInitializationFailure
+              ? 'Setup step: ${e.stage} (${e.causeType})'
+              : null,
+          onRetry: () => ref.invalidate(appInitializationProvider),
+        ),
       ),
       onGenerateRoute: ChhayaRouter.generateRoute,
     );
@@ -102,8 +155,9 @@ class ChhayaApp extends ConsumerWidget {
 
 class _SplashScreen extends StatelessWidget {
   final String? errorMessage;
+  final String? errorDetails;
   final VoidCallback? onRetry;
-  const _SplashScreen({this.errorMessage,this.onRetry});
+  const _SplashScreen({this.errorMessage,this.errorDetails,this.onRetry});
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -115,6 +169,9 @@ class _SplashScreen extends StatelessWidget {
         const SizedBox(height:24),
         if(errorMessage!=null) ...[
           Text(errorMessage!,textAlign:TextAlign.center,style:ChhayaType.of(context).bodyLarge),
+          if(errorDetails!=null) Padding(padding:const EdgeInsets.only(top:12),
+            child:Text(errorDetails!,textAlign:TextAlign.center,
+              style:ChhayaType.of(context).labelSmall.copyWith(color:ChhayaPalette.of(context).inkMuted))),
           if(onRetry!=null) Padding(padding:const EdgeInsets.only(top:16),
             child:FilledButton(onPressed:onRetry,child:const Text('Try again'))),
         ] else ...[
