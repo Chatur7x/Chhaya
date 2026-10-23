@@ -90,6 +90,7 @@ void main() {
       return (x>y?(x+0.05)/(y+0.05):(y+0.05)/(x+0.05));
     }
     for(final theme in [ChhayaTheme.materialLight,ChhayaTheme.materialDark]) {
+      expect(contrast(theme.chipTheme.labelStyle!.color!,theme.chipTheme.selectedColor!),greaterThanOrEqualTo(4.5));
       final p=ChhayaPalette(theme.colorScheme);
       for(final pair in [(p.ink,p.primaryBackground),(p.inkMuted,p.primaryBackground),
         (p.onAccent,p.accent),(p.bubbleSentText,p.bubbleSent),
