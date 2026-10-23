@@ -75,6 +75,7 @@ void main() {
     'signup':const OnboardingScreen(),
     'restore':const OnboardingScreen(),
     'conversation':const ChatScreen(conversationId:'design-chat',contactName:'Maya Rao'),
+    'conversation-keyboard':const ChatScreen(conversationId:'design-chat',contactName:'Maya Rao'),
     'profile':const ProfileScreen(contactId:'maya'),
     'verification':const VerificationScreen(),
   };
@@ -98,7 +99,8 @@ void main() {
         await tester.pumpWidget(UncontrolledProviderScope(container:container,
           child:RepaintBoundary(key:capture,child:MaterialApp(debugShowCheckedModeBanner:false,theme:ChhayaTheme.materialLight,
             builder:(context,child)=>MediaQuery(data:MediaQuery.of(context).copyWith(
-              disableAnimations:true,textScaler:TextScaler.linear(viewport.$2)),child:child!),
+              disableAnimations:true,textScaler:TextScaler.linear(viewport.$2),
+              viewInsets:entry.key=='conversation-keyboard'?const EdgeInsets.only(bottom:260):EdgeInsets.zero),child:child!),
             home:entry.value)),
         ));
         await tester.pump();
