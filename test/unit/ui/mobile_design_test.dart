@@ -125,6 +125,19 @@ void main() {
           expect(find.byType(NavigationRail),viewport.$1>=720?findsOneWidget:findsNothing);
           expect(find.byType(NavigationBar),viewport.$1<720?findsOneWidget:findsNothing);
         }
+        if(entry.key=='chats') {
+          final search = find.byType(TextField);
+          await tester.enterText(search, 'no-such-person');
+          await tester.pump();
+          expect(find.text('No matching conversations'), findsOneWidget);
+          await tester.tap(find.byTooltip('Clear search'));
+          await tester.pump();
+          expect(find.text('Maya Rao'), findsOneWidget);
+          expect(find.byTooltip('Clear search'), findsNothing);
+          FocusManager.instance.primaryFocus?.unfocus();
+          await tester.pump();
+          expect(tester.takeException(), isNull);
+        }
         if(entry.key=='conversation') {
           expect(find.byTooltip('Send message'),findsOneWidget);
           expect(find.byIcon(Icons.mic_rounded),findsNothing);
