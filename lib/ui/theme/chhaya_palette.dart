@@ -62,9 +62,7 @@ class ChhayaType {
   final TargetPlatform platform;
   final ChhayaPalette palette;
   static ChhayaType of(BuildContext context) => ChhayaType(ChhayaPalette.of(context), platform: Theme.of(context).platform);
-  TextStyle _adapt(TextStyle style) => style.copyWith(
-    fontFamily: style.fontFamily == 'Inter' && (platform == TargetPlatform.iOS || platform == TargetPlatform.macOS)
-      ? 'CupertinoSystemText' : style.fontFamily,
+  TextStyle _adapt(TextStyle style) => ChhayaTypography.forPlatform(style, platform).copyWith(
     color:
     style.color == ChhayaColors.ink ? palette.ink :
     style.color == ChhayaColors.inkMuted ? palette.inkMuted :

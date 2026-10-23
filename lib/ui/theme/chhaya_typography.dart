@@ -10,6 +10,21 @@ class ChhayaTypography {
   static const String _displayFontFamily = 'DepartureMono';
   static const String _monoFontFamily = 'DepartureMono';
 
+  /// Uses Apple's system text/display faces for ordinary interface copy on
+  /// Apple platforms while leaving the Departure Mono brand face untouched.
+  /// Flutter maps these proxy family names to SF Pro on Apple devices and to
+  /// the regular platform fallback elsewhere.
+  static TextStyle forPlatform(TextStyle style, TargetPlatform platform) {
+    if (style.fontFamily != _fontFamily ||
+        (platform != TargetPlatform.iOS && platform != TargetPlatform.macOS)) {
+      return style;
+    }
+    final family = (style.fontSize ?? 16) >= 20
+        ? 'CupertinoSystemDisplay'
+        : 'CupertinoSystemText';
+    return style.copyWith(fontFamily: family);
+  }
+
   // Pixel display scale — Claude Light
   static const TextStyle displayXl = TextStyle(
     fontFamily: _displayFontFamily,

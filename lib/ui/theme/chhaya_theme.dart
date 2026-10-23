@@ -3,7 +3,7 @@
 // Token classes live in their own files and are re-exported here, so
 // every existing `import 'chhaya_theme.dart'` keeps working:
 //   chhaya_colors.dart      Coral-on-Cream light tokens
-//   chhaya_typography.dart  Inter reading / Departure Mono display scale
+//   chhaya_typography.dart  native Apple text / Inter Android / Departure Mono display
 //   chhaya_spacing.dart     4-based scale (spec sizes present)
 //   chhaya_radius.dart      Round posture (spec set 8/12/16/20/9999)
 //   chhaya_elevation.dart   Soft warm shadows (+ legacy ChhayaShadows)
@@ -67,11 +67,13 @@ class ChhayaTheme {
 
   static ThemeData get materialLight => _material(colorScheme);
 
-  static ThemeData _material(ColorScheme scheme) {
+  static ThemeData _material(ColorScheme scheme, {TargetPlatform platform = defaultTargetPlatform}) {
     final palette = ChhayaPalette(scheme);
+    TextStyle type(TextStyle style) => ChhayaTypography.forPlatform(style, platform);
 
     return ThemeData(
       useMaterial3: true,
+      platform: platform,
       brightness: scheme.brightness,
       colorScheme: scheme,
       scaffoldBackgroundColor: scheme.surface,
@@ -87,21 +89,21 @@ class ChhayaTheme {
         backgroundColor: scheme.surfaceContainerLow,
         selectedColor: scheme.primaryContainer,
         secondarySelectedColor: scheme.primaryContainer,
-        labelStyle: ChhayaTypography.labelMedium.copyWith(color: scheme.onSurface),
-        secondaryLabelStyle: ChhayaTypography.labelMedium.copyWith(color: scheme.onSurface),
+        labelStyle: type(ChhayaTypography.labelMedium).copyWith(color: scheme.onSurface),
+        secondaryLabelStyle: type(ChhayaTypography.labelMedium).copyWith(color: scheme.onSurface),
         checkmarkColor: scheme.onSurface,
         side: BorderSide(color: scheme.outlineVariant),
       ),
       dividerColor: scheme.outlineVariant,
       splashFactory: InkSparkle.splashFactory,
-      textTheme: _textTheme(scheme),
+      textTheme: _textTheme(scheme, platform),
       appBarTheme: AppBarTheme(
         backgroundColor: scheme.surface.withValues(alpha: 0.9),
         foregroundColor: scheme.onSurface,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        titleTextStyle: ChhayaTypography.headlineMedium
+        titleTextStyle: type(ChhayaTypography.headlineMedium)
             .copyWith(color: scheme.onSurface),
         surfaceTintColor: Colors.transparent,
         systemOverlayStyle: SystemUiOverlayStyle(
@@ -121,12 +123,12 @@ class ChhayaTheme {
         overlayColor: WidgetStateProperty.all(Colors.transparent),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return ChhayaTypography.labelSmall.copyWith(
+            return type(ChhayaTypography.labelSmall).copyWith(
               color: scheme.primary,
               fontWeight: FontWeight.w700,
             );
           }
-          return ChhayaTypography.labelSmall
+          return type(ChhayaTypography.labelSmall)
               .copyWith(color: scheme.onSurfaceVariant);
         }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
@@ -171,11 +173,11 @@ class ChhayaTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: scheme.surfaceContainerHighest,
-        hintStyle: ChhayaTypography.bodyMedium.copyWith(
+        hintStyle: type(ChhayaTypography.bodyMedium).copyWith(
           color: palette.inkMuted,
           fontSize: 16,
         ),
-        labelStyle: ChhayaTypography.labelMedium
+        labelStyle: type(ChhayaTypography.labelMedium)
             .copyWith(color: scheme.onSurfaceVariant),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: ChhayaSpacing.space4,
@@ -206,7 +208,7 @@ class ChhayaTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: ChhayaColors.ink,
-        contentTextStyle: ChhayaTypography.bodyMedium
+        contentTextStyle: type(ChhayaTypography.bodyMedium)
             .copyWith(color: ChhayaColors.white),
         behavior: SnackBarBehavior.floating,
         elevation: 12,
@@ -260,7 +262,7 @@ class ChhayaTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(ChhayaRadius.pill),
           ),
-          textStyle: ChhayaTypography.headlineMedium
+          textStyle: type(ChhayaTypography.headlineMedium)
               .copyWith(fontSize: 16, fontWeight: FontWeight.w700),
         ),
       ),
@@ -280,7 +282,7 @@ class ChhayaTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(ChhayaRadius.pill),
           ),
-          textStyle: ChhayaTypography.headlineMedium
+          textStyle: type(ChhayaTypography.headlineMedium)
               .copyWith(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
@@ -295,14 +297,14 @@ class ChhayaTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(ChhayaRadius.pill),
           ),
-          textStyle: ChhayaTypography.headlineMedium
+          textStyle: type(ChhayaTypography.headlineMedium)
               .copyWith(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: scheme.primary,
-          textStyle: ChhayaTypography.headlineMedium
+          textStyle: type(ChhayaTypography.headlineMedium)
               .copyWith(fontSize: 14, fontWeight: FontWeight.w600),
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(ChhayaRadius.pill)),
@@ -314,7 +316,7 @@ class ChhayaTheme {
         elevation: 0,
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(ChhayaRadius.xl)),
-        extendedTextStyle: ChhayaTypography.headlineMedium
+        extendedTextStyle: type(ChhayaTypography.headlineMedium)
             .copyWith(fontWeight: FontWeight.w700),
       ),
       progressIndicatorTheme: ProgressIndicatorThemeData(
@@ -327,9 +329,9 @@ class ChhayaTheme {
         unselectedLabelColor: scheme.onSurfaceVariant,
         indicatorSize: TabBarIndicatorSize.tab,
         dividerColor: Colors.transparent,
-        labelStyle: ChhayaTypography.labelLarge
+        labelStyle: type(ChhayaTypography.labelLarge)
             .copyWith(fontSize: 13, fontWeight: FontWeight.w700),
-        unselectedLabelStyle: ChhayaTypography.labelLarge
+        unselectedLabelStyle: type(ChhayaTypography.labelLarge)
             .copyWith(fontSize: 13, fontWeight: FontWeight.w500),
       ),
       sliderTheme: SliderThemeData(
@@ -338,7 +340,7 @@ class ChhayaTheme {
         thumbColor: scheme.primary,
         overlayColor: scheme.primaryContainer,
         valueIndicatorColor: scheme.primary,
-        valueIndicatorTextStyle: ChhayaTypography.labelSmall
+        valueIndicatorTextStyle: type(ChhayaTypography.labelSmall)
             .copyWith(color: scheme.onPrimary),
         trackHeight: 4,
         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
@@ -357,23 +359,24 @@ class ChhayaTheme {
     outline: Color(0xFF66665E), outlineVariant: Color(0xFF46473F), scrim: ChhayaColors.black,
   ));
 
-  static TextTheme _textTheme(ColorScheme scheme) {
+  static TextTheme _textTheme(ColorScheme scheme, TargetPlatform platform) {
+    TextStyle type(TextStyle style) => ChhayaTypography.forPlatform(style, platform);
     return TextTheme(
-      displayLarge: ChhayaTypography.displayLarge,
-      displayMedium: ChhayaTypography.displayMedium,
-      displaySmall: ChhayaTypography.displaySmall,
-      headlineLarge: ChhayaTypography.headlineLarge,
-      headlineMedium: ChhayaTypography.headlineMedium,
-      headlineSmall: ChhayaTypography.headlineSmall,
-      titleLarge: ChhayaTypography.headlineLarge,
-      titleMedium: ChhayaTypography.headlineMedium,
-      titleSmall: ChhayaTypography.headlineSmall,
-      bodyLarge: ChhayaTypography.bodyLarge,
-      bodyMedium: ChhayaTypography.bodyMedium,
-      bodySmall: ChhayaTypography.bodySmall,
-      labelLarge: ChhayaTypography.labelLarge,
-      labelMedium: ChhayaTypography.labelMedium,
-      labelSmall: ChhayaTypography.labelSmall,
+      displayLarge: type(ChhayaTypography.displayLarge),
+      displayMedium: type(ChhayaTypography.displayMedium),
+      displaySmall: type(ChhayaTypography.displaySmall),
+      headlineLarge: type(ChhayaTypography.headlineLarge),
+      headlineMedium: type(ChhayaTypography.headlineMedium),
+      headlineSmall: type(ChhayaTypography.headlineSmall),
+      titleLarge: type(ChhayaTypography.headlineLarge),
+      titleMedium: type(ChhayaTypography.headlineMedium),
+      titleSmall: type(ChhayaTypography.headlineSmall),
+      bodyLarge: type(ChhayaTypography.bodyLarge),
+      bodyMedium: type(ChhayaTypography.bodyMedium),
+      bodySmall: type(ChhayaTypography.bodySmall),
+      labelLarge: type(ChhayaTypography.labelLarge),
+      labelMedium: type(ChhayaTypography.labelMedium),
+      labelSmall: type(ChhayaTypography.labelSmall),
     ).apply(
       bodyColor: scheme.onSurface,
       displayColor: scheme.onSurface,
