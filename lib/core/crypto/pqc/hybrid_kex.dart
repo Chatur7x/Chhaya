@@ -71,12 +71,14 @@ class HybridKex {
     } finally {
       inputKeyMaterial.fillRange(0, inputKeyMaterial.length, 0);
     }
-    return HybridSecret(
+    final result = HybridSecret(
       secret: secret,
       pqUsed: true,
       classicalUsed: true,
       consentedFallback: false,
     );
+    secret.fillRange(0, secret.length, 0);
+    return result;
   }
 
   /// Classical-only fallback. Throws unless [userConsented] is true,
@@ -109,11 +111,13 @@ class HybridKex {
     } finally {
       inputKeyMaterial.fillRange(0, inputKeyMaterial.length, 0);
     }
-    return HybridSecret(
+    final result = HybridSecret(
       secret: secret,
       pqUsed: false,
       classicalUsed: true,
       consentedFallback: true,
     );
+    secret.fillRange(0, secret.length, 0);
+    return result;
   }
 }
