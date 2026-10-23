@@ -9,3 +9,5 @@
 | [self-hosting.md](self-hosting.md) | Backend deployment preparation |
 | [test-builds.md](test-builds.md) | Android/iOS artifacts and device test procedure |
 | [platform-ios.md](platform-ios.md) | iOS foundation and signing constraints |
+
+| [mobile-ui-review.md](mobile-ui-review.md) | Approved UI direction, fixes, render matrix, and verification limits |
