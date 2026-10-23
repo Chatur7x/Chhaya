@@ -1,5 +1,4 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
 import '../theme/chhaya_theme.dart';
 
 /// Cupertino preview lifting when motion is allowed; a static action sheet

@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import '../../core/models/message_attachment.dart';
 import '../../services/messaging/attachment_service.dart';
 import '../theme/chhaya_theme.dart';
+import 'audio_level_waveform.dart';
 
 /// User-started, bounded AAC capture. The temporary recording is deleted after
 /// staging/cancel; only its encrypted message representation is persisted.
@@ -22,6 +23,8 @@ class _VoiceRecorderSheetState extends State<VoiceRecorderSheet> with WidgetsBin
   Future<void> _starting = Future.value();
   File? _file;
   Timer? _timer;
+  StreamSubscription<RecordingDisposition>? _meter;
+  final _levels = <double>[];
   bool _opened = false, _recording = false, _busy = false, _closing = false;
   int _seconds = 0;
   String? _error;
@@ -54,6 +57,16 @@ class _VoiceRecorderSheetState extends State<VoiceRecorderSheet> with WidgetsBin
       await _recorder.openRecorder();
       _opened = true;
       if (!mounted || _closing) return;
+      await _recorder.setSubscriptionDuration(const Duration(milliseconds:100));
+      _meter = _recorder.onProgress?.listen((event) {
+        if (!mounted || _closing) return;
+        final decibels=event.decibels;
+        if(decibels==null || !decibels.isFinite) return;
+        setState(() {
+          _levels.add((decibels/120).clamp(0.0,1.0).toDouble());
+          if(_levels.length>32) _levels.removeAt(0);
+        });
+      });
       await _recorder.startRecorder(toFile: _file!.path, codec: Codec.aacADTS,
         bitRate: 24000, sampleRate: 16000, numChannels: 1);
       if (!mounted || _closing) return;
@@ -71,6 +84,8 @@ class _VoiceRecorderSheetState extends State<VoiceRecorderSheet> with WidgetsBin
 
   Future<void> _cleanup() async {
     _timer?.cancel();
+    await _meter?.cancel();
+    _meter=null;
     if (_opened) {
       try { if (_recorder.isRecording) await _recorder.stopRecorder(); } catch (_) { /* Close below. */ }
       try { await _recorder.closeRecorder(); } catch (_) { /* No recording remains active. */ }
@@ -123,12 +138,15 @@ class _VoiceRecorderSheetState extends State<VoiceRecorderSheet> with WidgetsBin
       const SizedBox(height: 16),
       Text(_recording ? 'Recording · ${_seconds}s / 60s' : 'Record up to one minute. Review the attachment before sending.',
         textAlign: TextAlign.center, style: ChhayaType.of(context).bodyLarge),
+      const SizedBox(height:12),
+      AudioLevelWaveform(levels:List.unmodifiable(_levels)),
       if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!)),
       const SizedBox(height: 16),
       Wrap(spacing: 12, runSpacing: 8, children: [
         TextButton(onPressed: _closing ? null : () => _stop(false), child: const Text('Cancel')),
         FilledButton.icon(onPressed: _busy ? null : _recording ? () => _stop(true) : _start,
-          icon: Icon(_recording ? Icons.stop_rounded : Icons.mic_rounded),
+          icon: AnimatedSwitcher(duration:ChhayaMotion.duration(context,180),
+            child:Icon(_recording ? Icons.stop_rounded : Icons.mic_rounded,key:ValueKey(_recording))),
           label: Text(_recording ? 'Use recording' : 'Start recording')),
       ]),
     ]),
