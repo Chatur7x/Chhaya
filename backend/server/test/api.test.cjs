@@ -93,6 +93,9 @@ test('real API: registration, authentication, conversations, messages, isolation
   const server=app.listen(0,'127.0.0.1');
   await new Promise(resolve=>server.once('listening',resolve));
   const base=`http://127.0.0.1:${server.address().port}/api/v1`;
+  const health=await fetch(`http://127.0.0.1:${server.address().port}/health`);
+  assert.equal(health.status,200);
+  assert.equal((await health.json()).database,'ready');
   const accounts=[];
   const sockets=[];
   let signaling;

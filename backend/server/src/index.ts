@@ -5,7 +5,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { config } from './config';
 import { logger } from './log';
-import { initDb } from './db';
+import { initDb, query } from './db';
 import { startSignalingServer } from './signaling';
 import { startOnionRelayServer } from './onion-relay';
 import { initPushNotifications } from './push';
@@ -51,8 +51,23 @@ app.use(async (req, res, next) => {
 app.use(express.json({ limit: '1mb' }));
 
 // Health check
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString(), version: '14.0.0' });
+app.get('/health', async (_req, res) => {
+  try {
+    await query('SELECT 1');
+    res.json({
+      status: 'ok',
+      database: 'ready',
+      timestamp: new Date().toISOString(),
+      version: '14.0.0',
+    });
+  } catch {
+    res.status(503).json({
+      status: 'unavailable',
+      database: 'unavailable',
+      timestamp: new Date().toISOString(),
+      version: '14.0.0',
+    });
+  }
 });
 
 // Metrics endpoint

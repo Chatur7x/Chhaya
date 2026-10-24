@@ -13,7 +13,10 @@ service's public port (`/` and `/signaling`).
 3. Review the two services and the current monthly estimate before applying the
    Blueprint. The configuration uses paid, always-on plans; it does not use
    Render's expiring free Postgres database or sleeping free web service.
-4. Apply the Blueprint and wait for the first deployment to pass `/health`.
+4. Apply the Blueprint and wait for the first deployment to pass `/health`. The
+   endpoint checks PostgreSQL readiness and returns HTTP 503 if the database is
+   unavailable, so Render will not route traffic to a process that cannot serve
+   API requests.
 5. Open the service's `https://…onrender.com/health` URL. It should return JSON
    with `"status":"ok"`.
 6. In Chhaya, open **Settings → Server** and set the base URL to the service's
