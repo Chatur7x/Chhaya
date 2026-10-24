@@ -3,7 +3,6 @@ import { createServer } from 'http';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { config } from './config';
 import { logger } from './log';
 import { initDb } from './db';
@@ -13,6 +12,7 @@ import { initPushNotifications } from './push';
 import { registerRoutes } from './routes';
 import { ZodError } from 'zod';
 import { collectDefaultMetrics, register, Counter } from 'prom-client';
+import { consumeIpRateLimit, pruneExpiredRateLimits } from './rate-limit';
 
 export const app = express();
 app.set('trust proxy',config.TRUST_PROXY_HOPS);
@@ -25,21 +25,30 @@ app.use(helmet({
   contentSecurityPolicy: false, // Allow WebSocket connections
 }));
 app.use(cors({ origin: false }));
-app.use(express.json({ limit: '1mb' }));
 
-// Rate limiting
-const apiLimiter = new RateLimiterMemory({
-  points: config.API_RATE_LIMIT,
-  duration: 60,
-});
+// Shared Postgres rate limit survives restarts and is consistent across instances.
 app.use(async (req, res, next) => {
+  if (req.path === '/health' || req.path === '/metrics') return next();
   try {
-    await apiLimiter.consume(req.ip || 'unknown');
-    next();
+    const decision = await consumeIpRateLimit(
+      req.ip || req.socket.remoteAddress || 'unknown',
+      config.API_RATE_LIMIT,
+      60,
+    );
+    if (!decision.allowed) {
+      res.set('Retry-After', String(decision.retryAfterSeconds));
+      return res.status(429).json({ error: 'Too many requests' });
+    }
+    return next();
   } catch {
-    res.status(429).json({ error: 'Too many requests' });
+    // Fail closed: an unavailable shared limiter must not silently remove the guard.
+    logger.error('Shared API rate limiter unavailable');
+    return res.status(503).json({ error: 'Service temporarily unavailable' });
   }
 });
+// Rate limit before parsing request bodies so oversized unauthenticated posts
+// cannot spend parser/allocator work before consuming their request budget.
+app.use(express.json({ limit: '1mb' }));
 
 // Health check
 app.get('/health', (_req, res) => {
@@ -66,6 +75,12 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 async function start() {
   try {
     await initDb();
+    const pruneTimer = setInterval(() => {
+      void pruneExpiredRateLimits().catch(() => {
+        logger.warn('Rate limit bucket cleanup failed');
+      });
+    }, 5 * 60 * 1000);
+    pruneTimer.unref();
     initPushNotifications();
     const server = createServer(app);
     startSignalingServer(server);

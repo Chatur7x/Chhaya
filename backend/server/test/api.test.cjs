@@ -14,6 +14,42 @@ test('credentials are salted, verified and reject legacy plaintext',()=>{
   assert.equal(tokenHash('token').length,64);
 });
 
+test('shared API rate limiter hashes identities and enforces fixed-window decisions',async()=>{
+  const {consumeIpRateLimit}=require('../dist/rate-limit');
+  const calls=[];
+  const runQuery=async(sql,params)=>{
+    calls.push({sql,params});
+    return {rows:[{count:String(calls.length===1?2:3),retry_after:'41'}]};
+  };
+  const allowed=await consumeIpRateLimit('192.0.2.7',2,60,runQuery);
+  const limited=await consumeIpRateLimit('192.0.2.7',2,60,runQuery);
+  assert.equal(allowed.allowed,true);
+  assert.equal(limited.allowed,false);
+  assert.equal(limited.retryAfterSeconds,41);
+  assert.match(calls[0].sql,/ON CONFLICT \(key\) DO UPDATE/);
+  assert.match(calls[0].sql,/INTERVAL '1 second'/);
+  assert.notEqual(calls[0].params[0],'192.0.2.7');
+  assert.match(calls[0].params[0],/^api:[0-9a-f]{64}$/);
+});
+
+test('Postgres rate-limit buckets expire and reset atomically',
+  {skip:!process.env.DATABASE_URL},async()=>{
+  const {initDb,closeDb}=require('../dist/db');
+  const {consumeIpRateLimit}=require('../dist/rate-limit');
+  const identity=`test-${randomUUID()}`;
+  await initDb();
+  try {
+    assert.equal((await consumeIpRateLimit(identity,1,1)).allowed,true);
+    const limited=await consumeIpRateLimit(identity,1,1);
+    assert.equal(limited.allowed,false);
+    assert.ok(limited.retryAfterSeconds>=1 && limited.retryAfterSeconds<=1);
+    await new Promise(resolve=>setTimeout(resolve,1100));
+    assert.equal((await consumeIpRateLimit(identity,1,1)).allowed,true);
+  } finally {
+    await closeDb();
+  }
+});
+
 test('identity challenge binds proof to client private key and transcript',()=>{
   const {createIdentityChallenge}=require('../dist/identity-proof');
   const pair=generateKeyPairSync('x25519');

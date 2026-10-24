@@ -53,7 +53,7 @@ hosted service, Apple membership or external audit is assumed.
 | Dark theme/customizer/icons | Legacy dark APIs, incomplete product flow | Semantic theme migration, controls and contrast checks |
 | Proxy modes | Incomplete | HTTP/WebSocket/WebRTC routing behavior, DNS and leak tests |
 | Backend/self-hosting | Node/PostgreSQL, Docker/nginx preparation | Live domain/TLS/server, backups, restore drills and operations ownership |
-| Monitoring/rate limits | Basic metrics, health and process-local limits | Deployed monitoring, alert routing, retention and multi-instance/load tests |
+| Monitoring/rate limits | Basic metrics and health; atomic PostgreSQL fixed-window HTTP limits shared across instances with keyed-HMAC caller identifiers and stale-bucket cleanup | Deployed monitoring, alert routing, retention and multi-instance/load tests |
 | Licensing | Third-party font notices present; root license is effectively empty | Confirm project license and complete dependency notice inventory |
 | Performance claims | Chat-local database refresh reduced from every 2 seconds to every 15 seconds; immediate refresh remains on resume and after sends | Reproducible device benchmarks, release size, battery and network measurements |
 | Store distribution | Android test APK and unsigned iOS artifacts | Signing ownership, memberships, store assets/privacy disclosures and submission |
