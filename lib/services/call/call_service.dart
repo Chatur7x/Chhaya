@@ -12,6 +12,7 @@ import '../../core/crypto/primitives/rng.dart';
 import '../../core/database/local_database.dart';
 import '../../core/models/contact.dart';
 import '../api/api_service.dart';
+import 'incoming_call_window.dart';
 
 class IncomingCall {
   final String callId,conversationId,senderId,envelope;
@@ -53,6 +54,7 @@ class CallService extends ChangeNotifier {
   bool _renderersReady=false,_remoteReady=false;
   Timer? _ringTimeout;
   final _candidates=<RTCIceCandidate>[];
+  final _incomingCallWindow=IncomingCallWindow();
   Future<void> _signalTail=Future.value();
 
   Future<void> ensureConnected() async {
@@ -218,6 +220,7 @@ class CallService extends ChangeNotifier {
       final key=await _key(peer,id);
       try {
         final offer=_open('offer',id,sender,payload['envelope'] as String,key);
+        if(!_incomingCallWindow.shouldPresent(id,DateTime.now())) { return; }
         _incoming.add(IncomingCall(id,conversation,sender,payload['envelope'] as String,offer['video'] as bool? ?? false));
       } finally { Csprng.wipe(key); }
       return;
