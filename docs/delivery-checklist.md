@@ -49,7 +49,7 @@ hosted service, Apple membership or external audit is assumed.
 | Capture protection | Not established as complete | Android/iOS-specific implementation and honest OS limitations |
 | Memory clearing | Best-effort secret wiping | Native/runtime-copy review; no absolute erasure guarantee |
 | Cream/coral + Departure Mono | Implemented and bundled font licenses | New-feature accessibility and physical-device review |
-| App identity/avatar | Custom Chhaya crescent-chat emblem is used in onboarding, startup, Android launcher icons and the iOS app icon set | Verify rendered icon on physical Android/iOS devices and store previews |
+| App identity/avatar | Custom Chhaya crescent-chat emblem is used in onboarding, startup, Android launcher icons and the iOS app icon set; iOS display name corrected to Chhaya; CI checks source and native asset dimensions/catalog references via `python scripts/verify_app_branding.py` | Verify rendered icon on physical Android/iOS devices and store previews |
 | Dark theme/customizer/icons | Legacy dark APIs, incomplete product flow | Semantic theme migration, controls and contrast checks |
 | Proxy modes | Incomplete | HTTP/WebSocket/WebRTC routing behavior, DNS and leak tests |
 | Backend/self-hosting | Node/PostgreSQL, Docker/nginx preparation; DB readiness health check; bounded HTTP/WebSocket/PostgreSQL shutdown | Live domain/TLS/server, backups, restore drills and operations ownership |
