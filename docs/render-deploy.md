@@ -6,6 +6,21 @@ the JWT secret in Render, and connects the database without storing credentials
 in Git. The API and authenticated call-signaling WebSocket share the web
 service's public port (`/` and `/signaling`).
 
+### Repair an existing service created from the repository root
+
+The manual service in the shared Render dashboard was configured to use the
+repository root as its Docker build context. Its first build failed because it
+could not find a root `Dockerfile`. The repository now includes a root Dockerfile
+and a narrow root `.dockerignore`, so that existing configuration can build.
+Alternatively, in **Service → Settings → Build**, set **Root Directory** to
+`backend/server` and keep **Dockerfile Path** as `Dockerfile`; that uses the
+backend-local Dockerfile. Save the setting and trigger a deploy from the latest
+commit. The dashboard's failed first deploy was for an older `main` commit, so
+it will not pick up this fix until the updated commit is deployed.
+
+For a new setup, prefer the Blueprint steps below; the Blueprint already sets
+`rootDir: backend/server` and provisions its matching Postgres database.
+
 ## Create the services
 
 1. Push this repository and branch to GitHub.
