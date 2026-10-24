@@ -3,8 +3,9 @@ import { createServer, type Server } from 'http';
 import { config } from './config';
 import { logger, createChildLogger } from './log';
 import { v4 as uuidv4 } from 'uuid';
-import { getDb, query } from './db';
+import { query } from './db';
 import { authenticateToken } from './session';
+import { acknowledgeCallInvite, clearCallInvites, purgeExpiredCallInvites, storeCallInvite } from './call-invites';
 
 interface SignalingMessage {
   type: 'offer' | 'answer' | 'ice-candidate' | 'join' | 'leave' | 'ping' | 'pong' | 'error' | 'new_message' | 'call-end' | 'typing';
@@ -232,11 +233,34 @@ const handleWebRTCSignal = async (fromClientId: string, msg: SignalingMessage): 
   if (!fromClient) return;
 
   const {to,payload}=msg;
-  if(typeof to!=='string'||typeof payload?.conversationId!=='string'||typeof payload?.callId!=='string') return;
+  if(typeof to!=='string'||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(to)||
+      typeof payload?.conversationId!=='string'||
+      typeof payload?.callId!=='string'||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(payload.callId)||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(payload.conversationId)) return;
   const allowed=await query(`SELECT user_id FROM conversation_participants
-    WHERE conversation_id=$1 AND user_id=ANY($2::uuid[]) AND left_at IS NULL`,
-    [payload.conversationId,[fromClient.userId,to]]);
-  if(allowed.rows.length!==2) return;
+    WHERE conversation_id=$1 AND left_at IS NULL`,[payload.conversationId]);
+  const members=allowed.rows.map((row)=>String(row.user_id));
+  if(members.length!==2||!members.includes(fromClient.userId)||!members.includes(to)) return;
+  if (msg.type === 'offer') {
+    if (typeof payload.envelope !== 'string' || payload.envelope.length === 0 || payload.envelope.length > 60_000) return;
+    await storeCallInvite({
+      callId: payload.callId,
+      conversationId: payload.conversationId,
+      senderId: fromClient.userId,
+      recipientId: to,
+      envelope: payload.envelope,
+    });
+  } else if (msg.type === 'answer') {
+    if (typeof payload.envelope !== 'string' || payload.envelope.length === 0 || payload.envelope.length > 60_000) return;
+    await acknowledgeCallInvite(payload.callId, fromClient.userId);
+  } else if (msg.type === 'call-end') {
+    await clearCallInvites(payload.callId);
+  } else if (msg.type === 'ice-candidate' &&
+      (typeof payload.envelope !== 'string' || payload.envelope.length === 0 || payload.envelope.length > 60_000)) {
+    return;
+  }
   broadcastToUser(to,{type:msg.type,payload,from:fromClient.userId,to,timestamp:Date.now()});
 
 };
@@ -264,6 +288,9 @@ const cleanupStaleClients = (): void => {
       handleDisconnect(clientId);
     }
   }
+  void purgeExpiredCallInvites().catch((error) => {
+    log.warn('Could not purge expired call invites', { error: (error as Error).message });
+  });
 };
 
 const send = (ws: WebSocket, msg: SignalingMessage): void => {

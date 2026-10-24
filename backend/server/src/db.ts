@@ -130,6 +130,19 @@ const runMigrations = async (p: Pool): Promise<void> => {
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`,
 
+    `CREATE TABLE IF NOT EXISTS call_invites (
+      call_id UUID NOT NULL,
+      conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+      sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      recipient_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      envelope TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '60 seconds'),
+      PRIMARY KEY (call_id, recipient_id)
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_call_invites_recipient_expiry
+       ON call_invites(recipient_id, expires_at)`,
+
     `CREATE TABLE IF NOT EXISTS onion_nodes (
       id VARCHAR(50) PRIMARY KEY,
       address VARCHAR(100) NOT NULL,

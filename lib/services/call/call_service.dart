@@ -83,7 +83,29 @@ class CallService extends ChangeNotifier {
     },onError:(Object error){ _socket=null; status='Signaling offline'; notifyListeners(); },onDone:(){ _socket=null; });
     socket.sink.add(jsonEncode({'type':'join','payload':{'token':api.authToken,'deviceId':api.deviceId},'from':api.userId,'timestamp':DateTime.now().millisecondsSinceEpoch}));
     await _joined!.future.timeout(const Duration(seconds:15));
+    unawaited(_deliverPendingInvites());
   }
+
+  Future<void> _deliverPendingInvites() async {
+    try {
+      final invites=await api.getIncomingCallInvites();
+      for(final invite in invites) {
+        _signalTail=_signalTail.then((_)=>_handle({
+          'type':'offer','from':invite['senderId'],'payload':{
+            'callId':invite['callId'],'conversationId':invite['conversationId'],
+            'envelope':invite['envelope'],
+          },
+        })).catchError((Object _) {
+          status='Could not restore a pending call';
+          notifyListeners();
+        });
+      }
+      await _signalTail;
+    } catch (_) { /* Signaling remains usable if the optional queue is offline. */ }
+  }
+
+  /// Retry queued offers after the foreground conversation sync.
+  Future<void> checkPendingInvites() => _deliverPendingInvites();
 
   Future<Contact> _peer(String conversationId) async {
     final conversation=(await database.getAllConversations()).where((c)=>c.id==conversationId).firstOrNull;

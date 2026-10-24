@@ -60,6 +60,7 @@ class _HomeShellState extends ConsumerState<HomeShell> with WidgetsBindingObserv
       try { await ref.read(callServiceProvider).ensureConnected(); } catch (_) { /* Messaging can still use REST. */ }
       await ref.read(messagingServiceProvider).retryAllPending();
       final conversations=await ref.read(messagingServiceProvider).sync();
+      await ref.read(callServiceProvider).checkPendingInvites();
       final contacts=await ref.read(localDatabaseProvider).getAllContacts();
       if(!mounted) { return; }
       ref.read(conversationsProvider.notifier).setConversations(conversations);
@@ -97,7 +98,7 @@ class _HomeShellState extends ConsumerState<HomeShell> with WidgetsBindingObserv
       } else { await ref.read(callServiceProvider).reject(incoming); }
     } catch(error) {
       await ref.read(callServiceProvider).end(notifyPeer:false);
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Call failed: $error')));
+      if(mounted) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Call failed: $error'))); }
     } finally { _showingCall=false; }
   }
 

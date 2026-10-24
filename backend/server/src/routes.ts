@@ -7,6 +7,7 @@ import { sendNewMessageNotification, sendCallNotification, registerFCMToken, sub
 import { broadcastToUser } from './signaling';
 import { issueIdentityChallenge, consumeIdentityChallenge } from './identity-proof';
 import { authenticateToken, issueSession, hashCredential, verifyCredential } from './session';
+import { getPendingCallInvites } from './call-invites';
 
 const router = Router();
 const safe = (handler: (req: Request,res: Response,next: NextFunction)=>Promise<unknown>) =>
@@ -524,6 +525,13 @@ router.post('/messages/:messageId/read', authMiddleware, safe(async (req: Reques
   );
 
   res.json({ success: true });
+}));
+
+// Pending encrypted call offers are available only to their intended recipient
+// and expire after the short ring window. Answering/rejecting clears the entry.
+router.get('/calls/incoming', authMiddleware, safe(async (req: Request, res: Response) => {
+  const userId = (req as any).userId;
+  res.json(await getPendingCallInvites(userId));
 }));
 
 // POST /api/v1/devices/link
