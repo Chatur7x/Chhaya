@@ -15,6 +15,7 @@ import 'package:chaaya/core/models/message.dart';
 import 'package:chaaya/core/models/user_profile.dart';
 import 'package:chaaya/services/api/api_service.dart';
 import 'package:chaaya/services/messaging/messaging_service.dart';
+import 'package:chaaya/services/messaging/poll_payload.dart';
 
 class OutboxDatabase extends LocalDatabase {
   late UserProfile profile;
@@ -34,15 +35,21 @@ class OutboxDatabase extends LocalDatabase {
   @override
   List<String> getBlockedContacts() => blocked ? [peer.id] : [];
   @override
-  Future<List<Message>> getMessages(String id) async => messages.values.toList();
+  Future<List<Message>> getMessages(String id) async =>
+      messages.values.toList();
   @override
   Future<String?> loadSessionBlob(String id) async => blobs[id];
   @override
-  Future<void> commitOutgoingMessage(SessionState state, Message message, String envelope) async {
+  Future<void> commitOutgoingMessage(
+    SessionState state,
+    Message message,
+    String envelope,
+  ) async {
     messages[message.id] = message;
     blobs[state.peerId] = jsonEncode(state.toJson());
     blobs['outbox:${message.id}'] = envelope;
   }
+
   @override
   Future<void> commitMessageSent(Message message) async {
     messages[message.id] = message;
@@ -52,48 +59,167 @@ class OutboxDatabase extends LocalDatabase {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  test('a network failure preserves one message; retry reuses its exact envelope and ID', () async {
-    SharedPreferences.setMockInitialValues({'user_id': 'alice'});
-    final storage = SecureStorageMock({'chhaya_auth_token': 'token'});
-    var offline = true;
-    final requests = <Map<String, dynamic>>[];
-    final api = ApiService.forTesting(storage: storage, client: MockClient((request) async {
-      final data = jsonDecode(request.body) as Map<String, dynamic>;
-      requests.add(data);
-      if (offline) throw http.ClientException('offline');
-      return http.Response(jsonEncode({'id': data['messageId'], 'conversation_id': data['conversationId'],
-        'sender_id': 'alice', 'content': data['content'], 'sent_at': DateTime.now().toIso8601String()}), 201);
-    }));
-    await api.init();
-    api.setBaseUrl('https://chat.example.com');
-    final a = await ChhayaCryptoEngine.generateKeyPair(), b = await ChhayaCryptoEngine.generateKeyPair();
-    final keys = KeyManager(secureBackend: SecureStorageMock());
-    await keys.storeKeyPair(a);
-    final db = OutboxDatabase();
-    db.profile = UserProfile(chhayaId: ChhayaId.fromPublicKey('05${a.publicKeyHex}'),
-      displayName: 'Alice', recoveryPhrase: const [], createdAt: DateTime.now());
-    db.peer = Contact(id: 'bob', chhayaId: ChhayaId.fromPublicKey('05${b.publicKeyHex}'), displayName: 'Bob', isVerified: true);
-    db.conversation = Conversation(id: 'conversation', participants: [db.peer], createdAt: DateTime.now());
-    final service = MessagingService(api: api, database: db, keys: keys);
-    await expectLater(service.send(db.conversation, 'only once', replyToId: 'original'),
-      throwsA(isA<MessageQueuedException>()));
-    expect(db.messages.length, 1);
-    expect(db.messages.values.single.isSent, false);
-    expect(db.messages.values.single.replyToId, 'original');
-    final pending = db.messages.values.single;
-    final originalWire = requests.single['content'];
-    db.blocked = true;
-    offline = false;
-    await service.retryPending(db.conversation.id);
-    expect(requests.length, 1, reason: 'Blocking also prevents queued delivery');
-    db.blocked = false;
-    await service.retryPending(db.conversation.id);
-    expect(requests.length, 2);
-    expect(requests.last['content'], originalWire);
-    expect(requests.last['messageId'], pending.id);
-    expect(db.messages.values.single.isSent, true);
-    expect(db.blobs.containsKey('outbox:${pending.id}'), false);
-    await service.retryPending(db.conversation.id);
-    expect(requests.length, 2);
-  });
+  test(
+    'a network failure preserves one message; retry reuses its exact envelope and ID',
+    () async {
+      SharedPreferences.setMockInitialValues({'user_id': 'alice'});
+      final storage = SecureStorageMock({'chhaya_auth_token': 'token'});
+      var offline = true;
+      final requests = <Map<String, dynamic>>[];
+      final api = ApiService.forTesting(
+        storage: storage,
+        client: MockClient((request) async {
+          final data = jsonDecode(request.body) as Map<String, dynamic>;
+          requests.add(data);
+          if (offline) throw http.ClientException('offline');
+          return http.Response(
+            jsonEncode({
+              'id': data['messageId'],
+              'conversation_id': data['conversationId'],
+              'sender_id': 'alice',
+              'content': data['content'],
+              'sent_at': DateTime.now().toIso8601String(),
+            }),
+            201,
+          );
+        }),
+      );
+      await api.init();
+      api.setBaseUrl('https://chat.example.com');
+      final a = await ChhayaCryptoEngine.generateKeyPair(),
+          b = await ChhayaCryptoEngine.generateKeyPair();
+      final keys = KeyManager(secureBackend: SecureStorageMock());
+      await keys.storeKeyPair(a);
+      final db = OutboxDatabase();
+      db.profile = UserProfile(
+        chhayaId: ChhayaId.fromPublicKey('05${a.publicKeyHex}'),
+        displayName: 'Alice',
+        recoveryPhrase: const [],
+        createdAt: DateTime.now(),
+      );
+      db.peer = Contact(
+        id: 'bob',
+        chhayaId: ChhayaId.fromPublicKey('05${b.publicKeyHex}'),
+        displayName: 'Bob',
+        isVerified: true,
+      );
+      db.conversation = Conversation(
+        id: 'conversation',
+        participants: [db.peer],
+        createdAt: DateTime.now(),
+      );
+      final service = MessagingService(api: api, database: db, keys: keys);
+      await expectLater(
+        service.send(db.conversation, 'only once', replyToId: 'original'),
+        throwsA(isA<MessageQueuedException>()),
+      );
+      expect(db.messages.length, 1);
+      expect(db.messages.values.single.isSent, false);
+      expect(db.messages.values.single.replyToId, 'original');
+      final pending = db.messages.values.single;
+      final originalWire = requests.single['content'];
+      db.blocked = true;
+      offline = false;
+      await service.retryPending(db.conversation.id);
+      expect(
+        requests.length,
+        1,
+        reason: 'Blocking also prevents queued delivery',
+      );
+      db.blocked = false;
+      await service.retryPending(db.conversation.id);
+      expect(requests.length, 2);
+      expect(requests.last['content'], originalWire);
+      expect(requests.last['messageId'], pending.id);
+      expect(db.messages.values.single.isSent, true);
+      expect(db.blobs.containsKey('outbox:${pending.id}'), false);
+      await service.retryPending(db.conversation.id);
+      expect(requests.length, 2);
+    },
+  );
+
+  test(
+    'poll definitions and votes send encrypted; invalid votes never reach transport',
+    () async {
+      SharedPreferences.setMockInitialValues({'user_id': 'alice'});
+      final storage = SecureStorageMock({'chhaya_auth_token': 'token'});
+      final requests = <Map<String, dynamic>>[];
+      final api = ApiService.forTesting(
+        storage: storage,
+        client: MockClient((request) async {
+          final data = jsonDecode(request.body) as Map<String, dynamic>;
+          requests.add(data);
+          return http.Response(
+            jsonEncode({
+              'id': data['messageId'],
+              'conversation_id': data['conversationId'],
+              'sender_id': 'alice',
+              'content': data['content'],
+              'sent_at': DateTime.now().toIso8601String(),
+            }),
+            201,
+          );
+        }),
+      );
+      await api.init();
+      api.setBaseUrl('https://chat.example.com');
+      final a = await ChhayaCryptoEngine.generateKeyPair(),
+          b = await ChhayaCryptoEngine.generateKeyPair();
+      final keys = KeyManager(secureBackend: SecureStorageMock());
+      await keys.storeKeyPair(a);
+      final db = OutboxDatabase();
+      db.profile = UserProfile(
+        chhayaId: ChhayaId.fromPublicKey('05${a.publicKeyHex}'),
+        displayName: 'Alice',
+        recoveryPhrase: const [],
+        createdAt: DateTime.now(),
+      );
+      db.peer = Contact(
+        id: 'bob',
+        chhayaId: ChhayaId.fromPublicKey('05${b.publicKeyHex}'),
+        displayName: 'Bob',
+        isVerified: true,
+      );
+      db.conversation = Conversation(
+        id: 'conversation',
+        participants: [db.peer],
+        createdAt: DateTime.now(),
+      );
+      final service = MessagingService(api: api, database: db, keys: keys);
+      final poll = PollPayload.create(
+        question: 'Private question',
+        labels: ['Cafe', 'Park'],
+        allowMultiple: false,
+      );
+      await service.send(
+        db.conversation,
+        poll.encode(),
+        type: MessageType.poll,
+      );
+      expect(requests.single['content'], isNot(contains('Private question')));
+      final vote = PollVote(
+        pollId: poll.id,
+        optionIds: [poll.options.first.id],
+      );
+      await service.send(
+        db.conversation,
+        vote.encode(),
+        type: MessageType.poll,
+      );
+      expect(requests.length, 2);
+      final invalid = PollVote(
+        pollId: poll.id,
+        optionIds: ['${poll.options.first.id.substring(0, 35)}0000'],
+      );
+      await expectLater(
+        service.send(db.conversation, invalid.encode(), type: MessageType.poll),
+        throwsFormatException,
+      );
+      expect(
+        requests.length,
+        2,
+        reason: 'invalid vote must not enter transport',
+      );
+    },
+  );
 }

@@ -1,5 +1,7 @@
+import 'dart:convert';
 import '../../core/models/message.dart';
 import '../../core/models/message_attachment.dart';
+import 'poll_payload.dart';
 
 /// Versioned content fields are authenticated inside the ratchet envelope.
 /// Older text envelopes without these optional fields remain readable.
@@ -12,7 +14,8 @@ class MessagePayload {
       'type': message.type.name,
       if (message.ttl != null) 'ttlMs': message.ttl!.inMilliseconds,
       if (message.replyToId != null) 'replyToId': message.replyToId,
-      if (message.attachment != null) 'attachment': message.attachment!.toJson(),
+      if (message.attachment != null)
+        'attachment': message.attachment!.toJson(),
     };
     decode(message, payload); // Validate before advancing encryption state.
     return payload;
@@ -23,8 +26,10 @@ class MessagePayload {
     final rawType = payload['type'] ?? 'text';
     final reply = payload['replyToId'];
     final ttl = payload['ttlMs'];
-    if (content is! String || content.length > maxTextLength ||
-        (reply != null && (reply is! String || reply.isEmpty || reply.length > 128)) ||
+    if (content is! String ||
+        content.length > maxTextLength ||
+        (reply != null &&
+            (reply is! String || reply.isEmpty || reply.length > 128)) ||
         (ttl != null && (ttl is! int || ttl <= 0 || ttl > 604800000))) {
       throw const FormatException('Invalid message content');
     }
@@ -33,22 +38,51 @@ class MessagePayload {
       'image' => MessageType.image,
       'file' => MessageType.file,
       'voice' => MessageType.voice,
+      'poll' => MessageType.poll,
       _ => throw const FormatException('Unsupported encrypted message type'),
     };
     final rawAttachment = payload['attachment'];
-    final attachment = rawAttachment == null ? null : MessageAttachment.fromJson(
-      Map<String, dynamic>.from(rawAttachment as Map));
-    if ((type == MessageType.text && (attachment != null || content.trim().isEmpty)) ||
-        (type != MessageType.text && attachment == null) ||
+    final attachment =
+        rawAttachment == null
+            ? null
+            : MessageAttachment.fromJson(
+              Map<String, dynamic>.from(rawAttachment as Map),
+            );
+    if (type == MessageType.poll) {
+      if (attachment != null) {
+        throw const FormatException('Polls cannot contain attachments');
+      }
+      final poll = jsonDecode(content) as Map<String, dynamic>;
+      if (poll['kind'] == 'definition') {
+        PollPayload.validateDefinition(poll);
+      } else if (poll['kind'] == 'vote') {
+        PollPayload.decodeVote(poll);
+      } else {
+        throw const FormatException('Invalid poll payload');
+      }
+    }
+    if ((type == MessageType.text &&
+            (attachment != null || content.trim().isEmpty)) ||
+        (type != MessageType.text &&
+            type != MessageType.poll &&
+            attachment == null) ||
         (type == MessageType.image && !attachment!.isPreviewableImage) ||
         (type == MessageType.voice && attachment!.mimeType != 'audio/aac')) {
       throw const FormatException('Message type does not match its content');
     }
-    return Message(id: envelope.id, conversationId: envelope.conversationId,
-      senderId: envelope.senderId, content: content, type: type,
-      timestamp: envelope.timestamp, isRead: envelope.isRead,
-      isDelivered: envelope.isDelivered, isSent: envelope.isSent,
-      replyToId: reply as String?, attachment: attachment,
-      ttl: ttl == null ? null : Duration(milliseconds: ttl as int));
+    return Message(
+      id: envelope.id,
+      conversationId: envelope.conversationId,
+      senderId: envelope.senderId,
+      content: content,
+      type: type,
+      timestamp: envelope.timestamp,
+      isRead: envelope.isRead,
+      isDelivered: envelope.isDelivered,
+      isSent: envelope.isSent,
+      replyToId: reply as String?,
+      attachment: attachment,
+      ttl: ttl == null ? null : Duration(milliseconds: ttl as int),
+    );
   }
 }
