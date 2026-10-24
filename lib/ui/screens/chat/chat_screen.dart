@@ -55,7 +55,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   Future<void> _typingSignalTail = Future.value();
   bool _localTypingActive = false;
   final bool _steganoMode = false;
-  int _ttlMinutes = 0;
+  // 0 inherits the global setting, -1 disables expiry, positive values override.
+  int _ttlSeconds = 0;
   Timer? _refreshTimer;
   bool _sending = false;
   bool _refreshing = false;
@@ -68,6 +69,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   @override
   void initState() {
     super.initState();
+    final savedTtl = ref
+        .read(localDatabaseProvider)
+        .getConversationTtl(widget.conversationId);
+    _ttlSeconds = savedTtl;
     WidgetsBinding.instance.addObserver(this);
     _msgCtrl.addListener(_handleDraftChanged);
     _listenForTyping();
@@ -334,7 +339,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           .send(
             conversation,
             text,
-            ttl: _ttlMinutes > 0 ? Duration(minutes: _ttlMinutes) : null,
+            ttl: _ttlSeconds > 0 ? Duration(seconds: _ttlSeconds) : null,
+            disableTtl: _ttlSeconds == -1,
             replyToId: reply?.id,
             attachment: attachment,
             type:
@@ -423,7 +429,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           .send(
             conversation,
             content,
-            ttl: _ttlMinutes > 0 ? Duration(minutes: _ttlMinutes) : null,
+            ttl: _ttlSeconds > 0 ? Duration(seconds: _ttlSeconds) : null,
+            disableTtl: _ttlSeconds == -1,
             type: MessageType.poll,
           );
       await _loadMessages();
@@ -1205,7 +1212,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   );
 
   void _showTtlSheet() {
-    const options = [0, 1, 5, 30, 60, 1440];
+    const options = [0, -1, 60, 300, 1800, 3600, 86400];
     ChhayaMotion.sheet<void>(
       context,
       (_) => Padding(
@@ -1228,10 +1235,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               final label =
                   m == 0
                       ? 'Use global default'
-                      : m == 1440
+                      : m == -1
+                      ? 'Never'
+                      : m == 86400
                       ? '24 hours'
-                      : '$m minute${m > 1 ? 's' : ''}';
-              final selected = _ttlMinutes == m;
+                      : m == 3600
+                      ? '1 hour'
+                      : '${m ~/ 60} minute${m > 60 ? 's' : ''}';
+              final selected = _ttlSeconds == m;
               return ListTile(
                 dense: true,
                 title: Text(label, style: ChhayaType.of(context).bodyMedium),
@@ -1246,8 +1257,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(ChhayaRadius.md),
                 ),
-                onTap: () {
-                  setState(() => _ttlMinutes = m);
+                onTap: () async {
+                  try {
+                    await ref
+                        .read(localDatabaseProvider)
+                        .setConversationTtl(widget.conversationId, m);
+                  } catch (_) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Could not save this chat timer.'),
+                        ),
+                      );
+                    }
+                    return;
+                  }
+                  if (!mounted) return;
+                  setState(() => _ttlSeconds = m);
                   ChhayaHaptics.selection();
                   Navigator.pop(context);
                 },

@@ -62,6 +62,7 @@ class MessagingService {
     Conversation conversation,
     String text, {
     Duration? ttl,
+    bool disableTtl = false,
     String? replyToId,
     MessageAttachment? attachment,
     MessageType type = MessageType.text,
@@ -77,6 +78,7 @@ class MessagingService {
         conversation,
         text,
         ttl: ttl,
+        disableTtl: disableTtl,
         replyToId: replyToId,
         attachment: attachment,
         type: type,
@@ -93,7 +95,9 @@ class MessagingService {
     }
     final globalTtl = database.getGlobalDisappearingDuration();
     final effectiveTtl =
-        ttl ?? (globalTtl > 0 ? Duration(seconds: globalTtl) : null);
+        disableTtl
+            ? null
+            : ttl ?? (globalTtl > 0 ? Duration(seconds: globalTtl) : null);
     final message = Message(
       id: const Uuid().v4(),
       conversationId: conversation.id,
@@ -127,6 +131,7 @@ class MessagingService {
     Conversation conversation,
     String text, {
     Duration? ttl,
+    bool disableTtl = false,
     String? replyToId,
     MessageAttachment? attachment,
     required MessageType type,
@@ -161,10 +166,14 @@ class MessagingService {
       timestamp: DateTime.now(),
       isSent: false,
       ttl:
-          ttl ??
-          (database.getGlobalDisappearingDuration() > 0
-              ? Duration(seconds: database.getGlobalDisappearingDuration())
-              : null),
+          disableTtl
+              ? null
+              : ttl ??
+                  (database.getGlobalDisappearingDuration() > 0
+                      ? Duration(
+                        seconds: database.getGlobalDisappearingDuration(),
+                      )
+                      : null),
       replyToId: replyToId,
       attachment: attachment,
       type: type,

@@ -22,6 +22,7 @@ class OutboxDatabase extends LocalDatabase {
   late Conversation conversation;
   late Contact peer;
   bool blocked = false;
+  int globalTtlSeconds = 0;
   final messages = <String, Message>{};
   final blobs = <String, String>{};
   @override
@@ -31,7 +32,7 @@ class OutboxDatabase extends LocalDatabase {
   @override
   Future<Contact?> getContact(String id) async => peer;
   @override
-  int getGlobalDisappearingDuration() => 0;
+  int getGlobalDisappearingDuration() => globalTtlSeconds;
   @override
   List<String> getBlockedContacts() => blocked ? [peer.id] : [];
   @override
@@ -220,6 +221,65 @@ void main() {
         2,
         reason: 'invalid vote must not enter transport',
       );
+    },
+  );
+
+  test(
+    'per-message TTL can inherit, override, or disable the global timer',
+    () async {
+      SharedPreferences.setMockInitialValues({'user_id': 'alice'});
+      final api = ApiService.forTesting(
+        storage: SecureStorageMock({'chhaya_auth_token': 'token'}),
+        client: MockClient((request) async {
+          final data = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response(
+            jsonEncode({
+              'id': data['messageId'],
+              'conversation_id': data['conversationId'],
+              'sender_id': 'alice',
+              'content': data['content'],
+              'sent_at': DateTime.now().toIso8601String(),
+            }),
+            201,
+          );
+        }),
+      );
+      await api.init();
+      api.setBaseUrl('https://chat.example.com');
+      final a = await ChhayaCryptoEngine.generateKeyPair();
+      final b = await ChhayaCryptoEngine.generateKeyPair();
+      final keys = KeyManager(secureBackend: SecureStorageMock());
+      await keys.storeKeyPair(a);
+      final db = OutboxDatabase();
+      db.profile = UserProfile(
+        chhayaId: ChhayaId.fromPublicKey('05${a.publicKeyHex}'),
+        displayName: 'Alice',
+        recoveryPhrase: const [],
+        createdAt: DateTime.now(),
+      );
+      db.peer = Contact(
+        id: 'bob',
+        chhayaId: ChhayaId.fromPublicKey('05${b.publicKeyHex}'),
+        displayName: 'Bob',
+        isVerified: true,
+      );
+      db.conversation = Conversation(
+        id: 'conversation',
+        participants: [db.peer],
+        createdAt: DateTime.now(),
+      );
+      db.globalTtlSeconds = 3600;
+      final service = MessagingService(api: api, database: db, keys: keys);
+      await service.send(db.conversation, 'inherits global timer');
+      expect(db.messages.values.last.ttl, const Duration(hours: 1));
+      await service.send(
+        db.conversation,
+        'per-message override',
+        ttl: const Duration(minutes: 3),
+      );
+      expect(db.messages.values.last.ttl, const Duration(minutes: 3));
+      await service.send(db.conversation, 'explicitly never', disableTtl: true);
+      expect(db.messages.values.last.ttl, isNull);
     },
   );
 }

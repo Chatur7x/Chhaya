@@ -18,6 +18,8 @@ The API stores opaque envelopes and routing metadata. Foreground polling synchro
 
 Poll definitions and vote changes are typed payloads inside the same E2EE ratchet envelopes. Clients enforce bounded question/option fields, validate choices against the poll definition, reject votes after the close time, and render aggregate totals from the latest authenticated vote per account. The server sees only ciphertext. Poll history and multi-device vote reconciliation still need real-device validation.
 
+Disappearing-message choices are stored in the locally encrypted settings payload as inherit-global, never, or a duration, keyed by conversation ID. The chosen duration is authenticated inside each message's encrypted payload. These preferences do not synchronize between devices, and the server retains opaque ciphertext until its normal retention policy removes it; no per-message ciphertext deletion job is implemented yet.
+
 Basic group messaging encrypts each message body once with a fresh content key, then wraps that key separately to every verified group member using that member's pairwise ratchet. The sender commits all ratchet advances, the message row, and the exact retry envelope in one local SQLCipher transaction. The server enforces that group participants are active contacts at creation. Membership changes, admin controls, join/leave key rotation, and recipient-side verification/acceptance UX are not implemented; recipients must already have independently verified each sender.
 
 ## Calls and optional infrastructure

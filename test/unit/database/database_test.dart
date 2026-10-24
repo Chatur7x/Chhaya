@@ -62,8 +62,7 @@ class FakeDatabaseOpener implements DatabaseOpener {
   }
 }
 
-KeyManager makeKeyManager() =>
-    KeyManager(secureBackend: SecureStorageMock());
+KeyManager makeKeyManager() => KeyManager(secureBackend: SecureStorageMock());
 
 Future<LocalDatabase> makeDb(FakeDatabaseOpener opener) async {
   final keyManager = makeKeyManager();
@@ -92,7 +91,8 @@ Contact makeContact(String id, [String name = 'Alice']) {
   return Contact(
     id: id,
     chhayaId: ChhayaId.fromPublicKey(
-        'a1b2c3d4e5f60718293a4b5c6d7e8f901234567890abcdef1234567890abcdef12'),
+      'a1b2c3d4e5f60718293a4b5c6d7e8f901234567890abcdef1234567890abcdef12',
+    ),
     displayName: name,
   );
 }
@@ -108,7 +108,8 @@ Conversation makeConversation(String id, [List<Contact>? participants]) {
 UserProfile makeProfile() {
   return UserProfile(
     chhayaId: ChhayaId.fromPublicKey(
-        'a1b2c3d4e5f60718293a4b5c6d7e8f901234567890abcdef1234567890abcdef12'),
+      'a1b2c3d4e5f60718293a4b5c6d7e8f901234567890abcdef1234567890abcdef12',
+    ),
     displayName: 'Test User',
     recoveryPhrase: const ['abandon', 'ability', 'able'],
     createdAt: DateTime.fromMillisecondsSinceEpoch(1700000000000),
@@ -120,32 +121,47 @@ void main() {
     sqfliteFfiInit();
   });
 
-  test('outgoing commit rolls back every row if the outbox write fails', () async {
-    final opener=FakeDatabaseOpener();
-    final db=await makeDb(opener);
-    addTearDown(db.close);
-    await db.addConversation(makeConversation('atomic'));
-    final key=Uint8List(32);
-    final state=SessionState(peerId:'peer',initiatedByUs:true,
-      rootKey:key,sendChainKey:key,recvChainKey:key,ourPrivateKey:key,
-      ourPublicKey:key,remotePublicKey:key,spqrSeed:key);
-    final message=makeMessage('pending','atomic').copyWith(isSent:false);
-    await opener.opened!.execute(
-      "CREATE TRIGGER reject_outbox BEFORE INSERT ON kv WHEN NEW.key LIKE '%outbox:%' BEGIN SELECT RAISE(ABORT, 'disk failure'); END");
-    await expectLater(db.commitOutgoingMessage(state,message,'ciphertext'),throwsA(anything));
-    expect(await db.getMessages('atomic'),isEmpty);
-    expect(await db.loadSessionBlob('peer'),isNull);
-    expect(await db.loadSessionBlob('outbox:pending'),isNull);
-    await opener.opened!.execute('DROP TRIGGER reject_outbox');
-    await db.commitOutgoingMessage(state,message,'ciphertext');
-    expect((await db.getMessages('atomic')).single.isSent,isFalse);
-    expect(await db.loadSessionBlob('peer'),isNotNull);
-    expect(await db.loadSessionBlob('outbox:pending'),'ciphertext');
-    await db.commitMessageSent(message.copyWith(isSent:true));
-    expect((await db.getMessages('atomic')).single.isSent,isTrue);
-    expect(await db.loadSessionBlob('outbox:pending'),isNull);
-    state.wipe();
-  });
+  test(
+    'outgoing commit rolls back every row if the outbox write fails',
+    () async {
+      final opener = FakeDatabaseOpener();
+      final db = await makeDb(opener);
+      addTearDown(db.close);
+      await db.addConversation(makeConversation('atomic'));
+      final key = Uint8List(32);
+      final state = SessionState(
+        peerId: 'peer',
+        initiatedByUs: true,
+        rootKey: key,
+        sendChainKey: key,
+        recvChainKey: key,
+        ourPrivateKey: key,
+        ourPublicKey: key,
+        remotePublicKey: key,
+        spqrSeed: key,
+      );
+      final message = makeMessage('pending', 'atomic').copyWith(isSent: false);
+      await opener.opened!.execute(
+        "CREATE TRIGGER reject_outbox BEFORE INSERT ON kv WHEN NEW.key LIKE '%outbox:%' BEGIN SELECT RAISE(ABORT, 'disk failure'); END",
+      );
+      await expectLater(
+        db.commitOutgoingMessage(state, message, 'ciphertext'),
+        throwsA(anything),
+      );
+      expect(await db.getMessages('atomic'), isEmpty);
+      expect(await db.loadSessionBlob('peer'), isNull);
+      expect(await db.loadSessionBlob('outbox:pending'), isNull);
+      await opener.opened!.execute('DROP TRIGGER reject_outbox');
+      await db.commitOutgoingMessage(state, message, 'ciphertext');
+      expect((await db.getMessages('atomic')).single.isSent, isFalse);
+      expect(await db.loadSessionBlob('peer'), isNotNull);
+      expect(await db.loadSessionBlob('outbox:pending'), 'ciphertext');
+      await db.commitMessageSent(message.copyWith(isSent: true));
+      expect((await db.getMessages('atomic')).single.isSent, isTrue);
+      expect(await db.loadSessionBlob('outbox:pending'), isNull);
+      state.wipe();
+    },
+  );
 
   group('Database key', () {
     test('derivation is deterministic per user', () async {
@@ -160,8 +176,7 @@ void main() {
       Csprng.wipe(c);
     });
 
-    test('pragma hex is 64 lowercase hex chars, rejects bad keys',
-        () async {
+    test('pragma hex is 64 lowercase hex chars, rejects bad keys', () async {
       final km = makeKeyManager();
       final key = await DatabaseKey.derive(km, userId: 'user-1');
       final hex = DatabaseKey.toPragmaHex(key);
@@ -260,10 +275,7 @@ void main() {
       final opener = FakeDatabaseOpener();
       await makeDb(opener);
       expect(opener.passwordHex, isNotNull);
-      expect(
-        RegExp(r'^[0-9a-f]{64}$').hasMatch(opener.passwordHex!),
-        isTrue,
-      );
+      expect(RegExp(r'^[0-9a-f]{64}$').hasMatch(opener.passwordHex!), isTrue);
     });
 
     test('hardening pragmas recorded, no WAL anywhere', () async {
@@ -271,18 +283,13 @@ void main() {
       await makeDb(opener);
       expect(opener.pragmas, kHardeningPragmas);
       expect(
-        opener.pragmas
-            .every((statement) => !statement.toLowerCase().contains('wal')),
+        opener.pragmas.every(
+          (statement) => !statement.toLowerCase().contains('wal'),
+        ),
         isTrue,
       );
-      expect(
-        kHardeningPragmas,
-        contains('PRAGMA journal_mode = DELETE'),
-      );
-      expect(
-        kHardeningPragmas,
-        contains('PRAGMA cipher_memory_security = ON'),
-      );
+      expect(kHardeningPragmas, contains('PRAGMA journal_mode = DELETE'));
+      expect(kHardeningPragmas, contains('PRAGMA cipher_memory_security = ON'));
     });
   });
 
@@ -319,7 +326,8 @@ void main() {
       expect(convos.first.participants.length, 1);
       expect(convos.first.participants.first.displayName, 'Alice');
       await db.updateConversation(
-          makeConversation('convo-1').copyWith(isPinned: true));
+        makeConversation('convo-1').copyWith(isPinned: true),
+      );
       expect((await db.getAllConversations()).first.isPinned, isTrue);
       await db.deleteConversation('convo-1');
       expect(await db.getAllConversations(), isEmpty);
@@ -341,6 +349,53 @@ void main() {
       expect((await db.getMessages('c2')).length, 1);
     });
 
+    test(
+      'expired messages are purged from history, search, and retry outbox',
+      () async {
+        final db = await makeDb(FakeDatabaseOpener());
+        final expired = makeMessage(
+          'expired-history',
+          'c1',
+          'expired secret',
+        ).copyWith(ttl: const Duration(seconds: 1), isSent: false);
+        await db.addMessage(expired);
+        await db.saveSessionBlob('outbox:${expired.id}', 'ciphertext');
+        expect(await db.getMessages('c1'), isEmpty);
+        expect(await db.loadSessionBlob('outbox:${expired.id}'), isNull);
+
+        final expiredSearch = makeMessage(
+          'expired-search',
+          'c2',
+          'search secret',
+        ).copyWith(ttl: const Duration(seconds: 1));
+        await db.addMessage(expiredSearch);
+        await db.saveSessionBlob('outbox:${expiredSearch.id}', 'ciphertext');
+        expect(await db.searchMessages('search secret'), isEmpty);
+        expect(await db.loadSessionBlob('outbox:${expiredSearch.id}'), isNull);
+        await db.close();
+      },
+    );
+
+    test(
+      'expired conversation preview is removed from its persisted payload',
+      () async {
+        final db = await makeDb(FakeDatabaseOpener());
+        final preview = makeMessage(
+          'expired-preview',
+          'c1',
+          'private preview',
+        ).copyWith(ttl: const Duration(seconds: 1));
+        await db.addConversation(
+          makeConversation('c1').copyWith(lastMessage: preview),
+        );
+        final firstRead = await db.getAllConversations();
+        expect(firstRead.single.lastMessage, isNull);
+        final secondRead = await db.getAllConversations();
+        expect(secondRead.single.lastMessage, isNull);
+        await db.close();
+      },
+    );
+
     test('settings toggles persist', () async {
       final db = await makeDb(FakeDatabaseOpener());
       expect(db.getBiometricLockEnabled(), isTrue);
@@ -358,6 +413,12 @@ void main() {
       expect(db.getAppPin(), '1234');
       await db.setConversationTtl('c1', 3600);
       expect(db.getConversationTtl('c1'), 3600);
+      await db.preloadSettings();
+      expect(db.getConversationTtl('c1'), 3600);
+      await db.setConversationTtl('c1', -1);
+      expect(db.getConversationTtl('c1'), -1);
+      await db.setConversationTtl('c1', 0);
+      expect(db.getConversationTtl('c1'), 0);
     });
 
     test('linked devices round-trip with encrypted tokens', () async {
