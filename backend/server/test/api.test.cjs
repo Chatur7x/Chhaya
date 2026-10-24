@@ -168,6 +168,19 @@ test('real API: registration, authentication, conversations, messages, isolation
     const offer=await relayed;
     assert.equal(offer.from,alice.userId);
     assert.equal(offer.payload.envelope,'opaque-encrypted-sdp');
+    assert.equal((await req('GET','/calls/incoming',null)).status,401);
+    const pendingCalls=await req('GET','/calls/incoming',null,bob.token);
+    assert.equal(pendingCalls.status,200);
+    assert.equal(pendingCalls.data.length,1);
+    assert.equal(pendingCalls.data[0].callId,offer.payload.callId);
+    assert.equal(pendingCalls.data[0].conversationId,cid);
+    assert.equal(pendingCalls.data[0].senderId,alice.userId);
+    assert.equal(pendingCalls.data[0].envelope,'opaque-encrypted-sdp');
+    assert.equal((await req('GET','/calls/incoming',null,outsider.token)).data.length,0);
+    const answerRelayed=waitMessage(aliceSocket,msg=>msg.type==='answer'&&msg.payload.callId===offer.payload.callId);
+    bobSocket.send(JSON.stringify({type:'answer',to:alice.userId,payload:{conversationId:cid,callId:offer.payload.callId,envelope:'opaque-encrypted-answer'}}));
+    await answerRelayed;
+    assert.equal((await req('GET','/calls/incoming',null,bob.token)).data.length,0);
 
     const sent=await req('POST','/messages',{conversationId:cid,content:'opaque-encrypted-envelope'},alice.token);
     assert.equal(sent.status,201);
