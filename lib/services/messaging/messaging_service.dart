@@ -386,8 +386,25 @@ class MessagingService {
             if (sender == null || !sender.isVerified) continue;
             final keys = Map<String, dynamic>.from(wire['keys'] as Map);
             final recipientEnvelope = keys[api.userId];
-            // A member added later has no key wrapper for historical messages.
-            if (recipientEnvelope is! String) continue;
+            // Preserve a visible gap for historical records with no key
+            // wrapper for this device instead of silently dropping them.
+            if (recipientEnvelope is! String) {
+              await database.addMessage(
+                Message(
+                  id: message.id,
+                  conversationId: conversation.id,
+                  senderId: '__system__',
+                  content:
+                      'This encrypted message is unavailable in this device’s history.',
+                  type: MessageType.system,
+                  timestamp: message.timestamp,
+                  isSent: true,
+                  isDelivered: true,
+                  isRead: true,
+                ),
+              );
+              continue;
+            }
             await codec.decrypt(
               sender,
               conversation.id,

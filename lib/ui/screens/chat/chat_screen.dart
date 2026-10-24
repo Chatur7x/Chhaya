@@ -849,6 +849,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   Widget _buildMessageBubble(Message msg, int index) {
+    if (msg.type == MessageType.system) {
+      return Semantics(
+        label: msg.content,
+        child: Container(
+          alignment: Alignment.center,
+          margin: const EdgeInsets.symmetric(vertical: ChhayaSpacing.space3),
+          padding: const EdgeInsets.symmetric(
+            horizontal: ChhayaSpacing.space4,
+            vertical: ChhayaSpacing.space2,
+          ),
+          decoration: BoxDecoration(
+            color: ChhayaPalette.of(context).cardSurface,
+            borderRadius: BorderRadius.circular(ChhayaRadius.pill),
+          ),
+          child: Text(
+            msg.content,
+            textAlign: TextAlign.center,
+            style: ChhayaType.of(
+              context,
+            ).labelMedium.copyWith(color: ChhayaPalette.of(context).inkMuted),
+          ),
+        ),
+      );
+    }
     final isSent = _isSent(msg);
     final visible = _visibleMessages;
     final showTail = index == 0 || _isSent(visible[index - 1]) != isSent;
