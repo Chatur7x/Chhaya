@@ -6,7 +6,7 @@ Chhaya is a Flutter Android/iOS messenger with a Node/Express API, PostgreSQL pe
 
 The onboarding flow creates a BIP-39 recovery phrase. AccountIdentity deterministically derives the X25519 identity used in the public Chhaya ID. KeyManager stores identity roots through platform secure storage; Android uses a Keystore wrapping key and iOS attempts Secure Enclave wrapping with a documented Keychain fallback. Hardware behavior requires device verification.
 
-LocalDatabase uses SQLCipher and encrypted payload columns for messages, contacts, profiles, and ratchet state. Migration versions are explicit. LocalDatabaseSessionStorage adapts persisted ratchet state to the messaging codec. The database and key stores are separate persistence systems; account restore does not yet offer an atomic transaction across both.
+LocalDatabase uses SQLCipher and encrypted payload columns for messages, contacts, profiles, and ratchet state. Migration versions are explicit. LocalDatabaseSessionStorage adapts persisted ratchet state to the messaging codec. Backup restore validates that the decrypted keypair matches the recovery phrase, then replaces the local account snapshot in one SQLCipher transaction; old ratchets and queued ciphertext are discarded instead of cloned. Keychain/Keystore and SQLCipher are separate stores, so credential rollback is compensating rather than a single cross-store atomic commit. Restored contacts need fresh pairwise session establishment before messaging resumes.
 
 ## Messaging path
 

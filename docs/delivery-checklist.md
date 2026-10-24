@@ -35,7 +35,7 @@ hosted service, Apple membership or external audit is assumed.
 | Hardware key wrapping | Android Keystore; iOS Enclave attempt/Keychain fallback | Report actual device capabilities; never promise universal StrongBox |
 | App/device lock | Authentication gate and PIN handling | Background/race/device tests |
 | Panic PIN | Local data/key removal | Physical-device validation and documented remote-copy limits |
-| Encrypted backup | Versioned export/import | Atomic restore strategy and safe conversation-session recovery; avoid cloned ratchet state |
+| Encrypted backup | Version 2 encrypted export; phrase-derived identity validation; SQLCipher transaction replaces profile/contacts/conversations/messages; old ratchets and outbox are cleared rather than cloned; credentials are compensating-rolled-back if import fails | Native Keychain/Keystore plus database failure tests, device recovery flows, and UX to re-establish messaging sessions after restore |
 | Multi-device pairing/revocation | Incomplete enrollment scaffolding | Authenticated key transfer, per-device sessions, revocation propagation and recovery |
 | Onion transport | Experimental legacy code, disabled | Reviewed key establishment, relay deployment, circuit lifecycle and traffic analysis |
 | Arke/Shadow Codes | Not implemented | Protocol specification, unlinkability analysis, integration and external review |

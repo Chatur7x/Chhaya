@@ -396,6 +396,71 @@ void main() {
       },
     );
 
+    test(
+      'backup snapshot replacement rolls back all rows on import failure',
+      () async {
+        final opener = FakeDatabaseOpener();
+        final db = await makeDb(opener);
+        await db.saveUserProfile(makeProfile());
+        await db.addContact(makeContact('before', 'Before'));
+        await db.addConversation(makeConversation('before-conversation'));
+        await db.addMessage(
+          makeMessage('before-message', 'before-conversation'),
+        );
+        await opener.opened!.execute(
+          "CREATE TRIGGER reject_snapshot_message BEFORE INSERT ON messages BEGIN SELECT RAISE(ABORT, 'simulated disk failure'); END",
+        );
+
+        await expectLater(
+          db.replaceAccountSnapshot(
+            profile: makeProfile().copyWith(displayName: 'Replacement'),
+            contacts: [makeContact('after', 'After')],
+            conversations: [makeConversation('after-conversation')],
+            messages: [makeMessage('after-message', 'after-conversation')],
+          ),
+          throwsA(anything),
+        );
+
+        expect((await db.getUserProfile())!.displayName, 'Test User');
+        expect((await db.getAllContacts()).single.id, 'before');
+        expect(
+          (await db.getAllConversations()).single.id,
+          'before-conversation',
+        );
+        expect(
+          (await db.getMessages('before-conversation')).single.id,
+          'before-message',
+        );
+        expect(await db.getAllConversations(), hasLength(1));
+        await db.close();
+      },
+    );
+
+    test(
+      'backup snapshot import clears old ratchets and pending envelopes',
+      () async {
+        final db = await makeDb(FakeDatabaseOpener());
+        await db.saveSessionBlob('peer', '{"old":"ratchet"}');
+        await db.saveSessionBlob('outbox:old-message', 'old-ciphertext');
+        final conversation = makeConversation('restored-conversation');
+        await db.replaceAccountSnapshot(
+          profile: makeProfile(),
+          contacts: [makeContact('restored-contact')],
+          conversations: [conversation],
+          messages: [makeMessage('restored-message', conversation.id)],
+        );
+
+        expect(await db.loadSessionBlob('peer'), isNull);
+        expect(await db.loadSessionBlob('outbox:old-message'), isNull);
+        expect((await db.getAllContacts()).single.id, 'restored-contact');
+        expect(
+          (await db.getMessages(conversation.id)).single.id,
+          'restored-message',
+        );
+        await db.close();
+      },
+    );
+
     test('settings toggles persist', () async {
       final db = await makeDb(FakeDatabaseOpener());
       expect(db.getBiometricLockEnabled(), isTrue);

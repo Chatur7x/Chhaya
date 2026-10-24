@@ -698,6 +698,111 @@ class LocalDatabase {
     });
   }
 
+  /// Replaces the locally backed-up account snapshot in one SQLCipher
+  /// transaction. Ratchet state and queued envelopes are intentionally not
+  /// imported; a restored account must establish fresh messaging sessions.
+  Future<void> replaceAccountSnapshot({
+    required UserProfile profile,
+    required List<Contact> contacts,
+    required List<Conversation> conversations,
+    required List<Message> messages,
+  }) async {
+    _ensureInitialized();
+    await _db!.transaction((transaction) async {
+      for (final table in [
+        DbTables.messages,
+        DbTables.participants,
+        DbTables.conversations,
+        DbTables.contacts,
+        DbTables.users,
+        DbTables.devices,
+        DbTables.circuits,
+      ]) {
+        await transaction.delete(table);
+      }
+
+      final keyRows = await DbQueries.find(transaction, DbTables.kv);
+      for (final row in keyRows) {
+        final key = row[DbCols.key] as String?;
+        if (key != null && key.startsWith(_sessionKeyPrefix)) {
+          await DbQueries.deleteWhere(transaction, DbTables.kv, {
+            DbCols.key: key,
+          });
+        }
+      }
+
+      final profileId = profile.chhayaId.publicKey;
+      await DbQueries.upsert(transaction, DbTables.users, {
+        DbCols.id: profileId,
+        DbCols.chhayaId: profileId,
+        DbCols.displayNameEnc: _enc(profile.displayName),
+        DbCols.publicKey: profileId,
+        DbCols.encryptedPrivateKey: '',
+        DbCols.createdAt: profile.createdAt.millisecondsSinceEpoch,
+        'payload_enc': _enc(jsonEncode(profile.toJson())),
+      });
+      await DbQueries.upsert(transaction, DbTables.kv, {
+        DbCols.key: 'current_user_id',
+        DbCols.value: profileId,
+      });
+
+      for (final contact in contacts) {
+        await DbQueries.upsert(transaction, DbTables.contacts, {
+          DbCols.userId: _ownerId,
+          DbCols.contactId: contact.id,
+          DbCols.displayNameEnc: _enc(contact.displayName),
+          DbCols.avatarEnc:
+              contact.avatarUrl == null ? null : _enc(contact.avatarUrl!),
+          DbCols.verificationLevel: contact.verificationLevel,
+          DbCols.isBlocked: contact.isBlocked ? 1 : 0,
+          DbCols.addedAt:
+              contact.lastSeen?.millisecondsSinceEpoch ??
+              DateTime.now().millisecondsSinceEpoch,
+          'payload_enc': _enc(jsonEncode(contact.toJson())),
+        });
+      }
+
+      final joinedAt = DateTime.now().millisecondsSinceEpoch;
+      for (final conversation in conversations) {
+        final lastTs =
+            (conversation.lastMessage?.timestamp ?? conversation.createdAt)
+                .millisecondsSinceEpoch;
+        await DbQueries.upsert(transaction, DbTables.conversations, {
+          DbCols.id: conversation.id,
+          DbCols.type: conversation.isGroup ? 'group' : 'direct',
+          DbCols.nameEnc:
+              conversation.groupName == null
+                  ? null
+                  : _enc(conversation.groupName!),
+          DbCols.avatarBlob: null,
+          DbCols.createdBy: _ownerId,
+          DbCols.createdAt: conversation.createdAt.millisecondsSinceEpoch,
+          DbCols.pinned: conversation.isPinned ? 1 : 0,
+          DbCols.lastTs: lastTs,
+          'payload_enc': _enc(jsonEncode(conversation.toJson())),
+        });
+        for (var i = 0; i < conversation.participants.length; i++) {
+          await DbQueries.upsert(transaction, DbTables.participants, {
+            DbCols.conversationId: conversation.id,
+            DbCols.userId: conversation.participants[i].id,
+            DbCols.joinedAt: joinedAt,
+            DbCols.leftAt: null,
+            DbCols.isAdmin: i == 0 ? 1 : 0,
+          });
+        }
+      }
+
+      for (final message in messages) {
+        await DbQueries.upsert(
+          transaction,
+          DbTables.messages,
+          _messageRow(message),
+        );
+      }
+    });
+    _deviceCache = null;
+  }
+
   // ---- Circuits (onion cache; wired by Part 10)
   /// Caches an encrypted circuit path until [expiresAt].
   Future<void> cacheCircuit({
