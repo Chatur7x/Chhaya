@@ -16,6 +16,8 @@ Contacts require independent full-ID or QR verification before encrypted direct 
 
 The API stores opaque envelopes and routing metadata. Foreground polling synchronizes conversations and message history. Stable timestamp/ID database cursors avoid dropping messages with equal timestamps. A retry reuses its exact envelope and message ID. Backend checks enforce active conversation membership and sender ownership.
 
+For message delivery status, an authenticated participant's history fetch records `delivered_at` for newly fetched messages sent by another account. The separate read endpoint records `read_at`; the sender receives these fields during foreground sync. In groups the current timestamp means at least one recipient fetched the message, not that every member received or read it.
+
 HTTP API rate limits use atomic fixed-window counters in PostgreSQL, keyed by an HMAC-SHA-256 of the caller address with the server secret, so raw IPs are not stored and limits survive restarts or are shared by API instances. The request limiter runs before JSON body parsing and fails closed if its database operation fails. Health and metrics endpoints are exempt. This does not make the in-memory WebSocket signaling registry multi-instance; call signaling still needs shared pub/sub or sticky routing and multi-instance validation.
 
 Poll definitions and vote changes are typed payloads inside the same E2EE ratchet envelopes. Clients enforce bounded question/option fields, validate choices against the poll definition, reject votes after the close time, and render aggregate totals from the latest authenticated vote per account. The server sees only ciphertext. Poll history and multi-device vote reconciliation still need real-device validation.

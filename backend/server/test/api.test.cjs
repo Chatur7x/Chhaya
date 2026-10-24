@@ -172,6 +172,7 @@ test('real API: registration, authentication, conversations, messages, isolation
     const sent=await req('POST','/messages',{conversationId:cid,content:'opaque-encrypted-envelope'},alice.token);
     assert.equal(sent.status,201);
     assert.equal(sent.data.conversation_id,cid);
+    assert.equal(sent.data.delivered_at,null);
     const retry=await req('POST','/messages',{messageId:sent.data.id,conversationId:cid,content:'opaque-encrypted-envelope'},alice.token);
     assert.equal(retry.status,200);
     assert.equal((await req('POST','/messages',{messageId:sent.data.id,conversationId:cid,content:'changed'},alice.token)).status,409);
@@ -183,6 +184,12 @@ test('real API: registration, authentication, conversations, messages, isolation
     const incoming=await req('GET',`/messages/${cid}`,null,bob.token);
     assert.equal(incoming.status,200);
     assert.equal(incoming.data[0].content,'opaque-encrypted-envelope');
+    assert.ok(incoming.data[0].delivered_at);
+    assert.equal(incoming.data[0].read_at,null);
+    const senderDelivered=await req('GET',`/messages/${cid}`,null,alice.token);
+    const deliveredRecord=senderDelivered.data.find(message=>message.id===sent.data.id);
+    assert.ok(deliveredRecord.delivered_at);
+    assert.equal(deliveredRecord.read_at,null);
     const largeEnvelope='x'.repeat(500000);
     const attachment=await req('POST','/messages',{conversationId:cid,content:largeEnvelope},alice.token);
     assert.equal(attachment.status,201);
@@ -211,6 +218,8 @@ test('real API: registration, authentication, conversations, messages, isolation
     assert.equal((await req('GET',`/messages/${cid}`,null,outsider.token)).status,403);
     assert.equal((await req('POST',`/messages/${sent.data.id}/read`,{},outsider.token)).status,403);
     assert.equal((await req('POST',`/messages/${sent.data.id}/read`,{},bob.token)).status,200);
+    const senderRead=await req('GET',`/messages/${cid}`,null,alice.token);
+    assert.ok(senderRead.data.find(message=>message.id===sent.data.id).read_at);
     assert.equal((await req('POST','/auth/logout',{},alice.token)).status,200);
     assert.equal((await req('GET','/users/me',null,alice.token)).status,401);
   }finally{

@@ -480,6 +480,26 @@ router.get('/messages/:conversationId', authMiddleware, safe(async (req: Request
   params.push(limit);
 
   const result = await query(queryStr, params);
+  const pendingDelivery = result.rows
+    .filter((message) => message.sender_id !== userId && !message.delivered_at)
+    .map((message) => message.id);
+  if (pendingDelivery.length > 0) {
+    const acknowledgments = await query(
+      `UPDATE messages
+       SET delivered_at = NOW()
+       WHERE id = ANY($1::uuid[]) AND sender_id <> $2 AND delivered_at IS NULL
+       RETURNING id, delivered_at`,
+      [pendingDelivery, userId],
+    );
+    const deliveredAt = new Map(
+      acknowledgments.rows.map((row) => [row.id as string, row.delivered_at]),
+    );
+    for (const message of result.rows) {
+      if (message.delivered_at == null && deliveredAt.has(message.id)) {
+        message.delivered_at = deliveredAt.get(message.id);
+      }
+    }
+  }
   res.json(result.rows.reverse());
 }));
 
