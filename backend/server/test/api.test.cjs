@@ -68,7 +68,7 @@ test('identity challenge binds proof to client private key and transcript',()=>{
 });
 
 test('call signaling can share the public HTTP listener at /signaling',async()=>{
-  const {startSignalingServer}=require('../dist/signaling');
+  const {startSignalingServer,stopSignalingServer}=require('../dist/signaling');
   const server=createServer();
   const signaling=startSignalingServer(server);
   server.listen(0,'127.0.0.1');
@@ -79,8 +79,9 @@ test('call signaling can share the public HTTP listener at /signaling',async()=>
     await new Promise((resolve,reject)=>{socket.once('open',resolve);socket.once('error',reject);});
     assert.equal(socket.readyState,WebSocket.OPEN);
   } finally {
-    socket.terminate();
-    await new Promise(resolve=>signaling.close(resolve));
+    const socketClosed=new Promise(resolve=>socket.once('close',resolve));
+    await stopSignalingServer(signaling);
+    await socketClosed;
     await new Promise(resolve=>server.close(resolve));
   }
 });

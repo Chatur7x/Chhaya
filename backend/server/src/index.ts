@@ -1,12 +1,12 @@
 import 'dotenv/config';
-import { createServer } from 'http';
+import { createServer, type Server } from 'http';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { config } from './config';
 import { logger } from './log';
-import { initDb, query } from './db';
-import { startSignalingServer } from './signaling';
+import { closeDb, initDb, query } from './db';
+import { startSignalingServer, stopSignalingServer } from './signaling';
 import { startOnionRelayServer } from './onion-relay';
 import { initPushNotifications } from './push';
 import { registerRoutes } from './routes';
@@ -87,21 +87,29 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 });
 
 // Start servers
+let apiServer: Server | undefined;
+let signalingServer: ReturnType<typeof startSignalingServer> | undefined;
+let cleanupTimer: ReturnType<typeof setInterval> | undefined;
+let shutdownTask: Promise<void> | undefined;
+let startupTask: Promise<void> | undefined;
+let shutdownRequested = false;
+
 async function start() {
   try {
     await initDb();
-    const pruneTimer = setInterval(() => {
+    if (shutdownRequested) return;
+    cleanupTimer = setInterval(() => {
       void pruneExpiredRateLimits().catch(() => {
         logger.warn('Rate limit bucket cleanup failed');
       });
     }, 5 * 60 * 1000);
-    pruneTimer.unref();
+    cleanupTimer.unref();
     initPushNotifications();
-    const server = createServer(app);
-    startSignalingServer(server);
+    apiServer = createServer(app);
+    signalingServer = startSignalingServer(apiServer);
     // Onion transport is not enabled until a vetted relay implementation is configured.
 
-    server.listen(config.PORT, () => {
+    apiServer.listen(config.PORT, () => {
       logger.info(`Chhaya API server listening on port ${config.PORT}`, {
         env: config.NODE_ENV,
         signalingPath: '/signaling',
@@ -114,15 +122,41 @@ async function start() {
   }
 }
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down gracefully');
-  process.exit(0);
-});
+async function shutdown(signal: string): Promise<void> {
+  if (shutdownTask) return shutdownTask;
+  shutdownRequested = true;
+  shutdownTask = (async () => {
+    logger.info(`${signal} received; draining backend`);
+    await startupTask;
+    if (cleanupTimer) clearInterval(cleanupTimer);
 
-process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down gracefully');
-  process.exit(0);
-});
+    const forceClose = setTimeout(() => {
+      logger.warn('Backend drain deadline reached; forcing remaining connections closed');
+      signalingServer?.clients.forEach((peer) => peer.terminate());
+      apiServer?.closeAllConnections();
+    }, 10000);
+    forceClose.unref();
 
-if (require.main === module) void start();
+    try {
+      if (signalingServer) await stopSignalingServer(signalingServer);
+      if (apiServer?.listening) {
+        await new Promise<void>((resolve, reject) => {
+          apiServer!.close((error) => error ? reject(error) : resolve());
+        });
+      }
+      await closeDb();
+      clearTimeout(forceClose);
+      process.exitCode = 0;
+    } catch (error) {
+      logger.error('Backend shutdown failed', { error: (error as Error).message });
+      process.exitCode = 1;
+    }
+  })();
+  return shutdownTask;
+}
+
+if (require.main === module) {
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
+  process.once('SIGINT', () => void shutdown('SIGINT'));
+  startupTask = start();
+}

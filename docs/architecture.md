@@ -30,6 +30,8 @@ CallService captures microphone/camera after user action and uses WebRTC. Authen
 
 Docker/self-hosting configuration is provided, but no public server, domain, TLS certificate, Firebase project, TURN service, or Apple distribution membership has been provisioned. See self-hosting.md and test-builds.md.
 
+On SIGTERM/SIGINT, the backend stops its cleanup timer, sends WebSocket close frames, waits for HTTP and database connections to drain, and force-closes stragglers after a bounded deadline. Deployment health reports PostgreSQL readiness rather than process-only liveness.
+
 ## Deliberately unavailable features
 
 Encrypted inline attachments (up to 256 KB), polls, and basic group messaging are implemented. Group membership administration and device-to-device acceptance/verification remain incomplete. Onion/mesh transports and decentralized file services contain legacy experimental code and are not the active messaging path. PQC wrappers remain gated placeholders; the product must not claim audited post-quantum security. Vault/duress workflows and the full design/accessibility/performance roadmap remain unfinished.

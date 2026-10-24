@@ -87,6 +87,31 @@ export const startSignalingServer = (sharedServer?: Server): WebSocketServer => 
   return wss;
 };
 
+/** Stop accepting signaling clients, close active peers, then force-close stragglers. */
+export async function stopSignalingServer(wss: WebSocketServer): Promise<void> {
+  const peers = [...wss.clients];
+  const forceClose = setTimeout(() => {
+    for (const peer of peers) peer.terminate();
+  }, 5000);
+  forceClose.unref();
+
+  try {
+    const closed = new Promise<void>((resolve) => {
+      wss.close(() => resolve());
+    });
+    for (const peer of peers) {
+      if (peer.readyState === WebSocket.OPEN) {
+        peer.close(1001, 'Server shutting down');
+      } else {
+        peer.terminate();
+      }
+    }
+    await closed;
+  } finally {
+    clearTimeout(forceClose);
+  }
+}
+
 const handleMessage = async (clientId: string, ws: WebSocket, msg: SignalingMessage): Promise<void> => {
   const client = clients.get(clientId);
   if(client && await authenticateToken(client.sessionToken)!==client.userId) { ws.close(1008,'Session expired'); return; }
