@@ -315,10 +315,24 @@ router.post('/conversations', authMiddleware, safe(async (req: Request, res: Res
   if (data.type === 'direct' && data.participantIds.length !== 1) {
     return res.status(400).json({ error: 'Direct conversation requires exactly 1 participant' });
   }
+  if (data.type === 'group' && data.participantIds.length < 2) {
+    return res.status(400).json({ error: 'Group conversation requires at least 2 other participants' });
+  }
 
   const convoId = uuidv4();
   const allParticipants = [...new Set([userId,...data.participantIds])];
   if(allParticipants.length!==data.participantIds.length+1) return res.status(400).json({error:'Duplicate or self participant'});
+
+  // A group can only be created from the initiator's active, unblocked address book.
+  // Membership is immutable in this API version, so no admin path can bypass
+  // the per-member encrypted-key envelopes used by the client.
+  const allowedContacts=await query(
+    `SELECT contact_id FROM contacts WHERE user_id=$1 AND is_blocked=false AND contact_id=ANY($2::uuid[])`,
+    [userId,data.participantIds]
+  );
+  if(allowedContacts.rows.length!==data.participantIds.length) {
+    return res.status(403).json({error:'Every participant must be an active contact'});
+  }
 
   await withTransaction(async (client) => {
     await client.query(

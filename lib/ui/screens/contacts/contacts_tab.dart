@@ -28,6 +28,8 @@ class _ContactsTabState extends ConsumerState<ContactsTab> {
       ..sort((a,b)=>a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()));
     return Scaffold(
       appBar:ChhayaAppBar(title:'Contacts',actions:[
+        IconButton(tooltip:'Create group',icon:const Icon(Icons.group_add_outlined),
+          onPressed:()=>_showCreateGroup(context,ref)),
         IconButton(tooltip:'Add contact',icon:const Icon(Icons.person_add_outlined),
           onPressed:()=>_showAddContact(context,ref)),
         const SizedBox(width:16),
@@ -98,6 +100,57 @@ class _ContactsTabState extends ConsumerState<ContactsTab> {
     } catch(_) {
       if(mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content:Text('Could not open this chat. Check your server connection and try again.'))); }
+    }
+  }
+
+  Future<void> _showCreateGroup(BuildContext context,WidgetRef ref) async {
+    final contacts=(await ref.read(localDatabaseProvider).getAllContacts())
+      .where((c)=>c.isVerified&&!c.isBlocked&& !ref.read(localDatabaseProvider).getBlockedContacts().contains(c.id)).toList();
+    if(!context.mounted) return;
+    if(contacts.length<2) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Verify at least two contacts before creating a group.')));
+      return;
+    }
+    final nameCtrl=TextEditingController();
+    final selected=<String>{};
+    final chosen=await showDialog<List<Contact>>(
+      context:context,
+      builder:(dialogContext)=>StatefulBuilder(builder:(context,setDialogState)=>AlertDialog(
+        backgroundColor:ChhayaPalette.of(context).cardSurfaceElevated,
+        title:Text('New group',style:ChhayaType.of(context).displaySmall.copyWith(fontSize:20)),
+        content:SizedBox(width:420,child:Column(mainAxisSize:MainAxisSize.min,children:[
+          TextField(controller:nameCtrl,maxLength:48,onChanged:(_)=>setDialogState((){}),
+            decoration:const InputDecoration(labelText:'Group name',hintText:'Weekend plans')),
+          const SizedBox(height:8),
+          ConstrainedBox(constraints:const BoxConstraints(maxHeight:360),child:ListView.builder(
+            shrinkWrap:true,itemCount:contacts.length,itemBuilder:(context,index){
+              final contact=contacts[index];
+              return CheckboxListTile(value:selected.contains(contact.id),
+                title:Text(contact.displayName),subtitle:const Text('Verified identity'),
+                secondary:AvatarWidget(name:contact.displayName,size:40),
+                onChanged:(value)=>setDialogState(()=>value==true?selected.add(contact.id):selected.remove(contact.id)));
+            })),
+        ])),
+        actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext),child:const Text('Cancel')),
+          FilledButton(onPressed:selected.length<2||nameCtrl.text.trim().isEmpty?null:()=>Navigator.pop(dialogContext,
+            contacts.where((c)=>selected.contains(c.id)).toList()),child:const Text('Create group'))],
+      )),
+    );
+    final groupName=nameCtrl.text.trim();
+    nameCtrl.dispose();
+    if(chosen==null||!context.mounted) return;
+    try {
+      final conversation=(await ref.read(apiServiceProvider).createConversation(
+        type:'group',participantIds:chosen.map((c)=>c.id).toList(),name:groupName,
+      )).copyWith(participants:chosen,groupName:groupName);
+      await ref.read(localDatabaseProvider).addConversation(conversation);
+      ref.read(conversationsProvider.notifier).addConversation(conversation);
+      if(context.mounted) { Navigator.of(context).pushNamed(ChhayaRouter.chat,arguments:{
+        'conversationId':conversation.id,'contactName':groupName,
+      }); }
+      ChhayaHaptics.success();
+    } catch(error) {
+      if(context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Could not create group: $error')));
     }
   }
 

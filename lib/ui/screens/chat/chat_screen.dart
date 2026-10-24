@@ -45,6 +45,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   Timer? _typingStopTimer;
   Timer? _otherTypingTimer;
   StreamSubscription<TypingUpdate>? _typingSubscription;
+  CallService? _typingCallService;
   Future<void> _typingSignalTail = Future.value();
   bool _localTypingActive = false;
   final bool _steganoMode = false;
@@ -74,7 +75,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         .where((item) => item.id == widget.conversationId).firstOrNull;
     if (conversation == null || conversation.isGroup) return;
     _supportsTyping = true;
-    _typingSubscription = ref.read(callServiceProvider).typing.listen((update) {
+    _typingCallService=ref.read(callServiceProvider);
+    _typingSubscription = _typingCallService!.typing.listen((update) {
       if (!mounted || !_supportsTyping ||
           update.conversationId != widget.conversationId ||
           !conversation.participants.any((contact) => contact.id == update.senderId)) {
@@ -145,7 +147,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     if (active && !enabled) return;
     if (!refresh && _localTypingActive == active) return;
     _localTypingActive = active;
-    final service = ref.read(callServiceProvider);
+    final service = _typingCallService;
+    if(service==null) return;
     _typingSignalTail = _typingSignalTail.then((_) async {
       try {
         await service.sendTyping(widget.conversationId, active);
@@ -191,7 +194,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     _typingKeepAliveTimer?.cancel();
     _typingStopTimer?.cancel();
     _otherTypingTimer?.cancel();
-    if (_supportsTyping) _queueTypingSignal(false);
+    if (_supportsTyping && _localTypingActive && _typingCallService!=null) {
+      unawaited(_typingCallService!.sendTyping(widget.conversationId,false).catchError((_){}));
+    }
     _typingSubscription?.cancel();
     super.dispose();
   }
@@ -381,14 +386,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       const SizedBox(width:12),
       Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         Text(widget.contactName,maxLines:MediaQuery.viewInsetsOf(context).bottom>0?1:2,overflow:TextOverflow.ellipsis,style:ChhayaType.of(context).title),
-        if(MediaQuery.viewInsetsOf(context).bottom==0) Text(convo?.participants.firstOrNull?.isVerified==true?'Verified identity':'Verify identity before messaging',
+        if(MediaQuery.viewInsetsOf(context).bottom==0) Text(convo?.isGroup==true
+          ?'${convo!.participants.length} members · encrypted'
+          :convo?.participants.firstOrNull?.isVerified==true?'Verified identity':'Verify identity before messaging',
           maxLines:2,style:ChhayaType.of(context).caption),
       ])),
       PopupMenuButton<String>(tooltip:'Chat options',onSelected:(action){
         if(action=='timer') { _showTtlSheet(); return; }
         Navigator.of(context).pushNamed(ChhayaRouter.call,arguments:{
           'conversationId':widget.conversationId,'contactName':widget.contactName,'isVideo':action=='video'});
-      },itemBuilder:(_)=>const [
+      },itemBuilder:(_)=>convo?.isGroup==true?const [
+        PopupMenuItem(value:'timer',child:Text('Disappearing messages')),
+      ]:const [
         PopupMenuItem(value:'voice',child:Text('Voice call')),
         PopupMenuItem(value:'video',child:Text('Video call')),
         PopupMenuItem(value:'timer',child:Text('Disappearing messages')),

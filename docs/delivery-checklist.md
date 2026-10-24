@@ -16,7 +16,7 @@ hosted service, Apple membership or external audit is assumed.
 | Replies | Encrypted reply IDs; compose/cancel/quoted-message UI | Regression/layout and real peer tests |
 | Photos/files | Inline encrypted attachments, preview and explicit export, up to 256 KB | Larger encrypted blob/chunk transfer; picker/export device tests |
 | Voice messages | User-started AAC recording up to 60s; playback and encrypted attachment | Microphone, interruptions, playback and temporary-file device tests |
-| Groups/admin roles | Backend/model scaffolding; encrypted group send unavailable | Reviewed group protocol, membership/key rotation and complete UI/tests |
+| Groups/admin roles | Group creation from verified contacts; server checks creator's active contact list; group body is AES-GCM encrypted once and its one-time key is wrapped in each member's ratchet session; all sender ratchets/message/outbox commit atomically; sync authenticates both wrapper and body; membership changes/admin management are not exposed | Multi-device two/three-phone tests, skipped-history UX, delivery/read semantics, membership-removal/key rotation design, external protocol review |
 | Polls | Model scaffolding only | Encrypted poll/vote protocol, persistence, abuse rules and UI |
 | Read/delivery states | Read receipts and message state handling | Independent delivery acknowledgments; multi-device receipt semantics |
 | Typing indicators | Authenticated WebSocket events in direct chats; server verifies two-party membership, rate-limits, sends only conversation ID/state and stores nothing; encrypted local privacy toggle; UI clears after 6 seconds without refresh | Two-phone Android/iOS delivery, background/disconnect expiry and privacy-toggle device tests |

@@ -306,6 +306,27 @@ class LocalDatabase {
     });
   }
 
+  /// Atomically advances all peer ratchets and stores the one group message
+  /// plus its exact retry envelope. No partial group key distribution occurs.
+  Future<void> commitOutgoingGroupMessage(List<SessionState> states,
+      Message message,String envelope) async {
+    _ensureInitialized();
+    if(states.isEmpty) throw ArgumentError('A group message needs recipients');
+    await _db!.transaction((transaction) async {
+      await DbQueries.upsert(transaction,DbTables.messages,_messageRow(message));
+      for(final state in states) {
+        await DbQueries.upsert(transaction,DbTables.kv,{
+          DbCols.key:'$_sessionKeyPrefix${state.peerId}',
+          DbCols.value:_enc(jsonEncode(state.toJson())),
+        });
+      }
+      await DbQueries.upsert(transaction,DbTables.kv,{
+        DbCols.key:'${_sessionKeyPrefix}outbox:${message.id}',
+        DbCols.value:_enc(envelope),
+      });
+    });
+  }
+
   Future<void> commitMessageSent(Message message) async {
     _ensureInitialized();
     await _db!.transaction((transaction) async {
