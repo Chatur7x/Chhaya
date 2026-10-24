@@ -346,6 +346,10 @@ void main() {
       expect(db.getBiometricLockEnabled(), isTrue);
       await db.setBiometricLockEnabled(false);
       expect(db.getBiometricLockEnabled(), isFalse);
+      expect(db.getTypingIndicatorsEnabled(), isTrue);
+      await db.setTypingIndicatorsEnabled(false);
+      await db.preloadSettings();
+      expect(db.getTypingIndicatorsEnabled(), isFalse);
       await db.blockContact('spammer');
       expect(db.getBlockedContacts(), ['spammer']);
       await db.unblockContact('spammer');

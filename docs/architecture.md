@@ -18,7 +18,7 @@ The API stores opaque envelopes and routing metadata. Foreground polling synchro
 
 ## Calls and optional infrastructure
 
-CallService captures microphone/camera after user action and uses WebRTC. Authenticated WebSocket messages relay encrypted SDP and ICE. STUN is configured; a separately provisioned TURN server may be needed. Current calls require the app in the foreground. Background ringing, native calling integration, and end-to-end push provisioning are incomplete.
+CallService captures microphone/camera after user action and uses WebRTC. Authenticated WebSocket messages relay encrypted SDP and ICE. Direct chats also send ephemeral typing state over that authenticated channel; the server checks active two-person membership, rate-limits events and does not persist them. Clients expire a remote indicator after six seconds without a refresh. STUN is configured; a separately provisioned TURN server may be needed. Current calls require the app in the foreground. Background ringing, native calling integration, and end-to-end push provisioning are incomplete.
 
 Docker/self-hosting configuration is provided, but no public server, domain, TLS certificate, Firebase project, TURN service, or Apple distribution membership has been provisioned. See self-hosting.md and test-builds.md.
 

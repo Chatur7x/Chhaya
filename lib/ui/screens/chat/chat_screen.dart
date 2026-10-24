@@ -6,6 +6,7 @@ import 'package:flutter/cupertino.dart' show CupertinoContextMenuAction;
 import '../../../core/models/message_attachment.dart';
 import '../../../services/messaging/attachment_service.dart';
 import '../../../services/messaging/messaging_service.dart';
+import '../../../services/call/call_service.dart';
 import '../../widgets/message_attachment_view.dart';
 import '../../widgets/voice_recorder_sheet.dart';
 import '../../widgets/chhaya_context_menu.dart';
@@ -38,7 +39,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   List<Message> _messages = [];
   bool _loading = true;
   bool _isTyping = false;
-  final bool _otherTyping = false;
+  bool _otherTyping = false;
+  bool _supportsTyping = false;
+  Timer? _typingKeepAliveTimer;
+  Timer? _typingStopTimer;
+  Timer? _otherTypingTimer;
+  StreamSubscription<TypingUpdate>? _typingSubscription;
+  Future<void> _typingSignalTail = Future.value();
+  bool _localTypingActive = false;
   final bool _steganoMode = false;
   int _ttlMinutes = 0;
   Timer? _refreshTimer;
@@ -54,15 +62,97 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _msgCtrl.addListener(() {
-      final hasText = _msgCtrl.text.trim().isNotEmpty;
-      if (hasText != _isTyping) {
-        setState(() => _isTyping = hasText);
-      }
-    });
+    _msgCtrl.addListener(_handleDraftChanged);
+    _listenForTyping();
     _loadMessages();
     // Foreground sync runs independently; avoid rereading SQLCipher every 2 seconds.
     _refreshTimer=Timer.periodic(_messageRefreshInterval,(_)=>_loadMessages());
+  }
+
+  void _listenForTyping() {
+    final conversation = ref.read(conversationsProvider)
+        .where((item) => item.id == widget.conversationId).firstOrNull;
+    if (conversation == null || conversation.isGroup) return;
+    _supportsTyping = true;
+    _typingSubscription = ref.read(callServiceProvider).typing.listen((update) {
+      if (!mounted || !_supportsTyping ||
+          update.conversationId != widget.conversationId ||
+          !conversation.participants.any((contact) => contact.id == update.senderId)) {
+        return;
+      }
+      if (!ref.read(localDatabaseProvider).getTypingIndicatorsEnabled()) {
+        _clearRemoteTyping();
+        return;
+      }
+      _otherTypingTimer?.cancel();
+      if (_otherTyping != update.isTyping) {
+        setState(() => _otherTyping = update.isTyping);
+      }
+      if (update.isTyping) {
+        _otherTypingTimer = Timer(const Duration(seconds: 6), _clearRemoteTyping);
+      }
+    });
+  }
+
+  void _clearRemoteTyping() {
+    _otherTypingTimer?.cancel();
+    _otherTypingTimer = null;
+    if (mounted && _otherTyping) setState(() => _otherTyping = false);
+  }
+
+  void _handleDraftChanged() {
+    final hasText = _msgCtrl.text.trim().isNotEmpty;
+    if (hasText != _isTyping) setState(() => _isTyping = hasText);
+    if (!_supportsTyping) return;
+
+    if (!ref.read(localDatabaseProvider).getTypingIndicatorsEnabled()) {
+      _typingKeepAliveTimer?.cancel();
+      _typingKeepAliveTimer = null;
+      _typingStopTimer?.cancel();
+      _queueTypingSignal(false);
+      return;
+    }
+
+    if (hasText) {
+      _typingStopTimer?.cancel();
+      _typingStopTimer = null;
+      if (_typingKeepAliveTimer == null) {
+        _queueTypingSignal(true);
+        _typingKeepAliveTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+          if (ref.read(localDatabaseProvider).getTypingIndicatorsEnabled()) {
+            _queueTypingSignal(true, refresh: true);
+          } else {
+            _typingKeepAliveTimer?.cancel();
+            _typingKeepAliveTimer = null;
+            _queueTypingSignal(false);
+          }
+        });
+      }
+    } else {
+      _typingKeepAliveTimer?.cancel();
+      _typingKeepAliveTimer = null;
+      _typingStopTimer?.cancel();
+      _typingStopTimer = Timer(const Duration(milliseconds: 250), () {
+        _typingStopTimer = null;
+        _queueTypingSignal(false);
+      });
+    }
+  }
+
+  void _queueTypingSignal(bool active, {bool refresh = false}) {
+    if (!_supportsTyping) return;
+    final enabled = ref.read(localDatabaseProvider).getTypingIndicatorsEnabled();
+    if (active && !enabled) return;
+    if (!refresh && _localTypingActive == active) return;
+    _localTypingActive = active;
+    final service = ref.read(callServiceProvider);
+    _typingSignalTail = _typingSignalTail.then((_) async {
+      try {
+        await service.sendTyping(widget.conversationId, active);
+      } catch (_) {
+        // Typing metadata is best-effort and never blocks sending a message.
+      }
+    });
   }
 
   Future<void> _loadMessages() async {
@@ -98,6 +188,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     _msgCtrl.dispose();
     _scrollCtrl.dispose();
     _refreshTimer?.cancel();
+    _typingKeepAliveTimer?.cancel();
+    _typingStopTimer?.cancel();
+    _otherTypingTimer?.cancel();
+    if (_supportsTyping) _queueTypingSignal(false);
+    _typingSubscription?.cancel();
     super.dispose();
   }
 
@@ -107,6 +202,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     if (state == AppLifecycleState.resumed) {
       _loadMessages();
       _refreshTimer = Timer.periodic(_messageRefreshInterval, (_) => _loadMessages());
+      if (_supportsTyping && _msgCtrl.text.trim().isNotEmpty &&
+          ref.read(localDatabaseProvider).getTypingIndicatorsEnabled()) {
+        _handleDraftChanged();
+      }
+    } else if (_supportsTyping) {
+      _typingKeepAliveTimer?.cancel();
+      _typingKeepAliveTimer = null;
+      _typingStopTimer?.cancel();
+      _typingStopTimer = null;
+      _queueTypingSignal(false);
     }
   }
 
@@ -242,7 +347,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
             Expanded(
               child: _loading
                   ? Center(child: CircularProgressIndicator(color: ChhayaPalette.of(context).accent))
-                  : _messages.isEmpty
+                  : _messages.isEmpty && !_otherTyping
                       ? _buildEmptyChat()
                       : ListView.builder(
                           controller: _scrollCtrl,

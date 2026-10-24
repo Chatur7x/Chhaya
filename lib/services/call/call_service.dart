@@ -19,6 +19,13 @@ class IncomingCall {
   IncomingCall(this.callId,this.conversationId,this.senderId,this.envelope,this.video);
 }
 
+class TypingUpdate {
+  final String conversationId;
+  final String senderId;
+  final bool isTyping;
+  const TypingUpdate(this.conversationId, this.senderId, this.isTyping);
+}
+
 /// Foreground WebRTC calls. Authenticated, encrypted SDP/ICE is relayed by
 /// the server. Microphone/camera access starts only after user initiation.
 class CallService extends ChangeNotifier {
@@ -30,6 +37,8 @@ class CallService extends ChangeNotifier {
   final remoteRenderer=RTCVideoRenderer();
   final _incoming=StreamController<IncomingCall>.broadcast();
   Stream<IncomingCall> get incoming=>_incoming.stream;
+  final _typing=StreamController<TypingUpdate>.broadcast();
+  Stream<TypingUpdate> get typing=>_typing.stream;
   WebSocketChannel? _socket;
   Future<void>? _connecting;
   Completer<void>? _joined;
@@ -51,6 +60,16 @@ class CallService extends ChangeNotifier {
     if(_connecting!=null) { return _connecting; }
     final pending=_connect(); _connecting=pending;
     try { await pending; } catch (_) { await _socket?.sink.close(); _socket=null; rethrow; } finally { _connecting=null; }
+  }
+
+  Future<void> sendTyping(String conversationId, bool active) async {
+    await ensureConnected();
+    final socket = _socket;
+    if (socket == null) throw StateError('Signaling connection unavailable');
+    socket.sink.add(jsonEncode({
+      'type': 'typing',
+      'payload': {'conversationId': conversationId, 'active': active},
+    }));
   }
   Future<void> _connect() async {
     final uri=Uri.parse(api.baseUrl).replace(scheme:'wss',path:'/signaling');
@@ -153,6 +172,19 @@ class CallService extends ChangeNotifier {
     if(message['type']=='join') { if(_joined!=null&&!_joined!.isCompleted) _joined!.complete(); return; }
     if(message['type']=='ping') { _socket?.sink.add(jsonEncode({'type':'pong','payload':{}})); return; }
     final type=message['type'] as String?;
+    if (type == 'typing') {
+      final payload = message['payload'];
+      final senderId = message['from'];
+      if (payload is Map && senderId is String &&
+          payload['conversationId'] is String && payload['active'] is bool) {
+        _typing.add(TypingUpdate(
+          payload['conversationId'] as String,
+          senderId,
+          payload['active'] as bool,
+        ));
+      }
+      return;
+    }
     if(!['offer','answer','ice-candidate','call-end'].contains(type)) { return; }
     final payload=Map<String,dynamic>.from(message['payload'] as Map);
     final id=payload['callId'] as String;
@@ -209,5 +241,14 @@ class CallService extends ChangeNotifier {
     if(_signalKey!=null) { Csprng.wipe(_signalKey!); }
     _signalKey=null; _callId=null; _peerId=null; _conversationId=null;
     connected=false; status='Call ended'; notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    final socket = _socket;
+    if (socket != null) unawaited(socket.sink.close());
+    unawaited(_incoming.close());
+    unawaited(_typing.close());
+    super.dispose();
   }
 }

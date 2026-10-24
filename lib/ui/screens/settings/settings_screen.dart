@@ -22,6 +22,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _changingLock = false;
   final bool _onionRouting = false;
   bool _readReceipts = true;
+  bool _typingIndicators = true;
   bool _disappearingMessages = false;
   final bool _meshRouting = false;
 
@@ -33,6 +34,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final db = ref.read(localDatabaseProvider);
     _biometricLock = db.getBiometricLockEnabled();
     _readReceipts = db.getReadReceiptsEnabled();
+    _typingIndicators = db.getTypingIndicatorsEnabled();
     _disappearingMessages = db.getGlobalDisappearingDuration() > 0;
   }
 
@@ -159,6 +161,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               _settingsSwitch(Icons.visibility_rounded, ChhayaPalette.of(context).accent, 'Read Receipts', _readReceipts, (v) async {
                 await ref.read(localDatabaseProvider).setReadReceiptsEnabled(v);
                 setState(() => _readReceipts = v);
+              }),
+              const Divider(height: 0, indent: 56),
+              _settingsSwitch(Icons.more_horiz_rounded, ChhayaPalette.of(context).info, 'Typing Indicators', _typingIndicators, (v) async {
+                await ref.read(localDatabaseProvider).setTypingIndicatorsEnabled(v);
+                setState(() => _typingIndicators = v);
               }),
               const Divider(height: 0, indent: 56),
               _settingsTile(Icons.block_rounded, ChhayaPalette.of(context).error, 'Block List', onTap: _showBlockList, trailing: _blockedCountBadge()),

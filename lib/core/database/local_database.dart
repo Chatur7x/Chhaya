@@ -718,6 +718,7 @@ class LocalDatabase {
   Map<String, dynamic> _defaultSettings() => {
         'biometric_lock': true,
         'read_receipts': true,
+        'typing_indicators': true,
         'global_disappearing_duration': 0,
         'onion_routing': true,
         'blocked_contacts': <String>[],
@@ -753,6 +754,14 @@ class LocalDatabase {
   Future<void> setReadReceiptsEnabled(bool v) async {
     final s = await _getSettings();
     s['read_receipts'] = v;
+    await _saveSettings(s);
+    _settingsCache = s;
+  }
+  bool getTypingIndicatorsEnabled() =>
+      _getSettingsSync()['typing_indicators'] as bool? ?? true;
+  Future<void> setTypingIndicatorsEnabled(bool v) async {
+    final s = await _getSettings();
+    s['typing_indicators'] = v;
     await _saveSettings(s);
     _settingsCache = s;
   }

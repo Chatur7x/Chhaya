@@ -7,7 +7,7 @@ import { getDb, query } from './db';
 import { authenticateToken } from './session';
 
 interface SignalingMessage {
-  type: 'offer' | 'answer' | 'ice-candidate' | 'join' | 'leave' | 'ping' | 'pong' | 'error' | 'new_message' | 'call-end';
+  type: 'offer' | 'answer' | 'ice-candidate' | 'join' | 'leave' | 'ping' | 'pong' | 'error' | 'new_message' | 'call-end' | 'typing';
   payload: any;
   from: string;
   to?: string;
@@ -22,6 +22,7 @@ interface ConnectedClient {
   conversationId?: string;
   lastPing: number;
   sessionToken: string;
+  lastTypingSignalAt: number;
 }
 
 const clients = new Map<string, ConnectedClient>();
@@ -102,6 +103,10 @@ const handleMessage = async (clientId: string, ws: WebSocket, msg: SignalingMess
       await handleWebRTCSignal(clientId, msg);
       break;
 
+    case 'typing':
+      await handleTypingSignal(clientId, msg);
+      break;
+
     case 'pong':
       if (client) client.lastPing = Date.now();
       break;
@@ -149,6 +154,7 @@ const handleJoin = async (clientId: string, ws: WebSocket, msg: SignalingMessage
     conversationId,
     lastPing: Date.now(),
     sessionToken: token,
+    lastTypingSignalAt: 0,
   };
 
   clients.set(clientId, client);
@@ -160,6 +166,40 @@ const handleJoin = async (clientId: string, ws: WebSocket, msg: SignalingMessage
 
   log.info('Authenticated signaling client joined');
   send(ws, { type: 'join', payload: { status: 'ok', clientId }, from: 'server', timestamp: Date.now() });
+};
+
+const handleTypingSignal = async (clientId: string, msg: SignalingMessage): Promise<void> => {
+  const client = clients.get(clientId);
+  const conversationId = msg.payload?.conversationId;
+  const active = msg.payload?.active;
+  if (!client || typeof conversationId !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(conversationId) ||
+      typeof active !== 'boolean') return;
+
+  const now = Date.now();
+  if (now - client.lastTypingSignalAt < (active ? 500 : 100)) return;
+  client.lastTypingSignalAt = now;
+
+  // Typing is ephemeral direct-chat metadata only. Never persist it and never
+  // fan it out to groups; the recipient is derived from verified membership.
+  const membership = await query(
+    `SELECT user_id FROM conversation_participants
+     WHERE conversation_id=$1 AND left_at IS NULL`,
+    [conversationId],
+  );
+  if (membership.rows.length !== 2) return;
+  const members = membership.rows.map((row) => String(row.user_id));
+  if (!members.includes(client.userId)) return;
+  const recipient = members.find((id) => id !== client.userId);
+  if (!recipient) return;
+
+  broadcastToUser(recipient, {
+    type: 'typing',
+    payload: { conversationId, active },
+    from: client.userId,
+    to: recipient,
+    timestamp: now,
+  });
 };
 
 const handleWebRTCSignal = async (fromClientId: string, msg: SignalingMessage): Promise<void> => {

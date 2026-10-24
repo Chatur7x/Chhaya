@@ -19,7 +19,7 @@ hosted service, Apple membership or external audit is assumed.
 | Groups/admin roles | Backend/model scaffolding; encrypted group send unavailable | Reviewed group protocol, membership/key rotation and complete UI/tests |
 | Polls | Model scaffolding only | Encrypted poll/vote protocol, persistence, abuse rules and UI |
 | Read/delivery states | Read receipts and message state handling | Independent delivery acknowledgments; multi-device receipt semantics |
-| Typing indicators | UI placeholder | Authenticated ephemeral signaling, privacy toggle and expiry |
+| Typing indicators | Authenticated WebSocket events in direct chats; server verifies two-party membership, rate-limits, sends only conversation ID/state and stores nothing; encrypted local privacy toggle; UI clears after 6 seconds without refresh | Two-phone Android/iOS delivery, background/disconnect expiry and privacy-toggle device tests |
 | Disappearing content | Local expiry and global timer | Persistent per-conversation settings; server retention policy; honest export limits |
 | Search/pin/block/history | Implemented local flows | Physical-device and resynchronization edge cases |
 | Foreground calls | WebRTC with encrypted SDP/ICE over authenticated WSS | Two-phone NAT/TURN, cancellation, interruption, reconnect and permissions |
