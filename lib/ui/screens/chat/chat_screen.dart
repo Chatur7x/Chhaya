@@ -1042,17 +1042,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       ),
                       if (isSent) ...[
                         const SizedBox(width: 3),
-                        Icon(
-                          !msg.isSent
-                              ? Icons.schedule_rounded
-                              : msg.isRead
-                              ? Icons.done_all_rounded
-                              : Icons.done_rounded,
-                          size: 13,
-                          color:
-                              msg.isRead
-                                  ? ChhayaPalette.of(context).accent
-                                  : ChhayaPalette.of(context).inkMuted,
+                        Tooltip(
+                          message:
+                              !msg.isSent
+                                  ? 'Sending'
+                                  : msg.isRead
+                                  ? 'Read'
+                                  : msg.isDelivered
+                                  ? 'Delivered'
+                                  : 'Sent',
+                          child: Icon(
+                            !msg.isSent
+                                ? Icons.schedule_rounded
+                                : msg.isDelivered || msg.isRead
+                                ? Icons.done_all_rounded
+                                : Icons.done_rounded,
+                            size: 13,
+                            color:
+                                msg.isRead
+                                    ? ChhayaPalette.of(context).accent
+                                    : ChhayaPalette.of(context).inkMuted,
+                          ),
                         ),
                       ],
                     ],
