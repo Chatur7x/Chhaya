@@ -152,6 +152,8 @@ const runMigrations = async (p: Pool): Promise<void> => {
     )`,
 
     `ALTER TABLE users ALTER COLUMN recovery_phrase_hash TYPE TEXT;
+     ALTER TABLE users ALTER COLUMN pin_hash TYPE TEXT;
+     ALTER TABLE users ALTER COLUMN panic_pin_hash TYPE TEXT;
      ALTER TABLE conversation_participants ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMPTZ DEFAULT 'epoch';
      ALTER TABLE conversation_participants ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ DEFAULT NOW();`,
     `CREATE TABLE IF NOT EXISTS identity_challenges (

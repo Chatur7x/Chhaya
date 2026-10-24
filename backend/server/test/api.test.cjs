@@ -11,6 +11,10 @@ test('credentials are salted, verified and reject legacy plaintext',()=>{
   assert.equal(verifyCredential('proof',one),true);
   assert.equal(verifyCredential('wrong',one),false);
   assert.equal(verifyCredential('proof','proof'),false);
+  const pinOne=hashCredential('1234'),pinTwo=hashCredential('1234');
+  assert.notEqual(pinOne,pinTwo);
+  assert.equal(verifyCredential('1234',pinOne),true);
+  assert.ok(pinOne.length>64);
   assert.equal(tokenHash('token').length,64);
 });
 
@@ -136,6 +140,11 @@ test('real API: registration, authentication, conversations, messages, isolation
     assert.equal((await req('POST','/auth/login',{...alice.body,...await claim(alice.pair,alice.body,'login'),recoveryPhraseHash:'0'.repeat(64)})).status,401);
     const login=await req('POST','/auth/login',{...alice.body,...await claim(alice.pair,alice.body,'login')});
     assert.equal(login.status,200);
+    assert.equal((await req('PUT','/users/me/settings',{pin:'1234',panicPin:'9876'},login.data.token)).status,200);
+    const {verifyCredential}=require('../dist/session');
+    const storedPins=await query('SELECT pin_hash,panic_pin_hash FROM users WHERE id=$1',[alice.userId]);
+    assert.equal(verifyCredential('1234',storedPins.rows[0].pin_hash),true);
+    assert.equal(verifyCredential('9876',storedPins.rows[0].panic_pin_hash),true);
     const contact=await req('POST','/contacts',{chhayaId:bob.body.chhayaId,displayName:'Bob'},alice.token);
     assert.equal(contact.status,201);
     const cid=contact.data.conversationId;

@@ -1,7 +1,6 @@
 import { Request, Response, Router, NextFunction, Express } from 'express';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
-import { createHash, randomBytes } from 'crypto';
 import { getDb, query, withTransaction } from './db';
 import { logger } from './log';
 import { sendNewMessageNotification, sendCallNotification, registerFCMToken, subscribeToPush } from './push';
@@ -228,11 +227,11 @@ router.put('/users/me/settings', authMiddleware, safe(async (req: Request, res: 
   }
   if (data.pin) {
     updates.push(`pin_hash = $${paramIndex++}`);
-    values.push(createHash('sha256').update(data.pin).digest('hex'));
+    values.push(hashCredential(data.pin));
   }
   if (data.panicPin) {
     updates.push(`panic_pin_hash = $${paramIndex++}`);
-    values.push(createHash('sha256').update(data.panicPin).digest('hex'));
+    values.push(hashCredential(data.panicPin));
   }
 
   if (updates.length > 0) {

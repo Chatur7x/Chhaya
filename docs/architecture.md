@@ -10,7 +10,7 @@ LocalDatabase uses SQLCipher and encrypted payload columns for messages, contact
 
 ## Messaging path
 
-Settings connects the account to a user-supplied HTTPS origin. Both participants need accounts on the same running server. ApiService performs a single-use identity-possession challenge and stores the resulting opaque session token in secure storage. The backend stores token hashes, expiration, and revocation state.
+Settings connects the account to a user-supplied HTTPS origin. Both participants need accounts on the same running server. ApiService performs a single-use identity-possession challenge and stores the resulting opaque session token in secure storage. The backend stores token hashes, expiration, and revocation state. Optional server-side app and panic PIN settings use individually salted scrypt verifiers; the server never needs the PIN after hashing.
 
 Contacts require independent full-ID or QR verification before encrypted direct messages or calls. MessagingService serializes account messaging operations. RatchetMessageCodec derives authenticated message envelopes using the existing ratchet and AES-GCM implementation. Outgoing ratchet advancement, pending plaintext database row, and retry ciphertext commit atomically before transport. Delivery acknowledgments remove the outbox entry atomically with marking the message sent. Receive commits combine plaintext persistence and ratchet advancement.
 
