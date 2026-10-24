@@ -2,8 +2,7 @@
 //
 // Covers everything rule-compliant: combiner binding, dual-KEM
 // behavior with test KEMs, consent-gated fallback, no-silent-
-// downgrade, and the audit gates on ML-KEM-1024 / ML-DSA-87.
-// NIST KATs are tracked as blocked until an approved provider lands.
+// downgrade, and provider availability behavior.
 import 'dart:typed_data';
 
 import 'package:chaaya/core/crypto/pqc/dual_kem.dart';
@@ -16,8 +15,7 @@ import 'package:chaaya/core/crypto/primitives/rng.dart';
 import 'package:chaaya/core/crypto/primitives/x25519.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Test-only KEM (deterministic, NOT secure). Production KEMs land
-/// behind the audit gate in ml_kem.dart.
+/// Test-only KEM (deterministic, NOT secure); never use it for real keys.
 class FakeKem implements PqKem {
   final Uint8List tag;
   FakeKem(this.tag);
@@ -27,6 +25,9 @@ class FakeKem implements PqKem {
 
   @override
   bool get isAvailable => true;
+
+  @override
+  Future<bool> initialize() async => true;
 
   @override
   Future<({Uint8List ciphertext, Uint8List sharedSecret})> encapsulate(
@@ -62,6 +63,7 @@ bool eq(Uint8List a, Uint8List b) {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   group('PQC hybrid layer', () {
     test('combiner binds both inputs and context', () {
       final c = Csprng.instance.bytes(32);
@@ -123,8 +125,8 @@ void main() {
         context: Uint8List.fromList([0]),
       );
       expect(out.length, 32);
-      expect(
-        () => DualKem.establish(
+      await expectLater(
+        DualKem.establish(
           primary: MlKem1024(),
           secondary: kemB,
           primaryPublicKey: Uint8List(32),
@@ -135,19 +137,23 @@ void main() {
       );
     });
 
-    test('audit gates: ML-KEM-1024 and ML-DSA-87 unavailable', () {
+    test('native PQ provider unavailable without a registered plugin', () async {
       expect(MlKem1024().isAvailable, isFalse);
       expect(MlDsa87().isAvailable, isFalse);
-      expect(() => MlKem1024().encapsulate(Uint8List(32)),
-          throwsA(isA<PqcUnavailableException>()));
-      expect(() => MlDsa87().sign(Uint8List(32), Uint8List(3)),
-          throwsA(isA<PqcUnavailableException>()));
+      await expectLater(
+        MlKem1024().encapsulate(Uint8List(32)),
+        throwsA(isA<PqcUnavailableException>()),
+      );
+      await expectLater(
+        MlDsa87().sign(Uint8List(32), Uint8List(3)),
+        throwsA(isA<PqcUnavailableException>()),
+      );
     });
 
     test('PQXDH refuses without KEM and without consent', () async {
       final remote = (await X25519Kex.generateKeyPair()).publicKey;
-      expect(
-        () => Pqxdh.establish(
+      await expectLater(
+        Pqxdh.establish(
           remotePublicKey: remote,
           context: Uint8List.fromList([1]),
         ),

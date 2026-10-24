@@ -11,6 +11,7 @@ class Conversation {
   final bool isGroup;
   final String? groupName;
   final String? groupAvatarUrl;
+
   final DateTime createdAt;
 
   Conversation({
@@ -26,7 +27,6 @@ class Conversation {
     required this.createdAt,
   });
 
-
   String get displayName {
     if (isGroup && groupName != null) return groupName!;
     if (participants.isNotEmpty) return participants.first.displayName;
@@ -37,6 +37,7 @@ class Conversation {
     String? id,
     List<Contact>? participants,
     Message? lastMessage,
+    bool clearLastMessage = false,
     int? unreadCount,
     bool? isPinned,
     bool? isMuted,
@@ -48,7 +49,7 @@ class Conversation {
     return Conversation(
       id: id ?? this.id,
       participants: participants ?? this.participants,
-      lastMessage: lastMessage ?? this.lastMessage,
+      lastMessage: clearLastMessage ? null : lastMessage ?? this.lastMessage,
       unreadCount: unreadCount ?? this.unreadCount,
       isPinned: isPinned ?? this.isPinned,
       isMuted: isMuted ?? this.isMuted,
@@ -62,12 +63,14 @@ class Conversation {
   factory Conversation.fromJson(Map<String, dynamic> json) {
     return Conversation(
       id: json['id'] as String,
-      participants: (json['participants'] as List<dynamic>)
-          .map((e) => Contact.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      lastMessage: json['lastMessage'] != null
-          ? Message.fromJson(json['lastMessage'] as Map<String, dynamic>)
-          : null,
+      participants:
+          (json['participants'] as List<dynamic>)
+              .map((e) => Contact.fromJson(e as Map<String, dynamic>))
+              .toList(),
+      lastMessage:
+          json['lastMessage'] != null
+              ? Message.fromJson(json['lastMessage'] as Map<String, dynamic>)
+              : null,
       unreadCount: json['unreadCount'] as int? ?? 0,
       isPinned: json['isPinned'] as bool? ?? false,
       isMuted: json['isMuted'] as bool? ?? false,

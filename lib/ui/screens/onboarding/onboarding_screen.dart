@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/chhaya_theme.dart';
 import '../../widgets/glass_container.dart';
-import '../../widgets/chhaya_pixel_mark.dart';
+import '../../widgets/chhaya_brand_mark.dart';
 import '../../widgets/chhaya_button.dart';
 import '../../../core/router/chhaya_router.dart';
 import '../../../core/providers/app_providers.dart';
@@ -156,7 +156,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ChhayaColors.primaryBackground,
+      backgroundColor: ChhayaPalette.of(context).primaryBackground,
       body: Stack(
         children: [
           // Aurora glow background
@@ -166,7 +166,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
             right: -80,
             height: 380,
             child: Container(
-              decoration: const BoxDecoration(gradient: ChhayaColors.glowGradient),
+              decoration: BoxDecoration(gradient: ChhayaPalette.of(context).glowGradient),
             ),
           ),
           SafeArea(
@@ -174,9 +174,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
               children: [
                 Padding(padding:const EdgeInsets.symmetric(horizontal:24,vertical:8),
                   child:Row(children:[
-                    const Icon(Icons.lock_outline,size:20,color:ChhayaColors.accent),
+                    Icon(Icons.lock_outline,size:20,color:ChhayaPalette.of(context).accent),
                     const SizedBox(width:8),
-                    Expanded(child:Text('Your space. Your identity.',style:ChhayaTypography.caption)),
+                    Expanded(child:Text('Your space. Your identity.',style:ChhayaType.of(context).caption)),
                     if(_currentPage<3) TextButton(onPressed:()=>_goToAuth(false),child:const Text('Skip')),
                   ]),
                 ),
@@ -217,7 +217,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
           width: isActive ? 28 : 8,
           height: 8,
           decoration: BoxDecoration(
-            color: isActive ? ChhayaColors.accent : isPast ? ChhayaColors.info.withValues(alpha: 0.5) : ChhayaColors.fillTertiary,
+            color: isActive ? ChhayaPalette.of(context).accent : isPast ? ChhayaPalette.of(context).info.withValues(alpha: 0.5) : ChhayaPalette.of(context).fillTertiary,
             borderRadius: BorderRadius.circular(ChhayaRadius.xs),
             boxShadow: isActive && !disableAnimations ? ChhayaShadows.glowBlue : null,
           ),
@@ -231,15 +231,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
     child:FadeTransition(opacity:disableAnimations?const AlwaysStoppedAnimation(1.0):_heroFadeAnim,child:Column(
       crossAxisAlignment:CrossAxisAlignment.start,children:[
         Row(children:[
-          const ChhayaPixelMark(size:56),
+          const ChhayaBrandMark(size:56),
           const SizedBox(width:20),
-          Expanded(child:Text('CHHAYA',style:ChhayaTypography.displaySmall.copyWith(color:ChhayaColors.accent))),
+          Expanded(child:Text('CHHAYA',style:ChhayaType.of(context).displaySmall.copyWith(color:ChhayaPalette.of(context).accent))),
         ]),
         const SizedBox(height:40),
-        Text('A quieter place\nto stay close.',style:ChhayaTypography.displayL),
+        Text('A quieter place\nto stay close.',style:ChhayaType.of(context).displayL),
         const SizedBox(height:20),
         Text('No phone number. No email. Just an identity you control, and the people you choose.',
-          style:ChhayaTypography.bodyLarge.copyWith(color:ChhayaColors.inkMuted)),
+          style:ChhayaType.of(context).bodyLarge.copyWith(color:ChhayaPalette.of(context).inkMuted)),
         const SizedBox(height:32),
         ChhayaPrimaryButton(label:'Get Started',icon:Icons.arrow_forward_rounded,onPressed:_nextPage),
         const SizedBox(height:12),
@@ -249,7 +249,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
   );
 
   Widget _pageFeatures() => ListView(padding:const EdgeInsets.all(28),children:[
-    Text('Make it personal.\nKeep it private.',style:ChhayaTypography.displayMedium),
+    Text('Make it personal.\nKeep it private.',style:ChhayaType.of(context).displayMedium),
     const SizedBox(height:24),
     for(final feature in [
       (Icons.person_outline,'Your own identity','Create an account without a phone number or email.'),
@@ -258,12 +258,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
       (Icons.dns_outlined,'Connect on your terms','Both people connect to the same deployed Chhaya server.'),
     ]) Padding(padding:const EdgeInsets.only(bottom:24),child:Row(
       crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Icon(feature.$1,size:24,color:ChhayaColors.accent),
+        Icon(feature.$1,size:24,color:ChhayaPalette.of(context).accent),
         const SizedBox(width:16),
         Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-          Text(feature.$2,style:ChhayaTypography.title),
+          Text(feature.$2,style:ChhayaType.of(context).title),
           const SizedBox(height:8),
-          Text(feature.$3,style:ChhayaTypography.bodyLarge.copyWith(color:ChhayaColors.inkMuted)),
+          Text(feature.$3,style:ChhayaType.of(context).bodyLarge.copyWith(color:ChhayaPalette.of(context).inkMuted)),
         ])),
       ],
     )),
@@ -276,9 +276,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
       child: Column(
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          Text('Welcome', style: ChhayaTypography.displaySmall),
+          Text('Welcome', style: ChhayaType.of(context).displaySmall),
           const SizedBox(height: ChhayaSpacing.space2),
-          Text('Choose how you want to enter Chhaya', style: ChhayaTypography.bodySmall.copyWith(color: ChhayaColors.labelSecondary)),
+          Text('Choose how you want to enter Chhaya', style: ChhayaType.of(context).bodySmall.copyWith(color: ChhayaPalette.of(context).labelSecondary)),
           const SizedBox(height: ChhayaSpacing.space7),
           // Signup card
           ChhayaCard(
@@ -290,18 +290,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
                 Container(
                   width: 52,
                   height: 52,
-                  decoration: BoxDecoration(gradient: ChhayaColors.accentGradient, borderRadius: BorderRadius.circular(ChhayaRadius.xl)),
-                  child: const Icon(Icons.person_add_rounded, color: ChhayaColors.onAccent, size: 26),
+                  decoration: BoxDecoration(gradient: ChhayaPalette.of(context).accentGradient, borderRadius: BorderRadius.circular(ChhayaRadius.xl)),
+                  child: Icon(Icons.person_add_rounded, color: ChhayaPalette.of(context).onAccent, size: 26),
                 ),
                 const SizedBox(width: ChhayaSpacing.space4),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Create New Account', style: ChhayaTypography.headlineMedium),
+                    Text('Create New Account', style: ChhayaType.of(context).headlineMedium),
                     const SizedBox(height: ChhayaSpacing.space1),
-                    Text('Generate Chhaya ID + recovery phrase', style: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.labelTertiary)),
+                    Text('Generate Chhaya ID + recovery phrase', style: ChhayaType.of(context).labelMedium.copyWith(color: ChhayaPalette.of(context).labelTertiary)),
                   ]),
                 ),
-                const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: ChhayaColors.labelTertiary),
+                Icon(Icons.arrow_forward_ios_rounded, size: 14, color: ChhayaPalette.of(context).labelTertiary),
               ],
             ),
           ),
@@ -310,29 +310,29 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
             onTap: () => _goToAuth(true),
             padding: const EdgeInsets.all(ChhayaSpacing.space5),
             radius: ChhayaRadius.xxl,
-            color: ChhayaColors.secondaryBackground,
+            color: ChhayaPalette.of(context).secondaryBackground,
             child: Row(
               children: [
                 Container(
                   width: 52,
                   height: 52,
-                  decoration: BoxDecoration(color: ChhayaColors.info.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(ChhayaRadius.xl), border: Border.all(color: ChhayaColors.info.withValues(alpha: 0.25))),
-                  child: const Icon(Icons.login_rounded, color: ChhayaColors.info, size: 26),
+                  decoration: BoxDecoration(color: ChhayaPalette.of(context).info.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(ChhayaRadius.xl), border: Border.all(color: ChhayaPalette.of(context).info.withValues(alpha: 0.25))),
+                  child: Icon(Icons.login_rounded, color: ChhayaPalette.of(context).info, size: 26),
                 ),
                 const SizedBox(width: ChhayaSpacing.space4),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('I Have an Account', style: ChhayaTypography.headlineMedium),
+                    Text('I Have an Account', style: ChhayaType.of(context).headlineMedium),
                     const SizedBox(height: ChhayaSpacing.space1),
-                    Text('Restore with phrase or backup', style: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.labelTertiary)),
+                    Text('Restore with phrase or backup', style: ChhayaType.of(context).labelMedium.copyWith(color: ChhayaPalette.of(context).labelTertiary)),
                   ]),
                 ),
-                const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: ChhayaColors.labelTertiary),
+                Icon(Icons.arrow_forward_ios_rounded, size: 14, color: ChhayaPalette.of(context).labelTertiary),
               ],
             ),
           ),
           const SizedBox(height: ChhayaSpacing.space5),
-          Text('Save your recovery words somewhere only you can access.', style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.labelQuaternary)),
+          Text('Save your recovery words somewhere only you can access.', style: ChhayaType.of(context).labelSmall.copyWith(color: ChhayaPalette.of(context).labelQuaternary)),
         ],
       ),
     );
@@ -343,10 +343,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
       tooltip:'Back',icon:const Icon(Icons.arrow_back),
       onPressed:()=>_pageCtrl.animateToPage(2,duration:ChhayaAnimation.normal,curve:Curves.easeOut))),
     const SizedBox(height:16),
-    Text('Make yourself at home.',style:ChhayaTypography.displayMedium),
+    Text('Make yourself at home.',style:ChhayaType.of(context).displayMedium),
     const SizedBox(height:16),
     Text('Choose a name your contacts will recognize. Your identity and recovery words are created together.',
-      style:ChhayaTypography.bodyLarge.copyWith(color:ChhayaColors.inkMuted)),
+      style:ChhayaType.of(context).bodyLarge.copyWith(color:ChhayaPalette.of(context).inkMuted)),
     const SizedBox(height:24),
     if(_generatedPhrase==null) ...[
       ChhayaInput(controller:_nameCtrl,hint:'Your name',label:'Display name',
@@ -362,32 +362,32 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
       children: [
         Container(
           padding: const EdgeInsets.all(ChhayaSpacing.space4),
-          decoration: BoxDecoration(color: ChhayaColors.warning.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(ChhayaRadius.xl), border: Border.all(color: ChhayaColors.warning.withValues(alpha: 0.22))),
+          decoration: BoxDecoration(color: ChhayaPalette.of(context).warning.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(ChhayaRadius.xl), border: Border.all(color: ChhayaPalette.of(context).warning.withValues(alpha: 0.22))),
           child: Row(
             children: [
-              const Icon(Icons.warning_rounded, size: 20, color: ChhayaColors.warning),
+              Icon(Icons.warning_rounded, size: 20, color: ChhayaPalette.of(context).warning),
               const SizedBox(width: ChhayaSpacing.space3),
-              Expanded(child: Text('Write these 12 words down. They restore your account.', style: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.warning, fontWeight: FontWeight.w600, fontSize: 12))),
+              Expanded(child: Text('Write these 12 words down. They restore your account.', style: ChhayaType.of(context).labelMedium.copyWith(color: ChhayaPalette.of(context).warning, fontWeight: FontWeight.w600, fontSize: 12))),
             ],
           ),
         ),
         const SizedBox(height: ChhayaSpacing.space4),
         Container(
           padding: const EdgeInsets.all(ChhayaSpacing.space4),
-          decoration: BoxDecoration(color: ChhayaColors.cardSurface, borderRadius: BorderRadius.circular(ChhayaRadius.xl), border: Border.all(color: ChhayaColors.opaqueSeparator.withValues(alpha: 0.4))),
+          decoration: BoxDecoration(color: ChhayaPalette.of(context).cardSurface, borderRadius: BorderRadius.circular(ChhayaRadius.xl), border: Border.all(color: ChhayaPalette.of(context).opaqueSeparator.withValues(alpha: 0.4))),
           child: Wrap(
             spacing: ChhayaSpacing.space2,
             runSpacing: ChhayaSpacing.space2,
             children: List.generate(_generatedPhrase!.length, (i) {
               return Container(
                 padding: const EdgeInsets.symmetric(horizontal: ChhayaSpacing.space3, vertical: ChhayaSpacing.space2),
-                decoration: BoxDecoration(color: ChhayaColors.secondaryBackground, borderRadius: BorderRadius.circular(ChhayaRadius.xl), border: Border.all(color: ChhayaColors.separator)),
+                decoration: BoxDecoration(color: ChhayaPalette.of(context).secondaryBackground, borderRadius: BorderRadius.circular(ChhayaRadius.xl), border: Border.all(color: ChhayaPalette.of(context).separator)),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('${i + 1}.', style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.accent, fontWeight: FontWeight.w700)),
+                    Text('${i + 1}.', style: ChhayaType.of(context).labelSmall.copyWith(color: ChhayaPalette.of(context).accent, fontWeight: FontWeight.w700)),
                     const SizedBox(width: ChhayaSpacing.space2),
-                    Text(_generatedPhrase![i], style: ChhayaTypography.bodyMedium.copyWith(fontSize: 13, fontWeight: FontWeight.w600, fontFamily: 'RobotoMono')),
+                    Text(_generatedPhrase![i], style: ChhayaType.of(context).bodyMedium.copyWith(fontSize: 13, fontWeight: FontWeight.w600, fontFamily: 'RobotoMono')),
                   ],
                 ),
               );
@@ -430,15 +430,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
           const SizedBox(height: ChhayaSpacing.space2),
           Row(
             children: [
-              ChhayaIconButton(icon: Icons.arrow_back_rounded, tooltip: 'Back', onPressed: () => _pageCtrl.animateToPage(2, duration: ChhayaAnimation.normal, curve: ChhayaAnimation.springCurve), size: 40, background: ChhayaColors.cardSurface),
+              ChhayaIconButton(icon: Icons.arrow_back_rounded, tooltip: 'Back', onPressed: () => _pageCtrl.animateToPage(2, duration: ChhayaAnimation.normal, curve: ChhayaAnimation.springCurve), size: 40, background: ChhayaPalette.of(context).cardSurface),
               const SizedBox(width: ChhayaSpacing.space3),
-              Expanded(child:Text('Welcome Back', style: ChhayaTypography.displaySmall.copyWith(fontSize: 20))),
+              Expanded(child:Text('Welcome Back', style: ChhayaType.of(context).displaySmall.copyWith(fontSize: 20))),
             ],
           ),
           const SizedBox(height: ChhayaSpacing.space2),
-          Text('Restore your Chhaya account securely', style: ChhayaTypography.bodySmall.copyWith(color: ChhayaColors.labelSecondary)),
+          Text('Restore your Chhaya account securely', style: ChhayaType.of(context).bodySmall.copyWith(color: ChhayaPalette.of(context).labelSecondary)),
           const SizedBox(height: ChhayaSpacing.space5),
-          Text('Recovery Phrase *', style: ChhayaTypography.labelLarge.copyWith(color: ChhayaColors.labelSecondary, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
+          Text('Recovery Phrase *', style: ChhayaType.of(context).labelLarge.copyWith(color: ChhayaPalette.of(context).labelSecondary, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
           const SizedBox(height: ChhayaSpacing.space2),
           TextField(
             controller: _loginPhraseCtrl,
@@ -447,40 +447,40 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
             obscureText: _loginObscure,
             autocorrect: false,
             enableSuggestions: false,
-            style: ChhayaTypography.bodyMedium.copyWith(fontFamily: 'RobotoMono', fontSize: 13, height: 1.5),
+            style: ChhayaType.of(context).bodyMedium.copyWith(fontFamily: 'RobotoMono', fontSize: 13, height: 1.5),
             decoration: InputDecoration(
               hintText: '12 words separated by spaces  •  e.g. abandon ability able ...',
-              hintStyle: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.labelQuaternary),
+              hintStyle: ChhayaType.of(context).labelMedium.copyWith(color: ChhayaPalette.of(context).labelQuaternary),
               filled: true,
-              fillColor: ChhayaColors.inputSurface,
+              fillColor: ChhayaPalette.of(context).inputSurface,
               suffixIcon: IconButton(
                 tooltip: _loginObscure ? 'Show recovery phrase' : 'Hide recovery phrase',
-                icon: Icon(_loginObscure ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 18, color: ChhayaColors.labelTertiary),
+                icon: Icon(_loginObscure ? Icons.visibility_off_rounded : Icons.visibility_rounded, size: 18, color: ChhayaPalette.of(context).labelTertiary),
                 onPressed: () => setState(() => _loginObscure = !_loginObscure),
               ),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(ChhayaRadius.lg), borderSide: BorderSide(color: ChhayaColors.glassBorder.withValues(alpha: 0.12))),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(ChhayaRadius.lg), borderSide: BorderSide(color: ChhayaColors.glassBorder.withValues(alpha: 0.12))),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(ChhayaRadius.lg), borderSide: const BorderSide(color: ChhayaColors.accent, width: 1.5)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(ChhayaRadius.lg), borderSide: BorderSide(color: ChhayaPalette.of(context).glassBorder.withValues(alpha: 0.12))),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(ChhayaRadius.lg), borderSide: BorderSide(color: ChhayaPalette.of(context).glassBorder.withValues(alpha: 0.12))),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(ChhayaRadius.lg), borderSide: BorderSide(color: ChhayaPalette.of(context).accent, width: 1.5)),
               contentPadding: const EdgeInsets.all(ChhayaSpacing.space4),
             ),
           ),
           const SizedBox(height: ChhayaSpacing.space2),
-          Text('Must be exactly 12 words. Keep it private.', style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.labelQuaternary)),
+          Text('Must be exactly 12 words. Keep it private.', style: ChhayaType.of(context).labelSmall.copyWith(color: ChhayaPalette.of(context).labelQuaternary)),
           const SizedBox(height: ChhayaSpacing.space4),
-          Text('Encrypted Backup (optional)', style: ChhayaTypography.labelLarge.copyWith(color: ChhayaColors.labelSecondary, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
+          Text('Encrypted Backup (optional)', style: ChhayaType.of(context).labelLarge.copyWith(color: ChhayaPalette.of(context).labelSecondary, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
           const SizedBox(height: ChhayaSpacing.space2),
           TextField(
             controller: _loginBackupCtrl,
             maxLines: 2,
-            style: ChhayaTypography.code.copyWith(fontSize: 11, color: ChhayaColors.labelSecondary),
+            style: ChhayaType.of(context).code.copyWith(fontSize: 11, color: ChhayaPalette.of(context).labelSecondary),
             decoration: InputDecoration(
               hintText: 'Paste backup string if you have one',
-              hintStyle: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.labelQuaternary),
+              hintStyle: ChhayaType.of(context).labelMedium.copyWith(color: ChhayaPalette.of(context).labelQuaternary),
               filled: true,
-              fillColor: ChhayaColors.inputSurface,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(ChhayaRadius.lg), borderSide: BorderSide(color: ChhayaColors.glassBorder.withValues(alpha: 0.12))),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(ChhayaRadius.lg), borderSide: BorderSide(color: ChhayaColors.glassBorder.withValues(alpha: 0.12))),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(ChhayaRadius.lg), borderSide: const BorderSide(color: ChhayaColors.accent, width: 1.5)),
+              fillColor: ChhayaPalette.of(context).inputSurface,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(ChhayaRadius.lg), borderSide: BorderSide(color: ChhayaPalette.of(context).glassBorder.withValues(alpha: 0.12))),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(ChhayaRadius.lg), borderSide: BorderSide(color: ChhayaPalette.of(context).glassBorder.withValues(alpha: 0.12))),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(ChhayaRadius.lg), borderSide: BorderSide(color: ChhayaPalette.of(context).accent, width: 1.5)),
               contentPadding: const EdgeInsets.all(ChhayaSpacing.space4),
             ),
           ),
@@ -490,18 +490,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
           Center(
             child: TextButton(
               onPressed: () => setState(() => _isLoginMode = false),
-              child: Text('Don\'t have an account? Create one', style: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.accent, fontWeight: FontWeight.w600)),
+              child: Text('Don\'t have an account? Create one', style: ChhayaType.of(context).labelMedium.copyWith(color: ChhayaPalette.of(context).accent, fontWeight: FontWeight.w600)),
             ),
           ),
           const SizedBox(height: ChhayaSpacing.space2),
           Container(
             padding: const EdgeInsets.all(ChhayaSpacing.space3),
-            decoration: BoxDecoration(color: ChhayaColors.cardSurface, borderRadius: BorderRadius.circular(ChhayaRadius.xl), border: Border.all(color: ChhayaColors.separator)),
+            decoration: BoxDecoration(color: ChhayaPalette.of(context).cardSurface, borderRadius: BorderRadius.circular(ChhayaRadius.xl), border: Border.all(color: ChhayaPalette.of(context).separator)),
             child: Row(
               children: [
-                const Icon(Icons.info_outline_rounded, size: 18, color: ChhayaColors.labelTertiary),
+                Icon(Icons.info_outline_rounded, size: 18, color: ChhayaPalette.of(context).labelTertiary),
                 const SizedBox(width: ChhayaSpacing.space3),
-                Expanded(child: Text('Log in is local & encrypted. No server sees your phrase.', style: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.labelTertiary, fontSize: 11))),
+                Expanded(child: Text('Log in is local & encrypted. No server sees your phrase.', style: ChhayaType.of(context).labelMedium.copyWith(color: ChhayaPalette.of(context).labelTertiary, fontSize: 11))),
               ],
             ),
           ),

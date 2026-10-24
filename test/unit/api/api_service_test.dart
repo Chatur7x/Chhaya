@@ -26,6 +26,14 @@ void main(){
     api.setBaseUrl('https://chat.example.com');
     await expectLater(api.getConversations(),throwsA(isA<ApiException>().having((e)=>e.statusCode,'status',302)));
   });
+  test('pending call invites parse encrypted envelopes from the API',() async {
+    final api=ApiService.forTesting(storage:SecureStorageMock(),client:MockClient((request) async {
+      expect(request.url.path,'/api/v1/calls/incoming');
+      return http.Response(jsonEncode([{'callId':'call-id','conversationId':'conversation-id','senderId':'peer-id','envelope':'sealed-offer'}]),200);
+    }));
+    api.setBaseUrl('https://chat.example.com');
+    expect(await api.getIncomingCallInvites(),[{'callId':'call-id','conversationId':'conversation-id','senderId':'peer-id','envelope':'sealed-offer'}]);
+  });
   test('401 clears a stored session instead of retrying stale credentials',() async {
     final storage=SecureStorageMock({'chhaya_auth_token':'stale'});
     final api=ApiService.forTesting(storage:storage,client:MockClient((request) async=>http.Response('{"error":"expired"}',401)));

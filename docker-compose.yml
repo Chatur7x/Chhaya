@@ -19,7 +19,7 @@ services:
       TRUST_PROXY_HOPS: 1
       NODE_ENV: production
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
-    expose: ['8443', '8444']
+    expose: ['8443']
     depends_on:
       postgres: {condition: service_healthy}
     restart: unless-stopped

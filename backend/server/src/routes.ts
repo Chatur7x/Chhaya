@@ -1,13 +1,13 @@
 import { Request, Response, Router, NextFunction, Express } from 'express';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
-import { createHash, randomBytes } from 'crypto';
 import { getDb, query, withTransaction } from './db';
 import { logger } from './log';
 import { sendNewMessageNotification, sendCallNotification, registerFCMToken, subscribeToPush } from './push';
 import { broadcastToUser } from './signaling';
 import { issueIdentityChallenge, consumeIdentityChallenge } from './identity-proof';
 import { authenticateToken, issueSession, hashCredential, verifyCredential } from './session';
+import { getPendingCallInvites } from './call-invites';
 
 const router = Router();
 const safe = (handler: (req: Request,res: Response,next: NextFunction)=>Promise<unknown>) =>
@@ -58,7 +58,7 @@ const sendMessageSchema = z.object({
   content: z.string().min(1).max(768 * 1024),
   messageType: z.enum(['text', 'image', 'file', 'voice', 'location']).default('text'),
   mediaUrl: z.string().url().optional(),
-  mediaMeta: z.record(z.unknown()).optional(),
+  mediaMeta: z.record(z.string(), z.unknown()).optional(),
   replyToId: z.string().uuid().optional(),
 });
 
@@ -139,7 +139,7 @@ router.post('/auth/register', safe(async (req: Request, res: Response) => {
     res.status(201).json({ userId, token: await issueSession(userId) });
   } catch (e) {
     if (e instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Invalid input', details: e.errors });
+      return res.status(400).json({ error: 'Invalid input', details: e.issues });
     }
     logger.error('Registration failed');
     res.status(500).json({ error: 'Registration failed' });
@@ -188,7 +188,7 @@ router.post('/auth/login', safe(async (req: Request, res: Response) => {
     res.json({ userId, token: await issueSession(userId) });
   } catch (e) {
     if (e instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Invalid input', details: e.errors });
+      return res.status(400).json({ error: 'Invalid input', details: e.issues });
     }
     logger.error('Login failed');
     res.status(500).json({ error: 'Login failed' });
@@ -228,11 +228,11 @@ router.put('/users/me/settings', authMiddleware, safe(async (req: Request, res: 
   }
   if (data.pin) {
     updates.push(`pin_hash = $${paramIndex++}`);
-    values.push(createHash('sha256').update(data.pin).digest('hex'));
+    values.push(hashCredential(data.pin));
   }
   if (data.panicPin) {
     updates.push(`panic_pin_hash = $${paramIndex++}`);
-    values.push(createHash('sha256').update(data.panicPin).digest('hex'));
+    values.push(hashCredential(data.panicPin));
   }
 
   if (updates.length > 0) {
@@ -315,10 +315,24 @@ router.post('/conversations', authMiddleware, safe(async (req: Request, res: Res
   if (data.type === 'direct' && data.participantIds.length !== 1) {
     return res.status(400).json({ error: 'Direct conversation requires exactly 1 participant' });
   }
+  if (data.type === 'group' && data.participantIds.length < 2) {
+    return res.status(400).json({ error: 'Group conversation requires at least 2 other participants' });
+  }
 
   const convoId = uuidv4();
   const allParticipants = [...new Set([userId,...data.participantIds])];
   if(allParticipants.length!==data.participantIds.length+1) return res.status(400).json({error:'Duplicate or self participant'});
+
+  // A group can only be created from the initiator's active, unblocked address book.
+  // Membership is immutable in this API version, so no admin path can bypass
+  // the per-member encrypted-key envelopes used by the client.
+  const allowedContacts=await query(
+    `SELECT contact_id FROM contacts WHERE user_id=$1 AND is_blocked=false AND contact_id=ANY($2::uuid[])`,
+    [userId,data.participantIds]
+  );
+  if(allowedContacts.rows.length!==data.participantIds.length) {
+    return res.status(403).json({error:'Every participant must be an active contact'});
+  }
 
   await withTransaction(async (client) => {
     await client.query(
@@ -467,6 +481,26 @@ router.get('/messages/:conversationId', authMiddleware, safe(async (req: Request
   params.push(limit);
 
   const result = await query(queryStr, params);
+  const pendingDelivery = result.rows
+    .filter((message) => message.sender_id !== userId && !message.delivered_at)
+    .map((message) => message.id);
+  if (pendingDelivery.length > 0) {
+    const acknowledgments = await query(
+      `UPDATE messages
+       SET delivered_at = NOW()
+       WHERE id = ANY($1::uuid[]) AND sender_id <> $2 AND delivered_at IS NULL
+       RETURNING id, delivered_at`,
+      [pendingDelivery, userId],
+    );
+    const deliveredAt = new Map(
+      acknowledgments.rows.map((row) => [row.id as string, row.delivered_at]),
+    );
+    for (const message of result.rows) {
+      if (message.delivered_at == null && deliveredAt.has(message.id)) {
+        message.delivered_at = deliveredAt.get(message.id);
+      }
+    }
+  }
   res.json(result.rows.reverse());
 }));
 
@@ -491,6 +525,13 @@ router.post('/messages/:messageId/read', authMiddleware, safe(async (req: Reques
   );
 
   res.json({ success: true });
+}));
+
+// Pending encrypted call offers are available only to their intended recipient
+// and expire after the short ring window. Answering/rejecting clears the entry.
+router.get('/calls/incoming', authMiddleware, safe(async (req: Request, res: Response) => {
+  const userId = (req as any).userId;
+  res.json(await getPendingCallInvites(userId));
 }));
 
 // POST /api/v1/devices/link

@@ -327,6 +327,14 @@ class ApiService {
     await _request('POST', '/api/v1/messages/$messageId/read');
   }
 
+  Future<List<Map<String,dynamic>>> getIncomingCallInvites() async {
+    return await _request('GET', '/api/v1/calls/incoming',
+      parser: (data) => (data as List)
+          .map((entry) => Map<String,dynamic>.from(entry as Map))
+          .toList(),
+    );
+  }
+
   // Devices
   Future<void> linkDevice({
     required String deviceId,

@@ -57,6 +57,24 @@ class RatchetMessageCodec {
     } finally { step.keys.wipe(); state.wipe(); }
   }
 
+  /// Produces a ratchet envelope without persisting the advanced state. Group
+  /// sends use this to prepare every recipient wrapper before one DB commit.
+  Future<({SessionState state, String envelope})> prepareEncrypt(Contact peer,
+      String conversation, String messageId, String sender,
+      Map<String,dynamic> payload) async {
+    final state=await _state(peer,conversation);
+    try {
+      final step=await TripleRatchet.encrypt(state);
+      try {
+        final header=step.header.toBytes();
+        final aad=Uint8List.fromList([..._aad(conversation,messageId,sender),...header]);
+        final bytes=AesGcm.encryptBytes(step.keys.messageKey,
+          Uint8List.fromList(utf8.encode(jsonEncode(payload))),nonce:step.keys.nonce,aad:aad);
+        return (state:state,envelope:jsonEncode({'v':1,'header':base64Encode(header),'body':base64Encode(bytes)}));
+      } finally { step.keys.wipe(); }
+    } catch (_) { state.wipe(); rethrow; }
+  }
+
   Future<Map<String,dynamic>> decrypt(Contact peer,String conversation,
       String messageId,String sender,String envelope,{Future<void> Function(SessionState state,Map<String,dynamic> payload)? commit}) async {
     final wire=jsonDecode(envelope) as Map<String,dynamic>;

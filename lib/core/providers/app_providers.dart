@@ -4,6 +4,7 @@ import '../crypto/key_manager.dart';
 import '../database/local_database.dart';
 import '../models/contact.dart';
 import '../models/conversation.dart';
+import '../models/message.dart';
 import '../models/user_profile.dart';
 import '../../services/auth/auth_service.dart';
 import '../../services/network/onion_router_service.dart';
@@ -93,6 +94,7 @@ class ConversationsNotifier extends StateNotifier<List<Conversation>> {
   ConversationsNotifier() : super([]);
 
   void setConversations(List<Conversation> conversations) {
+    if (_sameConversationSnapshot(state, conversations)) { return; }
     state = conversations;
   }
 
@@ -120,6 +122,7 @@ class ContactsNotifier extends StateNotifier<List<Contact>> {
   ContactsNotifier() : super([]);
 
   void setContacts(List<Contact> contacts) {
+    if (_sameContactSnapshot(state, contacts)) { return; }
     state = contacts;
   }
 
@@ -134,6 +137,50 @@ class ContactsNotifier extends StateNotifier<List<Contact>> {
   void removeContact(String id) {
     state = state.where((c) => c.id != id).toList();
   }
+}
+
+// Keep the previous list when a poll returns the same visible data. This
+// prevents Riverpod from redrawing chat and contact screens every refresh.
+bool _sameContactSnapshot(List<Contact> a, List<Contact> b) {
+  if (identical(a, b)) { return true; }
+  if (a.length != b.length) { return false; }
+  for (var i = 0; i < a.length; i++) {
+    final x = a[i], y = b[i];
+    if (x.id != y.id || x.chhayaId.publicKey != y.chhayaId.publicKey ||
+        x.displayName != y.displayName || x.avatarUrl != y.avatarUrl ||
+        x.verificationLevel != y.verificationLevel || x.isBlocked != y.isBlocked ||
+        x.isPinned != y.isPinned || x.lastSeen != y.lastSeen ||
+        x.isOnline != y.isOnline || x.isVerified != y.isVerified) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool _sameConversationSnapshot(List<Conversation> a, List<Conversation> b) {
+  if (identical(a, b)) { return true; }
+  if (a.length != b.length) { return false; }
+  for (var i = 0; i < a.length; i++) {
+    final x = a[i], y = b[i];
+    if (x.id != y.id || x.unreadCount != y.unreadCount ||
+        x.isPinned != y.isPinned || x.isMuted != y.isMuted ||
+        x.isGroup != y.isGroup || x.groupName != y.groupName ||
+        x.groupAvatarUrl != y.groupAvatarUrl || x.createdAt != y.createdAt ||
+        !_sameContactSnapshot(x.participants, y.participants) ||
+        !_sameMessagePreview(x.lastMessage, y.lastMessage)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool _sameMessagePreview(Message? a, Message? b) {
+  if (identical(a, b)) { return true; }
+  if (a == null || b == null) { return false; }
+  return a.id == b.id && a.senderId == b.senderId && a.content == b.content &&
+      a.type == b.type && a.timestamp == b.timestamp && a.isExpired == b.isExpired &&
+      a.replyToId == b.replyToId && a.attachment?.name == b.attachment?.name &&
+      a.attachment?.mimeType == b.attachment?.mimeType;
 }
 
 final messagingServiceProvider = Provider<MessagingService>((ref) => MessagingService(

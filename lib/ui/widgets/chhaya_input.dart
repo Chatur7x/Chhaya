@@ -69,23 +69,23 @@ class ChhayaInput extends StatelessWidget {
       validator: validator,
       onChanged: onChanged,
       onFieldSubmitted: onSubmitted,
-      style: style ?? ChhayaTypography.body,
+      style: style ?? ChhayaType.of(context).body,
       textCapitalization: textCapitalization,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        hintStyle: ChhayaTypography.body.copyWith(
-          color: ChhayaColors.inkMuted,
+        hintStyle: ChhayaType.of(context).body.copyWith(
+          color: ChhayaPalette.of(context).inkMuted,
         ),
         helperText: helperText,
         errorText: errorText,
         counterText: '',
         prefixIcon: prefixIcon != null
-            ? Icon(prefixIcon, size: 20, color: ChhayaColors.inkMuted)
+            ? Icon(prefixIcon, size: 20, color: ChhayaPalette.of(context).inkMuted)
             : null,
         suffixIcon: suffix,
         filled: true,
-        fillColor: ChhayaColors.white,
+        fillColor: ChhayaPalette.of(context).white,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: ChhayaSpacing.space4,
           vertical: ChhayaSpacing.space3,
@@ -93,31 +93,31 @@ class ChhayaInput extends StatelessWidget {
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(ChhayaRadius.lg),
           borderSide: BorderSide(
-            color: hasError ? ChhayaColors.error : ChhayaColors.borderMed,
+            color: hasError ? ChhayaPalette.of(context).error : ChhayaPalette.of(context).borderMed,
             width: 1,
           ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(ChhayaRadius.lg),
           borderSide: BorderSide(
-            color: hasError ? ChhayaColors.error : ChhayaColors.borderMed,
+            color: hasError ? ChhayaPalette.of(context).error : ChhayaPalette.of(context).borderMed,
             width: 1,
           ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(ChhayaRadius.lg),
           borderSide: BorderSide(
-            color: hasError ? ChhayaColors.error : ChhayaColors.coralDeep,
+            color: hasError ? ChhayaPalette.of(context).error : ChhayaPalette.of(context).coralDeep,
             width: 1.5,
           ),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(ChhayaRadius.lg),
-          borderSide: const BorderSide(color: ChhayaColors.error, width: 1),
+          borderSide: BorderSide(color: ChhayaPalette.of(context).error, width: 1),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(ChhayaRadius.lg),
-          borderSide: const BorderSide(color: ChhayaColors.error, width: 1.5),
+          borderSide: BorderSide(color: ChhayaPalette.of(context).error, width: 1.5),
         ),
       ),
     );

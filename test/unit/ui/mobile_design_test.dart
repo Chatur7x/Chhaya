@@ -96,9 +96,9 @@ void main() {
     'profile':const ProfileScreen(contactId:'maya'),
     'verification':const VerificationScreen(),
   };
-  for(final viewport in [(360.0,1.0),(320.0,2.0),(768.0,1.0)]) {
+  for(final viewport in [(360.0,1.0,false),(320.0,2.0,false),(768.0,1.0,false),(360.0,1.0,true)]) {
     for(final entry in scenes.entries) {
-      testWidgets('${entry.key} fits ${viewport.$1}dp at ${viewport.$2}x text', (tester) async {
+      testWidgets('${entry.key} fits ${viewport.$1}dp at ${viewport.$2}x text ${viewport.$3?'dark':'light'}', (tester) async {
         tester.view.physicalSize=Size(viewport.$1,viewport.$1==320?568:820);
         tester.view.devicePixelRatio=1;
         addTearDown(tester.view.resetPhysicalSize);
@@ -114,7 +114,7 @@ void main() {
           displayName:'Alex Morgan',recoveryPhrase:List.filled(12,'example'),createdAt:DateTime(2026,10,23));
         final capture=GlobalKey();
         await tester.pumpWidget(UncontrolledProviderScope(container:container,
-          child:RepaintBoundary(key:capture,child:MaterialApp(debugShowCheckedModeBanner:false,theme:ChhayaTheme.materialLight,
+          child:RepaintBoundary(key:capture,child:MaterialApp(debugShowCheckedModeBanner:false,theme:viewport.$3?ChhayaTheme.materialDark:ChhayaTheme.materialLight,
             builder:(context,child)=>MediaQuery(data:MediaQuery.of(context).copyWith(
               disableAnimations:true,textScaler:TextScaler.linear(viewport.$2),
               viewInsets:entry.key=='conversation-keyboard'?const EdgeInsets.only(bottom:260):EdgeInsets.zero),child:child!),
@@ -136,7 +136,12 @@ void main() {
           await tester.tap(find.byTooltip('Hide recovery phrase'));
           await tester.pump();
         }
+        if(entry.key=='conversation-rich') {
+          await tester.scrollUntilVisible(find.text('Meeting notes.txt'),160,scrollable:find.byType(Scrollable).first);
+          await tester.pumpAndSettle();
+        }
         if(entry.key=='conversation-reply-draft') {
+          await tester.ensureVisible(find.text('Hey! Are we still on for tomorrow?'));
           await tester.longPress(find.text('Hey! Are we still on for tomorrow?'));
           await tester.pumpAndSettle();
           await tester.tap(find.text('Reply'));
@@ -169,7 +174,7 @@ void main() {
           final boundary=capture.currentContext!.findRenderObject()! as RenderRepaintBoundary;
           final image=await boundary.toImage(pixelRatio:1);
           final bytes=await image.toByteData(format:ui.ImageByteFormat.png);
-          final out=File('build/design-review/${entry.key}-${viewport.$1.toInt()}-${viewport.$2}x.png');
+          final out=File('build/design-review/${entry.key}-${viewport.$1.toInt()}-${viewport.$2}x${viewport.$3?'-dark':''}.png');
           await out.parent.create(recursive:true);
           await out.writeAsBytes(bytes!.buffer.asUint8List());
           image.dispose();

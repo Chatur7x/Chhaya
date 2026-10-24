@@ -16,27 +16,27 @@ class CallsTab extends ConsumerWidget {
       appBar:const ChhayaAppBar(title:'Calls'),
       body:SafeArea(top:false,child:ListView(padding:const EdgeInsets.all(24),children:[
         Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(
-          color:ChhayaColors.coralTint,borderRadius:BorderRadius.circular(16)),
+          color:ChhayaPalette.of(context).coralTint,borderRadius:BorderRadius.circular(16)),
           child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-            const Icon(Icons.call_outlined,color:ChhayaColors.accent,size:28),
+            Icon(Icons.call_outlined,color:ChhayaPalette.of(context).accent,size:28),
             const SizedBox(height:16),
-            Text('Start a call',style:ChhayaTypography.title),
+            Text('Start a call',style:ChhayaType.of(context).title),
             const SizedBox(height:8),
             Text('Voice and video calls with verified contacts. Keep both apps open and connected to the same server.',
-              style:ChhayaTypography.body),
+              style:ChhayaType.of(context).body),
           ]),
         ),
         const SizedBox(height:24),
         if(conversations.isEmpty) Padding(padding:const EdgeInsets.symmetric(vertical:32),
           child:Text('Add and verify a contact to make your first call.',
-            textAlign:TextAlign.center,style:ChhayaTypography.bodyLarge.copyWith(color:ChhayaColors.inkMuted))),
+            textAlign:TextAlign.center,style:ChhayaType.of(context).bodyLarge.copyWith(color:ChhayaPalette.of(context).inkMuted))),
         for(final conversation in conversations) Padding(
           padding:const EdgeInsets.symmetric(vertical:8),
           child:Column(children:[
             Row(children:[
               AvatarWidget(name:conversation.displayName,size:48),
               const SizedBox(width:16),
-              Expanded(child:Text(conversation.displayName,style:ChhayaTypography.title)),
+              Expanded(child:Text(conversation.displayName,style:ChhayaType.of(context).title)),
             ]),
             const SizedBox(height:8),
             Align(alignment:AlignmentDirectional.centerEnd,child:Wrap(spacing:8,children:[
