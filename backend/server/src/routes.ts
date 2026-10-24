@@ -58,7 +58,7 @@ const sendMessageSchema = z.object({
   content: z.string().min(1).max(768 * 1024),
   messageType: z.enum(['text', 'image', 'file', 'voice', 'location']).default('text'),
   mediaUrl: z.string().url().optional(),
-  mediaMeta: z.record(z.unknown()).optional(),
+  mediaMeta: z.record(z.string(), z.unknown()).optional(),
   replyToId: z.string().uuid().optional(),
 });
 
@@ -139,7 +139,7 @@ router.post('/auth/register', safe(async (req: Request, res: Response) => {
     res.status(201).json({ userId, token: await issueSession(userId) });
   } catch (e) {
     if (e instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Invalid input', details: e.errors });
+      return res.status(400).json({ error: 'Invalid input', details: e.issues });
     }
     logger.error('Registration failed');
     res.status(500).json({ error: 'Registration failed' });
@@ -188,7 +188,7 @@ router.post('/auth/login', safe(async (req: Request, res: Response) => {
     res.json({ userId, token: await issueSession(userId) });
   } catch (e) {
     if (e instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Invalid input', details: e.errors });
+      return res.status(400).json({ error: 'Invalid input', details: e.issues });
     }
     logger.error('Login failed');
     res.status(500).json({ error: 'Login failed' });
