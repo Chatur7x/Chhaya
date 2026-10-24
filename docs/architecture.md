@@ -16,6 +16,10 @@ Contacts require independent full-ID or QR verification before encrypted direct 
 
 The API stores opaque envelopes and routing metadata. Foreground polling synchronizes conversations and message history. Stable timestamp/ID database cursors avoid dropping messages with equal timestamps. A retry reuses its exact envelope and message ID. Backend checks enforce active conversation membership and sender ownership.
 
+Poll definitions and vote changes are typed payloads inside the same E2EE ratchet envelopes. Clients enforce bounded question/option fields, validate choices against the poll definition, reject votes after the close time, and render aggregate totals from the latest authenticated vote per account. The server sees only ciphertext. Poll history and multi-device vote reconciliation still need real-device validation.
+
+Basic group messaging encrypts each message body once with a fresh content key, then wraps that key separately to every verified group member using that member's pairwise ratchet. The sender commits all ratchet advances, the message row, and the exact retry envelope in one local SQLCipher transaction. The server enforces that group participants are active contacts at creation. Membership changes, admin controls, join/leave key rotation, and recipient-side verification/acceptance UX are not implemented; recipients must already have independently verified each sender.
+
 ## Calls and optional infrastructure
 
 CallService captures microphone/camera after user action and uses WebRTC. Authenticated WebSocket messages relay encrypted SDP and ICE. Direct chats also send ephemeral typing state over that authenticated channel; the server checks active two-person membership, rate-limits events and does not persist them. Clients expire a remote indicator after six seconds without a refresh. STUN is configured; a separately provisioned TURN server may be needed. Current calls require the app in the foreground. Background ringing, native calling integration, and end-to-end push provisioning are incomplete.
@@ -24,4 +28,4 @@ Docker/self-hosting configuration is provided, but no public server, domain, TLS
 
 ## Deliberately unavailable features
 
-The current UI does not provide working attachments/polls or encrypted groups. Onion/mesh transports and decentralized file services contain legacy experimental code and are not the active messaging path. PQC wrappers remain gated placeholders; the product must not claim audited post-quantum security. Vault/duress workflows and the full design/accessibility/performance roadmap remain unfinished.
+Encrypted inline attachments (up to 256 KB), polls, and basic group messaging are implemented. Group membership administration and device-to-device acceptance/verification remain incomplete. Onion/mesh transports and decentralized file services contain legacy experimental code and are not the active messaging path. PQC wrappers remain gated placeholders; the product must not claim audited post-quantum security. Vault/duress workflows and the full design/accessibility/performance roadmap remain unfinished.
