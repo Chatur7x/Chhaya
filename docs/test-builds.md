@@ -10,10 +10,18 @@ build can prevent upgrades. Back up important data before replacing an app;
 uninstalling removes its data. Do not rely on this development build for
 sensitive communication.
 
-The locally built output/Chhaya-V14-NEW.apk is a profile-mode AOT build named
-com.chaaya.app.chaaya and is also debug-signed. It installs alongside the
-separate com.chaaya.app.chaaya.test app, so the two apps have separate local
-accounts and databases. It is still a test artifact, not a Play Store build.
+The locally built `dist/Chhaya-V14-NEW.apk` is generated with
+`flutter build apk --release --target-platform android-arm64 --no-pub`, has
+package name `com.chaaya.app.chaaya`, and is signed with the repository's debug
+key. It is optimized in release mode, but it is still a test artifact: it has
+not been signed with an owner-controlled release key or tested on a physical
+device. It installs alongside the separate `com.chaaya.app.chaaya.test` app, so
+the two apps have separate local accounts and databases. Its SHA-256 is recorded
+in `dist/Chhaya-V14-NEW.apk.sha256`.
+
+The Android release build requires the AWS-LC native provider build and can
+take several minutes on a clean checkout. Do not infer device-level SQLCipher
+or cryptographic correctness from successful compilation alone.
 
 ## iPhone
 

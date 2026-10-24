@@ -1,5 +1,5 @@
-# Android debug build — compiles Kotlin (including app-native plugins)
-# on every app-touching PR so uncompiled native code can never merge.
+# Android debug and release builds — compile Kotlin (including app-native
+# plugins) and catch release-only registration issues on every app change.
 #
 # NOTE (repo layout): Flutter lives at the repo root (there is no
 # `app/` directory), so this is a separate workflow file: per-job path
@@ -35,7 +35,7 @@ on:
 
 jobs:
   android-build:
-    name: Android debug APK
+    name: Android debug + release APKs
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,6 +70,7 @@ jobs:
             ${{ runner.os }}-gradle-
       - run: flutter pub get
       - run: flutter build apk --debug
+      - run: flutter build apk --release --target-platform android-arm64
       - name: Save installable Android test APK
         uses: actions/upload-artifact@v4
         with:

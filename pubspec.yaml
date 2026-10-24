@@ -81,8 +81,6 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
-  integration_test:
-    sdk: flutter
   # Desktop/in-memory SQLite for unit tests (Part 3). Production uses
   # SQLCipher on-device; tests inject an ffi factory (see
   # test/unit/database/). No SQLCipher native libs exist for test hosts.
