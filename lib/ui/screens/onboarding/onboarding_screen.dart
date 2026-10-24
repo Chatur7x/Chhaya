@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/chhaya_theme.dart';
 import '../../widgets/glass_container.dart';
-import '../../widgets/chhaya_pixel_mark.dart';
+import '../../widgets/chhaya_brand_mark.dart';
 import '../../widgets/chhaya_button.dart';
 import '../../../core/router/chhaya_router.dart';
 import '../../../core/providers/app_providers.dart';
@@ -231,7 +231,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
     child:FadeTransition(opacity:disableAnimations?const AlwaysStoppedAnimation(1.0):_heroFadeAnim,child:Column(
       crossAxisAlignment:CrossAxisAlignment.start,children:[
         Row(children:[
-          const ChhayaPixelMark(size:56),
+          const ChhayaBrandMark(size:56),
           const SizedBox(width:20),
           Expanded(child:Text('CHHAYA',style:ChhayaType.of(context).displaySmall.copyWith(color:ChhayaPalette.of(context).accent))),
         ]),

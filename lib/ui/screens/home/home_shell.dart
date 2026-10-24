@@ -1,6 +1,6 @@
 import '../../../services/call/call_service.dart';
 import '../call/call_screen.dart';
-import '../../widgets/chhaya_pixel_mark.dart';
+import '../../widgets/chhaya_brand_mark.dart';
 import '../../widgets/chhaya_navigation.dart';
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -124,7 +124,7 @@ class _HomeShellState extends ConsumerState<HomeShell> with WidgetsBindingObserv
     return Scaffold(
       body:Row(children:[
         if(wide) NavigationRail(
-          leading: const Padding(padding: EdgeInsets.symmetric(vertical:24),child:ChhayaPixelMark(size:32)),
+          leading: const Padding(padding: EdgeInsets.symmetric(vertical:24),child:ChhayaBrandMark(size:32)),
           selectedIndex:_selectedIndex,onDestinationSelected:_select,
           labelType:NavigationRailLabelType.all,groupAlignment:-0.7,
           backgroundColor:ChhayaPalette.of(context).surface,

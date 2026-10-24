@@ -33,10 +33,17 @@ def source(cache: Path) -> Path:
     with archive.open("rb") as downloaded:
         if hashlib.file_digest(downloaded, "sha256").hexdigest() != SHA256:
             raise RuntimeError("AWS-LC source checksum mismatch; refusing to build")
-    extracted = cache / f"aws-lc-{COMMIT}"
+    # Keep the checkout path short: Android's Windows CMake/Ninja toolchain
+    # can fail on generated source paths beyond the legacy MAX_PATH limit.
+    # The download is still bound to COMMIT and SHA256 above.
+    extracted = cache / "aws-lc"
+    archive_root = cache / f"aws-lc-{COMMIT}"
     if not (extracted / ".chhaya-verified").exists():
-        with tarfile.open(archive, "r:gz") as contents:
-            contents.extractall(cache, filter="data")
+        if not (archive_root / "CMakeLists.txt").exists():
+            with tarfile.open(archive, "r:gz") as contents:
+                contents.extractall(cache, filter="data")
+        if not extracted.exists():
+            archive_root.rename(extracted)
         (extracted / ".chhaya-verified").write_text(SHA256, encoding="ascii")
     return extracted
 

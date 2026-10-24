@@ -14,7 +14,10 @@ endif()
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 find_program(CHHAYA_GO go REQUIRED)
-set(CHHAYA_CACHE "${CMAKE_CURRENT_BINARY_DIR}/pinned-awslc")
+# Keep generated paths short for Windows toolchains (Ninja/NDK still encounter
+# MAX_PATH limits on some installations). The source remains pinned and
+# checksum-verified by prepare.py.
+set(CHHAYA_CACHE "${CMAKE_CURRENT_BINARY_DIR}/lc")
 set(CHHAYA_PREPARE_ARGS --cache "${CHHAYA_CACHE}" --cmake "${CMAKE_COMMAND}" --go "${CHHAYA_GO}")
 if(CMAKE_GENERATOR STREQUAL "Ninja")
   list(APPEND CHHAYA_PREPARE_ARGS --ninja "${CMAKE_MAKE_PROGRAM}")
@@ -29,7 +32,7 @@ execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/../to
 if(NOT CHHAYA_PREPARE_RESULT EQUAL 0)
   message(FATAL_ERROR "Pinned AWS-LC preparation failed")
 endif()
-set(CHHAYA_AWS_SOURCE "${CHHAYA_CACHE}/source/aws-lc-fa9bc8d6f7cfb2cf849b247fb06bbbfc41ecc9d6")
+set(CHHAYA_AWS_SOURCE "${CHHAYA_CACHE}/source/aws-lc")
 if(CHHAYA_HOST_TESTS)
   set(BUILD_TESTING ON CACHE BOOL "" FORCE)
 else()

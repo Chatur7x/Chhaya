@@ -7,6 +7,7 @@ import 'core/router/chhaya_router.dart';
 import 'ui/theme/chhaya_theme.dart';
 import 'core/providers/app_providers.dart';
 import 'core/log.dart';
+import 'ui/widgets/chhaya_brand_mark.dart';
 
 /// Identifies which local startup stage failed without exposing exception
 /// messages that could contain paths or other device-specific details.
@@ -199,7 +200,7 @@ class _SplashScreen extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
     body:SafeArea(child:Center(child:SingleChildScrollView(
       padding:const EdgeInsets.all(32),child:Column(mainAxisSize:MainAxisSize.min,children:[
-        Icon(Icons.chat_bubble_outline_rounded,size:56,color:ChhayaPalette.of(context).accent),
+        const ChhayaBrandMark(size: 64),
         const SizedBox(height:24),
         Text('Chhaya',style:ChhayaType.of(context).displayLarge),
         const SizedBox(height:24),

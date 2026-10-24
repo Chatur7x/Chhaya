@@ -32,6 +32,7 @@ class ChatScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObserver {
+  static const _messageRefreshInterval = Duration(seconds: 15);
   final _msgCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   List<Message> _messages = [];
@@ -60,7 +61,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       }
     });
     _loadMessages();
-    _refreshTimer=Timer.periodic(const Duration(seconds:2),(_)=>_loadMessages());
+    // Foreground sync runs independently; avoid rereading SQLCipher every 2 seconds.
+    _refreshTimer=Timer.periodic(_messageRefreshInterval,(_)=>_loadMessages());
   }
 
   Future<void> _loadMessages() async {
@@ -104,7 +106,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     _refreshTimer?.cancel();
     if (state == AppLifecycleState.resumed) {
       _loadMessages();
-      _refreshTimer = Timer.periodic(const Duration(seconds: 2), (_) => _loadMessages());
+      _refreshTimer = Timer.periodic(_messageRefreshInterval, (_) => _loadMessages());
     }
   }
 

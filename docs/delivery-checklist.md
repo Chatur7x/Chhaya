@@ -7,7 +7,7 @@ hosted service, Apple membership or external audit is assumed.
 
 | Requirement | Current implementation | Acceptance evidence still required |
 |---|---|---|
-| Android and iOS apps | Flutter targets and native build workflows | Physical-device functional/lifecycle tests; signed release builds |
+| Android and iOS apps | Flutter targets and native build workflows; arm64 Android release-mode APK built and signature-verified with the repository's debug key | Physical-device functional/lifecycle tests; production signing; iOS build and device validation |
 | Windows | Legacy target and storage support | Complete build, plugin compatibility, pairing and device QA |
 | Account without phone/email | Public-key identity and recovery phrase | Device recovery and migration testing |
 | Identity verification | Full-ID/QR checks | Camera/device and adversarial substitution tests |
@@ -27,7 +27,7 @@ hosted service, Apple membership or external audit is assumed.
 | SFrame | Not integrated | Reviewed media frame encryption and interoperable native support |
 | Push | Backend/provider scaffolding | Firebase/APNs credentials, native registration, background integration and privacy QA |
 | Classical cryptography | X25519, AEAD, HKDF, ratchet implementation | Independent composition/implementation review |
-| Post-quantum primitives | Provider interfaces fail closed | Approve and integrate maintained dependency; test vectors and native builds |
+| Post-quantum primitives | AWS-LC v5.11.0 pinned to commit `fa9bc8d6f7cfb2cf849b247fb06bbbfc41ecc9d6`; Flutter hybrid-layer tests pass and Android arm64 release native build succeeds | Native provider known-answer tests on Android/iOS; independent protocol review and device validation |
 | PQ hybrid/session bootstrap | Scaffolded | Authenticated PQ key distribution, version negotiation, downgrade protection and migration |
 | PQ ratchet | Deterministic epoch chain only | Real PQ reseeding and external protocol review |
 | Dual-KEM/NTRU | Placeholder scope | Threat-model rationale, approved implementation and protocol review |
@@ -49,12 +49,13 @@ hosted service, Apple membership or external audit is assumed.
 | Capture protection | Not established as complete | Android/iOS-specific implementation and honest OS limitations |
 | Memory clearing | Best-effort secret wiping | Native/runtime-copy review; no absolute erasure guarantee |
 | Cream/coral + Departure Mono | Implemented and bundled font licenses | New-feature accessibility and physical-device review |
+| App identity/avatar | Custom Chhaya crescent-chat emblem is used in onboarding, startup, Android launcher icons and the iOS app icon set | Verify rendered icon on physical Android/iOS devices and store previews |
 | Dark theme/customizer/icons | Legacy dark APIs, incomplete product flow | Semantic theme migration, controls and contrast checks |
 | Proxy modes | Incomplete | HTTP/WebSocket/WebRTC routing behavior, DNS and leak tests |
 | Backend/self-hosting | Node/PostgreSQL, Docker/nginx preparation | Live domain/TLS/server, backups, restore drills and operations ownership |
 | Monitoring/rate limits | Basic metrics, health and process-local limits | Deployed monitoring, alert routing, retention and multi-instance/load tests |
 | Licensing | Third-party font notices present; root license is effectively empty | Confirm project license and complete dependency notice inventory |
-| Performance claims | No accepted production baseline | Reproducible device benchmarks, release size, battery and network measurements |
+| Performance claims | Chat-local database refresh reduced from every 2 seconds to every 15 seconds; immediate refresh remains on resume and after sends | Reproducible device benchmarks, release size, battery and network measurements |
 | Store distribution | Android test APK and unsigned iOS artifacts | Signing ownership, memberships, store assets/privacy disclosures and submission |
 | External audit | Not commissioned | Assessor engagement, findings remediation and retest |
 
