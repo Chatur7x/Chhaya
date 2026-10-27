@@ -67,6 +67,13 @@ void main() {
       ]);
       expect(conversationNotifications, 2);
       expect(conversations.state.single.lastMessage!.content, 'Updated');
+
+      final withAdmin = conversations.state.single.copyWith(
+        adminIds: {'peer-1'},
+      );
+      conversations.setConversations([withAdmin]);
+      expect(conversationNotifications, 3);
+      expect(conversations.state.single.adminIds, {'peer-1'});
     },
   );
 }

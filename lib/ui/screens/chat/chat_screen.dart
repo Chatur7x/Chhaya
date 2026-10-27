@@ -7,6 +7,7 @@ import 'package:flutter/cupertino.dart' show CupertinoContextMenuAction;
 import '../../../core/models/message_attachment.dart';
 import '../../../services/messaging/attachment_service.dart';
 import '../../../services/messaging/messaging_service.dart';
+import '../../../services/api/api_service.dart';
 import '../../../services/messaging/poll_payload.dart';
 import '../../../services/call/call_service.dart';
 import '../../widgets/message_attachment_view.dart';
@@ -309,6 +310,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           .read(messagingServiceProvider)
           .retryPending(widget.conversationId);
       await _loadMessages();
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error.statusCode == 409 &&
+                      error.message ==
+                          'Group membership changed; refresh before sending'
+                  ? 'Group members changed. Copy the saved message and send it again after the group refreshes.'
+                  : 'Could not retry: ${error.message}',
+            ),
+          ),
+        );
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -355,16 +370,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       _finishDraft(draft, reply, attachment);
       await _loadMessages();
       _scrollToBottom();
-    } on MessageQueuedException {
+    } on MessageQueuedException catch (error) {
       _finishDraft(draft, reply, attachment);
       await _loadMessages();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text(
-              'Message queued. It will retry while the app is open.',
+            content: Text(
+              error.membershipChanged
+                  ? 'Group members changed. Copy this saved message and send it again after the group refreshes.'
+                  : 'Message queued. It will retry while the app is open.',
             ),
-            action: SnackBarAction(label: 'Retry', onPressed: _retryPending),
+            action:
+                error.membershipChanged
+                    ? null
+                    : SnackBarAction(label: 'Retry', onPressed: _retryPending),
           ),
         );
       }
@@ -440,15 +460,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           context,
         ).showSnackBar(SnackBar(content: Text(successLabel)));
       }
-    } on MessageQueuedException {
+    } on MessageQueuedException catch (error) {
       await _loadMessages();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Poll event queued. It will retry while the app is open.',
+              error.membershipChanged
+                  ? 'Group members changed. This poll event was saved but cannot be sent; try again after the group refreshes.'
+                  : 'Poll event queued. It will retry while the app is open.',
             ),
-            action: SnackBarAction(label: 'Retry', onPressed: _retryPending),
+            action:
+                error.membershipChanged
+                    ? null
+                    : SnackBarAction(label: 'Retry', onPressed: _retryPending),
           ),
         );
       }
@@ -563,6 +588,50 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               onTap: () {
                 Navigator.pop(ctx);
                 _retryPending();
+              },
+            ),
+          if (_isSent(message) && !message.isSent)
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded),
+              title: const Text('Discard queued message'),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final discard = await showDialog<bool>(
+                  context: context,
+                  builder:
+                      (dialogContext) => AlertDialog(
+                        title: const Text('Discard queued message?'),
+                        content: const Text(
+                          'This removes the local copy and stops retries. If the connection failed after sending, a recipient may already have received it.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed:
+                                () => Navigator.pop(dialogContext, false),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(dialogContext, true),
+                            child: const Text('Discard'),
+                          ),
+                        ],
+                      ),
+                );
+                if (discard != true || !mounted) return;
+                try {
+                  await ref
+                      .read(localDatabaseProvider)
+                      .deleteMessage(message.id);
+                  if (mounted) await _loadMessages();
+                } catch (_) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Could not discard the message.'),
+                      ),
+                    );
+                  }
+                }
               },
             ),
         ],
@@ -701,7 +770,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               if (MediaQuery.viewInsetsOf(context).bottom == 0)
                 Text(
                   convo?.isGroup == true
-                      ? '${convo!.participants.length} members · encrypted'
+                      ? '${convo!.participants.length + 1} members · encrypted'
                       : convo?.participants.firstOrNull?.isVerified == true
                       ? 'Verified identity'
                       : 'Verify identity before messaging',
@@ -718,6 +787,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               _showTtlSheet();
               return;
             }
+            if (action == 'members') {
+              _showGroupManagement(convo!);
+              return;
+            }
             Navigator.of(context).pushNamed(
               ChhayaRouter.call,
               arguments: {
@@ -730,7 +803,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           itemBuilder:
               (_) =>
                   convo?.isGroup == true
-                      ? const [
+                      ? [
+                        PopupMenuItem(
+                          value: 'members',
+                          child: Text(
+                            convo!.adminIds.contains(
+                                  ref.read(apiServiceProvider).userId,
+                                )
+                                ? 'Manage group'
+                                : 'Group members',
+                          ),
+                        ),
                         PopupMenuItem(
                           value: 'timer',
                           child: Text('Disappearing messages'),
@@ -754,6 +837,175 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       ],
     ),
   );
+
+  Future<void> _showGroupManagement(Conversation conversation) async {
+    final api = ref.read(apiServiceProvider);
+    final currentUserId = api.userId;
+    final isAdmin =
+        currentUserId != null && conversation.adminIds.contains(currentUserId);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder:
+          (sheetContext) => SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    conversation.groupName ?? 'Group members',
+                    style: ChhayaType.of(sheetContext).title,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '${conversation.participants.length + 1} active members · encrypted to current members',
+                    style: ChhayaType.of(sheetContext).caption,
+                  ),
+                  const SizedBox(height: 16),
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        for (final participant in conversation.participants)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: AvatarWidget(
+                              name: participant.displayName,
+                              size: 40,
+                            ),
+                            title: Text(participant.displayName),
+                            subtitle: Text(
+                              conversation.adminIds.contains(participant.id)
+                                  ? 'Admin'
+                                  : 'Member',
+                            ),
+                            trailing:
+                                isAdmin
+                                    ? PopupMenuButton<String>(
+                                      onSelected: (action) async {
+                                        try {
+                                          if (action == 'role') {
+                                            await api.setGroupAdmin(
+                                              conversation.id,
+                                              participant.id,
+                                              !conversation.adminIds.contains(
+                                                participant.id,
+                                              ),
+                                            );
+                                          }
+                                          if (action == 'remove') {
+                                            await api.removeGroupParticipant(
+                                              conversation.id,
+                                              participant.id,
+                                            );
+                                          }
+                                          final updated =
+                                              await ref
+                                                  .read(
+                                                    messagingServiceProvider,
+                                                  )
+                                                  .sync();
+                                          ref
+                                              .read(
+                                                conversationsProvider.notifier,
+                                              )
+                                              .setConversations(updated);
+                                          if (mounted && sheetContext.mounted) {
+                                            Navigator.pop(sheetContext);
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('Group updated'),
+                                              ),
+                                            );
+                                          }
+                                        } catch (error) {
+                                          if (mounted && sheetContext.mounted) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              SnackBar(content: Text('$error')),
+                                            );
+                                          }
+                                        }
+                                      },
+                                      itemBuilder:
+                                          (_) => [
+                                            PopupMenuItem(
+                                              value: 'role',
+                                              child: Text(
+                                                conversation.adminIds.contains(
+                                                      participant.id,
+                                                    )
+                                                    ? 'Remove admin role'
+                                                    : 'Make admin',
+                                              ),
+                                            ),
+                                            const PopupMenuItem(
+                                              value: 'remove',
+                                              child: Text('Remove from group'),
+                                            ),
+                                          ],
+                                    )
+                                    : null,
+                          ),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const CircleAvatar(
+                            child: Icon(Icons.person),
+                          ),
+                          title: const Text('You'),
+                          subtitle: Text(isAdmin ? 'Admin' : 'Member'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(
+                      Icons.logout_rounded,
+                      color: Colors.red,
+                    ),
+                    title: const Text(
+                      'Leave group',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                    onTap: () async {
+                      try {
+                        await api.removeGroupParticipant(
+                          conversation.id,
+                          currentUserId!,
+                        );
+                        await ref
+                            .read(localDatabaseProvider)
+                            .deleteConversation(conversation.id);
+                        ref
+                            .read(conversationsProvider.notifier)
+                            .removeConversation(conversation.id);
+                        if (mounted && sheetContext.mounted) {
+                          Navigator.pop(sheetContext);
+                          Navigator.pop(context);
+                        }
+                      } catch (error) {
+                        if (mounted && sheetContext.mounted) {
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(SnackBar(content: Text('$error')));
+                        }
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+    );
+  }
 
   Widget _buildSteganoBanner(bool disableAnimations) {
     return AnimatedContainer(

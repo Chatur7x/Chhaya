@@ -18,7 +18,7 @@
 
 ## What is not ready
 
-Encrypted groups and polls, background call delivery and push, large/chunked file transfer, offline mesh, onion routing, sealed sender, Arke discovery, a secure vault, coercion features, and verified post-quantum messaging are not complete. See the [delivery checklist](docs/delivery-checklist.md) for the implementation and evidence required for each feature.
+Group creation, member administration, encrypted polls, background call delivery and push are implemented to varying degrees, but still need cross-device acceptance testing; secure group invitation/member addition is not complete. Large/chunked file transfer, offline mesh, onion routing, sealed sender, Arke discovery, a secure vault, coercion features, and verified post-quantum messaging are not complete. See the [delivery checklist](docs/delivery-checklist.md) for implementation and evidence for each feature.
 
 ## Architecture
 

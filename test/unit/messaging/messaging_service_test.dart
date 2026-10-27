@@ -350,6 +350,20 @@ void main() {
       expect(marker!.type, MessageType.system);
       expect(marker.content, contains('unavailable'));
       expect(marker.content, isNot(contains(remoteMessage.content)));
+
+      // A group may shrink to two active members. The sole peer's messages
+      // must still be fetched and displayed after that membership change.
+      db.messages.clear();
+      final twoMemberGroup = conversation.copyWith(
+        participants: [selfContact, alice],
+      );
+      final twoMemberApi = GroupHistoryApi(twoMemberGroup, [remoteMessage]);
+      await MessagingService(
+        api: twoMemberApi,
+        database: db,
+        keys: keys,
+      ).sync();
+      expect(db.messages[messageId]?.content, contains('unavailable'));
     },
   );
 

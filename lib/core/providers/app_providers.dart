@@ -166,6 +166,7 @@ bool _sameConversationSnapshot(List<Conversation> a, List<Conversation> b) {
         x.isPinned != y.isPinned || x.isMuted != y.isMuted ||
         x.isGroup != y.isGroup || x.groupName != y.groupName ||
         x.groupAvatarUrl != y.groupAvatarUrl || x.createdAt != y.createdAt ||
+        x.adminIds.length != y.adminIds.length || !x.adminIds.containsAll(y.adminIds) ||
         !_sameContactSnapshot(x.participants, y.participants) ||
         !_sameMessagePreview(x.lastMessage, y.lastMessage)) {
       return false;

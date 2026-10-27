@@ -20,7 +20,8 @@ import 'ratchet_message_codec.dart';
 /// The message has committed locally; retry its existing ID instead of composing again.
 class MessageQueuedException implements Exception {
   final Message message;
-  MessageQueuedException(this.message);
+  final bool membershipChanged;
+  MessageQueuedException(this.message, {this.membershipChanged = false});
   @override
   String toString() => 'Message saved on this device and waiting to send';
 }
@@ -136,8 +137,8 @@ class MessagingService {
     MessageAttachment? attachment,
     required MessageType type,
   }) async {
-    if (conversation.participants.length < 2) {
-      throw StateError('Group must contain at least two other members');
+    if (conversation.participants.isEmpty) {
+      throw StateError('Group must contain at least one other member');
     }
     final profile = await database.getUserProfile();
     if (profile == null || api.userId == null) {
@@ -155,8 +156,8 @@ class MessagingService {
       }
       peers.add(peer);
     }
-    if (peers.length < 2) {
-      throw StateError('Group must contain at least two other members');
+    if (peers.isEmpty) {
+      throw StateError('Group must contain at least one other member');
     }
     final message = Message(
       id: const Uuid().v4(),
@@ -215,6 +216,14 @@ class MessagingService {
       await database.commitOutgoingGroupMessage(states, message, envelope);
       try {
         return await _deliver(message, envelope);
+      } on ApiException catch (error) {
+        throw MessageQueuedException(
+          message,
+          membershipChanged:
+              error.statusCode == 409 &&
+              error.message ==
+                  'Group membership changed; refresh before sending',
+        );
       } catch (_) {
         throw MessageQueuedException(message);
       }
@@ -269,13 +278,27 @@ class MessagingService {
           return;
         }
       }
+      ApiException? staleMembership;
       for (final message in await database.getMessages(conversationId)) {
         if (message.senderId != 'me' || message.isSent || message.isExpired) {
           continue;
         }
         final envelope = await database.loadSessionBlob('outbox:${message.id}');
-        if (envelope != null) await _deliver(message, envelope);
+        if (envelope != null) {
+          try {
+            await _deliver(message, envelope);
+          } on ApiException catch (error) {
+            if (error.statusCode == 409 &&
+                error.message ==
+                    'Group membership changed; refresh before sending') {
+              staleMembership = error;
+              continue;
+            }
+            rethrow;
+          }
+        }
       }
+      if (staleMembership != null) throw staleMembership;
       return;
     }
     final peer =
@@ -339,7 +362,7 @@ class MessagingService {
       final local = await database.getMessages(conversation.id);
       final known = local.map((m) => m.id).toSet();
       if (conversation.isGroup &&
-          peers.length >= 2 &&
+          peers.isNotEmpty &&
           peers.every((peer) => peer.isVerified)) {
         final batches = <Message>[];
         String? beforeId;
@@ -382,7 +405,8 @@ class MessagingService {
               throw const FormatException('Invalid group envelope');
             }
             final sender =
-                peers.where((p) => p.id == message.senderId).firstOrNull;
+                peers.where((p) => p.id == message.senderId).firstOrNull ??
+                await database.getContact(message.senderId);
             if (sender == null || !sender.isVerified) continue;
             final keys = Map<String, dynamic>.from(wire['keys'] as Map);
             final recipientEnvelope = keys[api.userId];

@@ -4,6 +4,9 @@ import 'message.dart';
 class Conversation {
   final String id;
   final List<Contact> participants;
+
+  /// Active administrators, including the current user when applicable.
+  final Set<String> adminIds;
   final Message? lastMessage;
   final int unreadCount;
   final bool isPinned;
@@ -17,6 +20,7 @@ class Conversation {
   Conversation({
     required this.id,
     required this.participants,
+    this.adminIds = const {},
     this.lastMessage,
     this.unreadCount = 0,
     this.isPinned = false,
@@ -36,6 +40,7 @@ class Conversation {
   Conversation copyWith({
     String? id,
     List<Contact>? participants,
+    Set<String>? adminIds,
     Message? lastMessage,
     bool clearLastMessage = false,
     int? unreadCount,
@@ -49,6 +54,7 @@ class Conversation {
     return Conversation(
       id: id ?? this.id,
       participants: participants ?? this.participants,
+      adminIds: adminIds ?? this.adminIds,
       lastMessage: clearLastMessage ? null : lastMessage ?? this.lastMessage,
       unreadCount: unreadCount ?? this.unreadCount,
       isPinned: isPinned ?? this.isPinned,
@@ -67,6 +73,8 @@ class Conversation {
           (json['participants'] as List<dynamic>)
               .map((e) => Contact.fromJson(e as Map<String, dynamic>))
               .toList(),
+      adminIds:
+          ((json['adminIds'] as List?) ?? const []).cast<String>().toSet(),
       lastMessage:
           json['lastMessage'] != null
               ? Message.fromJson(json['lastMessage'] as Map<String, dynamic>)
@@ -84,6 +92,7 @@ class Conversation {
   Map<String, dynamic> toJson() => {
     'id': id,
     'participants': participants.map((p) => p.toJson()).toList(),
+    'adminIds': adminIds.toList(),
     'lastMessage': lastMessage?.toJson(),
     'unreadCount': unreadCount,
     'isPinned': isPinned,

@@ -72,6 +72,8 @@ const updateSettingsSchema = z.object({
   notifications: z.boolean().optional(),
 });
 
+const groupAdminSchema = z.object({ isAdmin: z.boolean() });
+
 // Auth middleware
 const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
@@ -324,8 +326,6 @@ router.post('/conversations', authMiddleware, safe(async (req: Request, res: Res
   if(allParticipants.length!==data.participantIds.length+1) return res.status(400).json({error:'Duplicate or self participant'});
 
   // A group can only be created from the initiator's active, unblocked address book.
-  // Membership is immutable in this API version, so no admin path can bypass
-  // the per-member encrypted-key envelopes used by the client.
   const allowedContacts=await query(
     `SELECT contact_id FROM contacts WHERE user_id=$1 AND is_blocked=false AND contact_id=ANY($2::uuid[])`,
     [userId,data.participantIds]
@@ -357,8 +357,8 @@ router.post('/conversations', authMiddleware, safe(async (req: Request, res: Res
 router.get('/conversations', authMiddleware, safe(async (req: Request, res: Response) => {
   const userId = (req as any).userId;
   const result = await query(
-    `SELECT c.id, c.type, c.name, c.avatar_url, c.created_at, c.updated_at,
-     (SELECT json_agg(json_build_object('id', u.id, 'display_name', u.display_name, 'chhaya_id', u.chhaya_id, 'public_key', u.public_key))
+    `SELECT c.id, c.type, c.name, c.avatar_url, c.created_at, c.updated_at, cp.is_admin,
+     (SELECT json_agg(json_build_object('id', u.id, 'display_name', u.display_name, 'chhaya_id', u.chhaya_id, 'public_key', u.public_key, 'is_admin', cp.is_admin))
       FROM conversation_participants cp
       JOIN users u ON u.id = cp.user_id
       WHERE cp.conversation_id = c.id AND cp.left_at IS NULL) as participants,
@@ -378,42 +378,113 @@ router.get('/conversations', authMiddleware, safe(async (req: Request, res: Resp
   res.json(result.rows);
 }));
 
+// Group membership and roles are changed atomically. The conversation row lock
+// serializes simultaneous admin actions so the last admin/member cannot race.
+router.patch('/conversations/:conversationId/participants/:participantId', authMiddleware, safe(async (req: Request, res: Response) => {
+  const userId = (req as any).userId as string;
+  const { isAdmin } = groupAdminSchema.parse(req.body);
+  const { conversationId, participantId } = req.params;
+  const result = await withTransaction(async (client) => {
+    const convo = await client.query('SELECT type FROM conversations WHERE id=$1 FOR UPDATE', [conversationId]);
+    if (!convo.rows.length) return { status: 404, error: 'Conversation not found' };
+    if (convo.rows[0].type !== 'group') return { status: 400, error: 'Roles are only available in groups' };
+    const members = await client.query(
+      'SELECT user_id, is_admin FROM conversation_participants WHERE conversation_id=$1 AND left_at IS NULL FOR UPDATE',
+      [conversationId],
+    );
+    if (!members.rows.some((m) => m.user_id === userId && m.is_admin)) return { status: 403, error: 'Group admin role required' };
+    const target = members.rows.find((m) => m.user_id === participantId);
+    if (!target) return { status: 404, error: 'Active participant not found' };
+    if (target.is_admin && !isAdmin && members.rows.filter((m) => m.is_admin).length <= 1) {
+      return { status: 409, error: 'Promote another admin before removing the last admin role' };
+    }
+    await client.query('UPDATE conversation_participants SET is_admin=$3 WHERE conversation_id=$1 AND user_id=$2 AND left_at IS NULL', [conversationId, participantId, isAdmin]);
+    await client.query('UPDATE conversations SET updated_at=NOW() WHERE id=$1', [conversationId]);
+    return { status: 200 };
+  });
+  if (result.error) return res.status(result.status).json({ error: result.error });
+  res.json({ ok: true });
+}));
+
+router.delete('/conversations/:conversationId/participants/:participantId', authMiddleware, safe(async (req: Request, res: Response) => {
+  const userId = (req as any).userId as string;
+  const { conversationId, participantId } = req.params;
+  const result = await withTransaction(async (client) => {
+    const convo = await client.query('SELECT type FROM conversations WHERE id=$1 FOR UPDATE', [conversationId]);
+    if (!convo.rows.length) return { status: 404, error: 'Conversation not found' };
+    if (convo.rows[0].type !== 'group') return { status: 400, error: 'Membership actions are only available in groups' };
+    const members = await client.query(
+      'SELECT user_id, is_admin FROM conversation_participants WHERE conversation_id=$1 AND left_at IS NULL FOR UPDATE',
+      [conversationId],
+    );
+    const actor = members.rows.find((m) => m.user_id === userId);
+    if (!actor) return { status: 403, error: 'Active group membership required' };
+    if (participantId !== userId && !actor.is_admin) return { status: 403, error: 'Group admin role required to remove participants' };
+    const target = members.rows.find((m) => m.user_id === participantId);
+    if (!target) return { status: 404, error: 'Active participant not found' };
+    if (members.rows.length <= 2) return { status: 409, error: 'A group must keep at least two active members' };
+    if (target.is_admin && members.rows.filter((m) => m.is_admin).length <= 1) {
+      return { status: 409, error: 'Promote another admin before leaving or removing the last admin' };
+    }
+    await client.query('UPDATE conversation_participants SET left_at=NOW() WHERE conversation_id=$1 AND user_id=$2 AND left_at IS NULL', [conversationId, participantId]);
+    await client.query('UPDATE conversations SET updated_at=NOW() WHERE id=$1', [conversationId]);
+    return { status: 200 };
+  });
+  if (result.error) return res.status(result.status).json({ error: result.error });
+  res.json({ ok: true });
+}));
+
 // POST /api/v1/messages
 router.post('/messages', authMiddleware, safe(async (req: Request, res: Response) => {
   const userId = (req as any).userId;
   const data = sendMessageSchema.parse(req.body);
 
-  // Verify participant
-  const participantCheck = await query(
-    'SELECT 1 FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2 AND left_at IS NULL',
-    [data.conversationId, userId]
-  );
-  if (participantCheck.rows.length === 0) {
-    return res.status(403).json({ error: 'Not a participant' });
-  }
-
   const messageId = data.messageId ?? uuidv4();
-  const inserted = await query(
-    `INSERT INTO messages (id, conversation_id, sender_id, content, message_type, media_url, media_meta, reply_to_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING RETURNING *`,
-    [messageId, data.conversationId, userId, data.content, data.messageType,
-     data.mediaUrl || null, data.mediaMeta || null, data.replyToId || null]
-  );
-
-  if(inserted.rowCount===0) {
-    const previous=await query('SELECT * FROM messages WHERE id=$1',[messageId]);
-    const message=previous.rows[0];
-    if(!message||message.sender_id!==userId||message.conversation_id!==data.conversationId||message.content!==data.content) {
-      return res.status(409).json({error:'Message identifier conflict'});
+  // Serialize message acceptance with group membership changes. Otherwise a
+  // sender with stale membership could submit a key wrapper for a removed user.
+  const result = await withTransaction(async (client) => {
+    const conversation = await client.query('SELECT type FROM conversations WHERE id=$1 FOR UPDATE', [data.conversationId]);
+    const members = await client.query(
+      'SELECT user_id FROM conversation_participants WHERE conversation_id=$1 AND left_at IS NULL', [data.conversationId],
+    );
+    if (!conversation.rows.length || !members.rows.some((m) => m.user_id === userId)) {
+      return { status: 403, error: 'Not a participant' };
     }
-    return res.status(200).json(message);
-  }
-
-  // Update conversation timestamp
-  await query(
-    'UPDATE conversations SET updated_at = NOW() WHERE id = $1',
-    [data.conversationId]
-  );
+    // An exact retry of an already accepted message stays idempotent after a
+    // later membership change; it does not introduce a new envelope.
+    const previous = await client.query('SELECT * FROM messages WHERE id=$1', [messageId]);
+    if (previous.rows.length) {
+      const message = previous.rows[0];
+      if (message.sender_id !== userId || message.conversation_id !== data.conversationId || message.content !== data.content) {
+        return { status: 409, error: 'Message identifier conflict' };
+      }
+      return { status: 200, message };
+    }
+    if (conversation.rows[0].type === 'group') {
+      let envelope: any;
+      try { envelope = JSON.parse(data.content); } catch (_) { return { status: 400, error: 'Invalid group envelope' }; }
+      if (!envelope || envelope.v !== 1 || envelope.kind !== 'chhaya-group-v1' ||
+          envelope.conversationId !== data.conversationId || envelope.messageId !== messageId || envelope.senderId !== userId ||
+          typeof envelope.body !== 'string' || !envelope.keys || typeof envelope.keys !== 'object' || Array.isArray(envelope.keys)) {
+        return { status: 400, error: 'Invalid group envelope' };
+      }
+      const expected = members.rows.map((m) => m.user_id as string).filter((id) => id !== userId).sort();
+      const recipients = Object.keys(envelope.keys).sort();
+      if (recipients.length !== expected.length || recipients.some((id, i) => id !== expected[i] || typeof envelope.keys[id] !== 'string' || !envelope.keys[id])) {
+        return { status: 409, error: 'Group membership changed; refresh before sending' };
+      }
+    }
+    const inserted = await client.query(
+      `INSERT INTO messages (id, conversation_id, sender_id, content, message_type, media_url, media_meta, reply_to_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING RETURNING *`,
+      [messageId, data.conversationId, userId, data.content, data.messageType, data.mediaUrl || null, data.mediaMeta || null, data.replyToId || null],
+    );
+    if (!inserted.rows.length) return { status: 409, error: 'Message identifier conflict' };
+    await client.query('UPDATE conversations SET updated_at = NOW() WHERE id = $1', [data.conversationId]);
+    return { status: 201, message: inserted.rows[0] };
+  });
+  if (result.error) return res.status(result.status).json({ error: result.error });
+  if (result.status === 200) return res.status(200).json(result.message);
 
   // Get other participants for push notifications
   const otherParticipants = await query(
@@ -437,9 +508,7 @@ router.post('/messages', authMiddleware, safe(async (req: Request, res: Response
     });
   }
 
-  const saved = await query('SELECT * FROM messages WHERE id=$1',[messageId]);
-  if (saved.rows[0]?.sender_id !== userId || saved.rows[0]?.conversation_id !== data.conversationId) return res.status(409).json({error:'Message identifier conflict'});
-  res.status(201).json(saved.rows[0]);
+  res.status(201).json(result.message);
 }));
 
 // GET /api/v1/messages/:conversationId

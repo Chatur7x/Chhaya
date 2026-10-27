@@ -119,7 +119,7 @@ class ApiService {
     final uri = Uri.parse('$_baseUrl$path');
     final reqHeaders = {..._headers(), ...?headers};
 
-    if(!['GET','POST','PUT','DELETE'].contains(method)) { throw ArgumentError('Unsupported method'); }
+    if(!['GET','POST','PUT','PATCH','DELETE'].contains(method)) { throw ArgumentError('Unsupported method'); }
     final request=http.Request(method,uri)..followRedirects=false;
     request.headers.addAll(reqHeaders);
     if(body!=null) {
@@ -158,6 +158,11 @@ class ApiService {
     id: row['id'] as String,
     participants: ((row['participants'] as List?) ?? []).map((p) => _contact(Map<String, dynamic>.from(p as Map)))
         .where((p) => p.id != _userId).toList(),
+    adminIds: {
+      if (row['is_admin'] == true && _userId != null) _userId!,
+      for (final p in ((row['participants'] as List?) ?? []))
+        if ((p as Map)['is_admin'] == true) (p['id'] as String),
+    },
     unreadCount: int.tryParse('${row['unread_count']}') ?? 0,
     isGroup: row['type'] == 'group', groupName: row['name'] as String?,
     createdAt: DateTime.parse(row['created_at'] as String),
@@ -280,7 +285,7 @@ class ApiService {
   }) async {
     return await _request('POST', '/api/v1/conversations',
       body: {'type': type, 'participantIds': participantIds, 'name': name, 'avatarUrl': avatarUrl},
-      parser: (d) => Conversation(id: d['conversationId'] as String, participants: const [], isGroup: type == 'group', groupName: name, createdAt: DateTime.now()),
+      parser: (d) => Conversation(id: d['conversationId'] as String, participants: const [], adminIds: {_userId!}, isGroup: type == 'group', groupName: name, createdAt: DateTime.now()),
     );
   }
 
@@ -288,6 +293,14 @@ class ApiService {
     return await _request('GET', '/api/v1/conversations',
       parser: (d) => (d as List).map((e) => _conversation(Map<String, dynamic>.from(e as Map))).toList(),
     );
+  }
+
+  Future<void> setGroupAdmin(String conversationId, String participantId, bool isAdmin) async {
+    await _request('PATCH', '/api/v1/conversations/$conversationId/participants/$participantId', body: {'isAdmin': isAdmin});
+  }
+
+  Future<void> removeGroupParticipant(String conversationId, String participantId) async {
+    await _request('DELETE', '/api/v1/conversations/$conversationId/participants/$participantId');
   }
 
   // Messages

@@ -142,7 +142,7 @@ class _ContactsTabState extends ConsumerState<ContactsTab> {
     try {
       final conversation=(await ref.read(apiServiceProvider).createConversation(
         type:'group',participantIds:chosen.map((c)=>c.id).toList(),name:groupName,
-      )).copyWith(participants:chosen,groupName:groupName);
+      )).copyWith(participants:chosen,adminIds:{ref.read(apiServiceProvider).userId!},groupName:groupName);
       await ref.read(localDatabaseProvider).addConversation(conversation);
       ref.read(conversationsProvider.notifier).addConversation(conversation);
       if(context.mounted) { Navigator.of(context).pushNamed(ChhayaRouter.chat,arguments:{
