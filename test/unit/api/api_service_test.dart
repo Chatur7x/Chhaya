@@ -14,11 +14,25 @@ void main(){
       final body=jsonDecode(request.body) as Map<String,dynamic>;
       expect(body.containsKey('deviceName'),isFalse);
       expect(body.containsKey('fcmToken'),isFalse);
+      expect(body['challengeId'],'challenge');
+      expect(body['identityProof'],'identity-proof');
       expect(request.followRedirects,isFalse);
       return http.Response(jsonEncode({'token':'token','userId':'user'}),201);
     }));
     api.setBaseUrl('https://chat.example.com');
     await api.register(chhayaId:'id',displayName:'name',publicKey:'public',encryptedPrivateKey:'ciphertext',recoveryPhraseHash:'proof',deviceId:'device',challengeId:'challenge',identityProof:'identity-proof');
+    expect(api.isAuthenticated,isTrue);
+  });
+  test('login sends the identity challenge and proof',() async {
+    final api=ApiService.forTesting(storage:SecureStorageMock(),client:MockClient((request) async {
+      final body=jsonDecode(request.body) as Map<String,dynamic>;
+      expect(request.url.path,'/api/v1/auth/login');
+      expect(body['challengeId'],'login-challenge');
+      expect(body['identityProof'],'login-proof');
+      return http.Response(jsonEncode({'token':'token','userId':'user'}),200);
+    }));
+    api.setBaseUrl('https://chat.example.com');
+    await api.login(chhayaId:'id',recoveryPhraseHash:'proof',deviceId:'device',challengeId:'login-challenge',identityProof:'login-proof');
     expect(api.isAuthenticated,isTrue);
   });
   test('server redirects and invalid response types fail explicitly',() async {
@@ -46,7 +60,7 @@ void main(){
       return http.Response('{"ok":true}',200);
     }));
     api.setBaseUrl('https://chat.example.com');
-    await api.register(chhayaId:'id',displayName:'You',publicKey:'public',encryptedPrivateKey:'ciphertext',recoveryPhraseHash:'proof',deviceId:'device');
+    await api.register(chhayaId:'id',displayName:'You',publicKey:'public',encryptedPrivateKey:'ciphertext',recoveryPhraseHash:'proof',deviceId:'device',challengeId:'challenge',identityProof:'proof');
     final conversations=await api.getConversations();
     expect(conversations.single.adminIds,{'self'});
     expect(conversations.single.participants.single.id,'peer');

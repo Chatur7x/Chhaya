@@ -24,3 +24,9 @@ Node's crypto implementation and the existing Dart crypto packages implement the
 primitives. A reference test compares Dart's transcript proof with Node using the
 public RFC 7748 test keys. Protocol composition still requires external audit;
 passing tests are not a security certification.
+
+The Flutter connection tests exercise both registration and existing-account
+login against a simulated challenge issuer that independently calculates the
+expected X25519/HMAC proof. The backend integration test separately exercises
+registration, login and challenge replay against PostgreSQL. Live HTTPS and
+physical-device account recovery still require end-to-end validation.

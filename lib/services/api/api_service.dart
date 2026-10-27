@@ -64,12 +64,12 @@ class ApiService {
       await register(chhayaId: profile.chhayaId.publicKey, displayName: profile.displayName,
         publicKey: pair.publicKeyHex, encryptedPrivateKey: encrypted, recoveryPhraseHash: proof,
         deviceId: _deviceId!, platform: 'flutter',
-        challengeId:registration['challengeId'],identityProof:registration['proof']);
+        challengeId:registration['challengeId']!,identityProof:registration['proof']!);
     } on ApiException catch (error) {
       if (error.statusCode != 409) rethrow;
       final loginClaim=await _identityClaim('login',pair,_deviceId!);
       await login(chhayaId:profile.chhayaId.publicKey,recoveryPhraseHash:proof,deviceId:_deviceId!,
-        challengeId:loginClaim['challengeId'],identityProof:loginClaim['proof']);
+        challengeId:loginClaim['challengeId']!,identityProof:loginClaim['proof']!);
     }
   }
 
@@ -183,8 +183,8 @@ class ApiService {
     required String encryptedPrivateKey,
     required String recoveryPhraseHash,
     required String deviceId,
-    String? challengeId,
-    String? identityProof,
+    required String challengeId,
+    required String identityProof,
     String? deviceName,
     String? platform,
     String? fcmToken,
@@ -197,6 +197,8 @@ class ApiService {
         'encryptedPrivateKey': encryptedPrivateKey,
         'recoveryPhraseHash': recoveryPhraseHash,
         'deviceId': deviceId,
+        'challengeId': challengeId,
+        'identityProof': identityProof,
         'deviceName': deviceName,
         'platform': platform,
         'fcmToken': fcmToken,
@@ -211,8 +213,8 @@ class ApiService {
     required String chhayaId,
     required String recoveryPhraseHash,
     required String deviceId,
-    String? challengeId,
-    String? identityProof,
+    required String challengeId,
+    required String identityProof,
     String? deviceName,
     String? platform,
     String? fcmToken,
@@ -222,6 +224,8 @@ class ApiService {
         'chhayaId': chhayaId,
         'recoveryPhraseHash': recoveryPhraseHash,
         'deviceId': deviceId,
+        'challengeId': challengeId,
+        'identityProof': identityProof,
         'deviceName': deviceName,
         'platform': platform,
         'fcmToken': fcmToken,
