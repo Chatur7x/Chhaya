@@ -9,7 +9,7 @@ hosted service, Apple membership or external audit is assumed.
 |---|---|---|
 | Android and iOS apps | Flutter targets and native build workflows; arm64 Android release-mode APK built and signature-verified with the repository's debug key | Physical-device functional/lifecycle tests; production signing; iOS build and device validation |
 | Windows | Legacy target and storage support | Complete build, plugin compatibility, pairing and device QA |
-| Account without phone/email | Public-key identity and recovery phrase | Device recovery and migration testing |
+| Account without phone/email | Public-key identity and recovery phrase; registration and login challenge proofs verified across Flutter and a local Node/PostgreSQL backend | Live HTTPS, device recovery and migration testing |
 | Identity verification | Full-ID/QR checks | Camera/device and adversarial substitution tests |
 | Direct encrypted text | Ratchet envelopes and membership-checked transport | Independent protocol audit; live two-phone validation |
 | Message retry | Atomic outbox; exact-envelope retries; foreground automatic retry | Network-loss/restart/device tests |

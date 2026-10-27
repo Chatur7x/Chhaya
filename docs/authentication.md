@@ -28,5 +28,17 @@ passing tests are not a security certification.
 The Flutter connection tests exercise both registration and existing-account
 login against a simulated challenge issuer that independently calculates the
 expected X25519/HMAC proof. The backend integration test separately exercises
-registration, login and challenge replay against PostgreSQL. Live HTTPS and
+registration, login and challenge replay against PostgreSQL. An opt-in Flutter
+integration test also registers, logs out and logs back in through a real local
+Node/PostgreSQL backend. It injects loopback HTTP transport for the test, so it
+does not validate TLS or production network behavior. Live HTTPS and
 physical-device account recovery still require end-to-end validation.
+
+For the opt-in test, build the backend and start
+`backend/server/test/local_api_server.cjs` with `NODE_ENV=test`,
+`CHHAYA_TEST_API_PORT` set to an available port, and `DATABASE_URL` pointing to a
+disposable local PostgreSQL database named `chhaya_test`. In a separate shell,
+set the same `CHHAYA_TEST_API_PORT` and run
+`flutter test test/integration/live_account_connection_test.dart`. The server
+refuses other database hosts and names. The test creates an account in that
+database, so do not use a database containing real users.
