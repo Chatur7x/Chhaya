@@ -39,6 +39,7 @@ For the opt-in test, build the backend and start
 `CHHAYA_TEST_API_PORT` set to an available port, and `DATABASE_URL` pointing to a
 disposable local PostgreSQL database named `chhaya_test`. In a separate shell,
 set the same `CHHAYA_TEST_API_PORT` and run
-`flutter test test/integration/live_account_connection_test.dart`. The server
+`flutter test test/integration/live_account_connection_test.dart test/integration/live_messaging_flow_test.dart`. The messaging test uses separate in-memory SQLite
+test databases and does not prove SQLCipher at-rest protection. The server
 refuses other database hosts and names. The test creates an account in that
 database, so do not use a database containing real users.
