@@ -1,7 +1,7 @@
+import 'package:chaaya/core/privacy/sensitive_clipboard.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/cupertino.dart' show CupertinoContextMenuAction;
 import '../../../core/models/message_attachment.dart';
@@ -597,7 +597,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               leading: const Icon(Icons.copy_rounded),
               title: const Text('Copy text'),
               onTap: () {
-                Clipboard.setData(ClipboardData(text: message.content));
+                SensitiveClipboard.copy(message.content);
                 Navigator.pop(ctx);
               },
             ),
@@ -1290,7 +1290,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                           trailingIcon: Icons.copy_rounded,
                           child: const Text('Copy text'),
                           onPressed: () {
-                            Clipboard.setData(ClipboardData(text: msg.content));
+                            SensitiveClipboard.copy(msg.content);
                             Navigator.pop(context);
                           },
                         ),

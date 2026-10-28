@@ -1,5 +1,5 @@
+import 'package:chaaya/core/privacy/sensitive_clipboard.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/chhaya_theme.dart';
 import '../../widgets/glass_container.dart';
@@ -402,7 +402,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
                 label: _phraseCopied ? 'Copied!' : 'Copy Phrase',
                 icon: _phraseCopied ? Icons.check_rounded : Icons.copy_rounded,
                 onPressed: () {
-                  Clipboard.setData(ClipboardData(text: _generatedPhrase!.join(' ')));
+                  SensitiveClipboard.copy(_generatedPhrase!.join(' '));
                   setState(() => _phraseCopied = true);
                   ChhayaHaptics.success();
                   Future.delayed(const Duration(seconds: 2), () { if (mounted) setState(() => _phraseCopied = false); });

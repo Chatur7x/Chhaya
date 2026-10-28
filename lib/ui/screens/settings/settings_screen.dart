@@ -1,3 +1,4 @@
+import 'package:chaaya/core/privacy/sensitive_clipboard.dart';
 import 'package:flutter/material.dart';
 import '../../theme/appearance_provider.dart';
 import 'package:flutter/services.dart';
@@ -456,7 +457,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: ChhayaSpacing.space4),
           SizedBox(width: double.infinity, child: ChhayaPrimaryButton(label: 'Copy to Clipboard', icon: Icons.copy_rounded, height: 48, onPressed: () {
-            Clipboard.setData(ClipboardData(text: backup));
+            SensitiveClipboard.copy(backup);
             ChhayaHaptics.success();
           })),
         ]),
