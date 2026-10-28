@@ -10,6 +10,21 @@ class ChhayaTypography {
   static const String _displayFontFamily = 'DepartureMono';
   static const String _monoFontFamily = 'DepartureMono';
 
+  /// Uses Apple's system text/display faces for ordinary interface copy on
+  /// Apple platforms while leaving the Departure Mono brand face untouched.
+  /// Flutter maps these proxy family names to SF Pro on Apple devices and to
+  /// the regular platform fallback elsewhere.
+  static TextStyle forPlatform(TextStyle style, TargetPlatform platform) {
+    if (style.fontFamily != _fontFamily ||
+        (platform != TargetPlatform.iOS && platform != TargetPlatform.macOS)) {
+      return style;
+    }
+    final family = (style.fontSize ?? 16) >= 20
+        ? 'CupertinoSystemDisplay'
+        : 'CupertinoSystemText';
+    return style.copyWith(fontFamily: family);
+  }
+
   // Pixel display scale — Claude Light
   static const TextStyle displayXl = TextStyle(
     fontFamily: _displayFontFamily,
@@ -43,6 +58,7 @@ class ChhayaTypography {
 
   static const TextStyle title = TextStyle(
     fontFamily: _fontFamily,
+    fontFamilyFallback: ['Inter'],
     fontSize: 18,
     fontWeight: FontWeight.w600,
     letterSpacing: -0.1,
@@ -52,7 +68,8 @@ class ChhayaTypography {
 
   static const TextStyle bodyLarge = TextStyle(
     fontFamily: _fontFamily,
-    fontSize: 16,
+    fontFamilyFallback: ['Inter'],
+    fontSize: 17,
     fontWeight: FontWeight.w400,
     letterSpacing: 0.0,
     height: 1.5,
@@ -61,6 +78,7 @@ class ChhayaTypography {
 
   static const TextStyle body = TextStyle(
     fontFamily: _fontFamily,
+    fontFamilyFallback: ['Inter'],
     fontSize: 14,
     fontWeight: FontWeight.w400,
     letterSpacing: 0.0,
@@ -70,6 +88,7 @@ class ChhayaTypography {
 
   static const TextStyle caption = TextStyle(
     fontFamily: _fontFamily,
+    fontFamilyFallback: ['Inter'],
     fontSize: 13,
     fontWeight: FontWeight.w500,
     letterSpacing: 0.1,
@@ -79,6 +98,7 @@ class ChhayaTypography {
 
   static const TextStyle label = TextStyle(
     fontFamily: _fontFamily,
+    fontFamilyFallback: ['Inter'],
     fontSize: 12,
     fontWeight: FontWeight.w600,
     letterSpacing: 0.3,
@@ -151,6 +171,7 @@ class ChhayaTypography {
   static const TextStyle headlineMedium = title;
   static const TextStyle headlineSmall = TextStyle(
     fontFamily: _fontFamily,
+    fontFamilyFallback: ['Inter'],
     fontSize: 14,
     fontWeight: FontWeight.w600,
     letterSpacing: 0.0,
@@ -164,6 +185,7 @@ class ChhayaTypography {
   static const TextStyle labelLarge = label;
   static const TextStyle labelMedium = TextStyle(
     fontFamily: _fontFamily,
+    fontFamilyFallback: ['Inter'],
     fontSize: 12,
     fontWeight: FontWeight.w400,
     letterSpacing: 0.2,
@@ -172,6 +194,7 @@ class ChhayaTypography {
   );
   static const TextStyle labelSmall = TextStyle(
     fontFamily: _fontFamily,
+    fontFamilyFallback: ['Inter'],
     fontSize: 11,
     fontWeight: FontWeight.w500,
     letterSpacing: 0.4,

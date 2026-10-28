@@ -6,7 +6,7 @@ The user selected warm cream/coral, calm and minimal, then requested Departure M
 
 ## Implemented
 
-- Consistent cream canvas and flat surfaces, with locally bundled Departure Mono 1.500 for display headings and identity details. Inter preserves reading/control clarity; Roboto Mono serves recovery words. All three font licenses are bundled.
+- Consistent cream canvas and flat surfaces, with locally bundled Departure Mono 1.500 for display headings and identity details. Normal iOS/macOS interface text uses Flutter's SF Pro system-font proxies; Android retains Inter, and Roboto Mono serves recovery words. All three bundled font licenses remain recorded.
 - A reusable pixel chat mark, rounded identity tiles, hairline navigation boundaries, and a functional clear-search action. Personal names remain in Inter; the account header releases avatar space at large text sizes.
 - Darker action coral and semantic status/error colors with measured normal-text contrast exceeding 4.5:1 on cream and white where used.
 - Four-destination navigation, with a rail at wider widths; constrained content measure.
@@ -69,3 +69,13 @@ account-name layout was reviewed together with the phone/tablet render set.
 
 The search/clear regression runs at all three review viewports. Physical-device
 checks remain outstanding, and unsigned iOS output still requires provisioning.
+
+## Apple motion and type refinement
+
+The app keeps Departure Mono for its pixel display identity. Normal interface
+copy uses Apple's SF Pro system faces on iOS/macOS, with Inter retained on
+Android. The typography adapter applies the same choice to the shared Material
+theme and direct Chhaya text styles. Claude's restrained writing and generous
+reading rhythm guide the voice; no Anthropic font asset is represented as a
+publicly licensed typeface. See [apple-motion-system.md](apple-motion-system.md)
+for the interaction map and its implementation limits.

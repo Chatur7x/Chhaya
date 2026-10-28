@@ -1,0 +1,18 @@
+name: chhaya_pqc
+description: Version-pinned native AWS-LC post-quantum primitive provider for Chhaya.
+version: 0.1.0
+publish_to: none
+environment:
+  sdk: '>=3.7.0 <4.0.0'
+  flutter: '>=3.29.0'
+dependencies:
+  flutter:
+    sdk: flutter
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: org.chhaya.pqc
+        pluginClass: ChhayaPqcPlugin
+      ios:
+        pluginClass: ChhayaPqcPlugin

@@ -1,0 +1,12 @@
+*
+!Dockerfile
+!backend/
+backend/*
+!backend/server/
+backend/server/*
+!backend/server/package.json
+!backend/server/package-lock.json
+!backend/server/tsconfig.json
+!backend/server/src/
+backend/server/src/*
+!backend/server/src/**

@@ -64,12 +64,12 @@ class ApiService {
       await register(chhayaId: profile.chhayaId.publicKey, displayName: profile.displayName,
         publicKey: pair.publicKeyHex, encryptedPrivateKey: encrypted, recoveryPhraseHash: proof,
         deviceId: _deviceId!, platform: 'flutter',
-        challengeId:registration['challengeId'],identityProof:registration['proof']);
+        challengeId:registration['challengeId']!,identityProof:registration['proof']!);
     } on ApiException catch (error) {
       if (error.statusCode != 409) rethrow;
       final loginClaim=await _identityClaim('login',pair,_deviceId!);
       await login(chhayaId:profile.chhayaId.publicKey,recoveryPhraseHash:proof,deviceId:_deviceId!,
-        challengeId:loginClaim['challengeId'],identityProof:loginClaim['proof']);
+        challengeId:loginClaim['challengeId']!,identityProof:loginClaim['proof']!);
     }
   }
 
@@ -119,7 +119,7 @@ class ApiService {
     final uri = Uri.parse('$_baseUrl$path');
     final reqHeaders = {..._headers(), ...?headers};
 
-    if(!['GET','POST','PUT','DELETE'].contains(method)) { throw ArgumentError('Unsupported method'); }
+    if(!['GET','POST','PUT','PATCH','DELETE'].contains(method)) { throw ArgumentError('Unsupported method'); }
     final request=http.Request(method,uri)..followRedirects=false;
     request.headers.addAll(reqHeaders);
     if(body!=null) {
@@ -158,6 +158,11 @@ class ApiService {
     id: row['id'] as String,
     participants: ((row['participants'] as List?) ?? []).map((p) => _contact(Map<String, dynamic>.from(p as Map)))
         .where((p) => p.id != _userId).toList(),
+    adminIds: {
+      if (row['is_admin'] == true && _userId != null) _userId!,
+      for (final p in ((row['participants'] as List?) ?? []))
+        if ((p as Map)['is_admin'] == true) (p['id'] as String),
+    },
     unreadCount: int.tryParse('${row['unread_count']}') ?? 0,
     isGroup: row['type'] == 'group', groupName: row['name'] as String?,
     createdAt: DateTime.parse(row['created_at'] as String),
@@ -178,8 +183,8 @@ class ApiService {
     required String encryptedPrivateKey,
     required String recoveryPhraseHash,
     required String deviceId,
-    String? challengeId,
-    String? identityProof,
+    required String challengeId,
+    required String identityProof,
     String? deviceName,
     String? platform,
     String? fcmToken,
@@ -192,6 +197,8 @@ class ApiService {
         'encryptedPrivateKey': encryptedPrivateKey,
         'recoveryPhraseHash': recoveryPhraseHash,
         'deviceId': deviceId,
+        'challengeId': challengeId,
+        'identityProof': identityProof,
         'deviceName': deviceName,
         'platform': platform,
         'fcmToken': fcmToken,
@@ -206,8 +213,8 @@ class ApiService {
     required String chhayaId,
     required String recoveryPhraseHash,
     required String deviceId,
-    String? challengeId,
-    String? identityProof,
+    required String challengeId,
+    required String identityProof,
     String? deviceName,
     String? platform,
     String? fcmToken,
@@ -217,6 +224,8 @@ class ApiService {
         'chhayaId': chhayaId,
         'recoveryPhraseHash': recoveryPhraseHash,
         'deviceId': deviceId,
+        'challengeId': challengeId,
+        'identityProof': identityProof,
         'deviceName': deviceName,
         'platform': platform,
         'fcmToken': fcmToken,
@@ -280,7 +289,7 @@ class ApiService {
   }) async {
     return await _request('POST', '/api/v1/conversations',
       body: {'type': type, 'participantIds': participantIds, 'name': name, 'avatarUrl': avatarUrl},
-      parser: (d) => Conversation(id: d['conversationId'] as String, participants: const [], isGroup: type == 'group', groupName: name, createdAt: DateTime.now()),
+      parser: (d) => Conversation(id: d['conversationId'] as String, participants: const [], adminIds: {_userId!}, isGroup: type == 'group', groupName: name, createdAt: DateTime.now()),
     );
   }
 
@@ -288,6 +297,14 @@ class ApiService {
     return await _request('GET', '/api/v1/conversations',
       parser: (d) => (d as List).map((e) => _conversation(Map<String, dynamic>.from(e as Map))).toList(),
     );
+  }
+
+  Future<void> setGroupAdmin(String conversationId, String participantId, bool isAdmin) async {
+    await _request('PATCH', '/api/v1/conversations/$conversationId/participants/$participantId', body: {'isAdmin': isAdmin});
+  }
+
+  Future<void> removeGroupParticipant(String conversationId, String participantId) async {
+    await _request('DELETE', '/api/v1/conversations/$conversationId/participants/$participantId');
   }
 
   // Messages
@@ -325,6 +342,14 @@ class ApiService {
 
   Future<void> markMessagesRead(String messageId) async {
     await _request('POST', '/api/v1/messages/$messageId/read');
+  }
+
+  Future<List<Map<String,dynamic>>> getIncomingCallInvites() async {
+    return await _request('GET', '/api/v1/calls/incoming',
+      parser: (data) => (data as List)
+          .map((entry) => Map<String,dynamic>.from(entry as Map))
+          .toList(),
+    );
   }
 
   // Devices

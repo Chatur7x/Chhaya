@@ -1,186 +1,67 @@
 # Chhaya
 
-> **Current build status:** development/test build, not a production release.
-> Direct-message transport, foreground WebRTC calls, recovery and encrypted
-> backups are under automated verification. Both people need a deployed HTTPS
-> backend and verified identities. No hosted service is bundled.
-> Onion routing, offline mesh, post-quantum providers, encrypted groups,
-> attachments and coercion-resistant vault features are not complete.
-> See [test-build guide](docs/test-builds.md) for installation and limitations.
-> Claims in the historical feature roadmap below describe intended scope;
-> they are not a release-readiness or external-audit claim.
+<p align="center"><strong>A private, account-light messenger in active development.</strong><br>Flutter apps for Android and iOS, with a self-hosted messaging backend.</p>
 
-> **Privacy-first, end-to-end encrypted messenger. Open source.**
+<p align="center"><a href="https://github.com/Chatur7x/Chhaya/actions/workflows/ci.yml"><img src="https://github.com/Chatur7x/Chhaya/actions/workflows/ci.yml/badge.svg" alt="CI"></a> <img src="https://img.shields.io/badge/Flutter-3.47%2B-02569B?logo=flutter" alt="Flutter 3.47 or newer"> <img src="https://img.shields.io/badge/status-development-orange" alt="Development status"></p>
 
-[![Flutter](https://img.shields.io/badge/Flutter-3.29%2B-blue?logo=flutter)](https://flutter.dev)
-[![Dart](https://img.shields.io/badge/Dart-3.7%2B-0175C2?logo=dart)](https://dart.dev)
-[![Version](https://img.shields.io/badge/Version-14.0.0-green)](CHANGELOG.md)
-[![CI](https://github.com/Chatur7x/Chhaya/actions/workflows/ci.yml/badge.svg)](https://github.com/Chatur7x/Chhaya/actions/workflows/ci.yml)
+> **Development build, not a production messenger.** Internet messaging needs a Chhaya backend that you host. Android test APKs are debug signed; no signed iOS build or store release is available. Cryptography and transport have not had an independent security audit.
 
-Chhaya is an open-source, end-to-end encrypted messenger. No phone number,
-no email, no central identity — a 66-character anonymous identity with cryptographic components and additional privacy features under development. This project is community open source: free to use, modify.
+## What works today
 
----
+- Create or restore a local account from a recovery phrase; no phone number or email is required.
+- Store local account data in SQLCipher and device secure storage.
+- Send end-to-end encrypted one-to-one text messages after both people connect to the same server and verify each other's identity.
+- Queue outgoing messages for retry, reply to messages, and configure local privacy settings.
+- Send small encrypted attachments and voice notes. Attachments are currently limited to 256 KB.
+- Place foreground WebRTC voice and video calls. Some networks need a separately configured TURN server.
+- Build and run the Flutter Android and iOS targets; backend deployment files are provided for self-hosting.
 
-## Features
+## What is not ready
 
-### Privacy & Security
-- **Anonymous identity** — no phone number or email required
-- **End-to-end encryption** — X25519 + AES-256-GCM + Double Ratchet
-- **Post-quantum hybrid key exchange** — X25519 + ML-KEM-1024 (V14)
-- **Onion routing** — 3-hop circuits hide origin IP
-- **Mesh networking** — BLE + Wi-Fi Aware offline messaging (V14)
-- **Biometric lock** — fingerprint / face unlock, StrongBox-backed keys
-- **Duress PIN** — decoy vault under coercion (V14)
-- **Disappearing messages** — configurable timers
-- **QR verification** — confirm contacts in person
-
-### Communication
-- Encrypted 1:1 and group chats
-- Voice and peer-to-peer video calls (WebRTC)
-- File sharing with decentralized chunk storage
-- Typing indicators and read receipts
-- Push notifications (FCM + APNs)
-
----
+Group creation, member administration, encrypted polls, background call delivery and push are implemented to varying degrees, but still need cross-device acceptance testing; secure group invitation/member addition is not complete. Large/chunked file transfer, offline mesh, onion routing, sealed sender, Arke discovery, a secure vault, coercion features, and verified post-quantum messaging are not complete. See the [delivery checklist](docs/delivery-checklist.md) for implementation and evidence for each feature.
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────┐
-│  UI Layer (Flutter + Riverpod)          │
-├─────────────────────────────────────────┤
-│  Services (Auth, API, Network, Vault)   │
-├─────────────────────────────────────────┤
-│  Core (Crypto, Database, Models, Log)   │
-├─────────────────────────────────────────┤
-│  Secure Storage (Keystore / Keychain)   │
-│  Encrypted DB (SQLCipher)               │
-└─────────────────────────────────────────┘
-┌─────────────────────────────────────────┐
-│  Backend (Node.js + TypeScript)         │
-│  REST API :8443 / Signaling :8444       │
-│  Onion Relay :8445 / PostgreSQL / Redis │
-└─────────────────────────────────────────┘
-```
+- **Mobile:** Flutter and Dart, with Riverpod state management.
+- **Local security:** SQLCipher database, platform secure storage, X25519 identity, AES-GCM message envelopes, and a ratcheted direct-message session.
+- **Backend:** Node.js and TypeScript with Express, PostgreSQL, REST endpoints, and authenticated WebSocket call signaling.
+- **Deployment:** Docker Compose and Nginx configuration for self-hosting; no public Chhaya server is included.
 
----
+Read the [architecture overview](docs/architecture.md), [threat model](docs/threat-model.md), [cryptography notes](docs/crypto.md), and [backend hosting guide](docs/self-hosting.md) before testing sensitive workflows.
 
-## Tech Stack
+## Run locally
 
-| Layer | Technology |
-|-------|------------|
-| Framework | Flutter 3.29+, Dart 3.7+ |
-| State | Riverpod 2.6 |
-| Crypto (classical) | `cryptography` (X25519, Ed25519), `pointycastle` (AES-GCM, HKDF, PBKDF2) |
-| Crypto (post-quantum) | ML-KEM-1024, ML-DSA-87 (V14) |
-| Secure storage | `flutter_secure_storage` (Keystore / Keychain) |
-| Local database | SQLCipher-encrypted SQLite |
-| Calls | WebRTC (`flutter_webrtc`) |
-| QR | `qr_flutter` / `mobile_scanner` (pinned 7.2.0) |
-| Backend | Node.js 20, TypeScript 5.3, Express, PostgreSQL 16, Redis 7 |
-| Push | `firebase-admin` (FCM + APNs) |
-| Deploy | Docker + docker-compose |
+Install Flutter 3.47 or newer and the Android toolchain. From the repository root, run:
 
----
+<pre>flutter pub get<br>flutter run</pre>
 
-## Project Structure
+To run the backend, use Node.js 20 or newer, configure the environment from the checked-in example, and follow [self-hosting.md](docs/self-hosting.md). Messaging will not work between devices until both apps use the same live HTTPS server.
 
-```
-lib/
-├── main.dart                  # App entry point
-├── core/
-│   ├── log.dart               # Structured app logger
-│   ├── crypto/                # Engine facade + key manager
-│   │   └── primitives/        # x25519, ed25519, aes_gcm, hkdf,
-│   │                          # pbkdf2, sha, rng, bip39
-│   ├── database/              # SQLCipher database + migrations
-│   ├── models/                # ChhayaId, Contact, Message, ...
-│   ├── providers/             # Riverpod providers
-│   └── router/                # Route definitions
-├── services/
-│   ├── auth/                  # Account create / restore / backup
-│   ├── api/                   # Backend REST client + sync
-│   └── network/               # Onion routing, P2P, mesh (V14)
-└── ui/
-    ├── theme/                 # Claude Light design tokens (V14)
-    ├── widgets/               # Design-system components
-    └── screens/               # Onboarding, Chat, Calls, Settings, ...
+## Verification
 
-backend/server/
-├── src/
-│   ├── index.ts, config.ts, log.ts, db.ts
-│   ├── routes/                # auth, users, contacts, conversations,
-│   │                          # messages, devices, push, onion (V14)
-│   ├── middleware/            # auth, rateLimit, error (V14)
-│   ├── signaling.ts           # WebRTC signaling :8444
-│   ├── onion-relay.ts         # Onion relay :8445
-│   └── push/                  # fcm, apns, tokens, topics (V14)
-└── Dockerfile
+<pre>flutter analyze<br>flutter test<br>cd backend/server<br>npm ci<br>npm test</pre>
 
-test/
-├── unit/crypto/               # Primitive vectors + engine tests
-├── widget/                    # Widget + golden tests (V14)
-└── integration/               # End-to-end flows (V14)
-```
+The full Flutter test suite includes a deliberately large ratchet fuzz test and can take several minutes. The SQLCipher at-rest proof requires a host with the native SQLCipher implementation.
 
----
+## Sharing builds
 
-## Getting Started
+See [test-builds.md](docs/test-builds.md). The Android artifact is for testing and uses a debug certificate. Installing a differently signed build may require uninstalling the prior one, which deletes that installation's local data. iOS installation requires Apple signing and provisioning.
 
-### Prerequisites
-- Flutter SDK **3.29+**, Dart SDK **3.7+**
-- Android Studio / VS Code with Flutter extension
-- JDK 17+ (Android builds)
-- Node.js 20+ (backend only), Docker (backend deploy)
+## Project guide
 
-### Run the app
+| Document | Purpose |
+| --- | --- |
+| [Architecture](docs/architecture.md) | Implemented data flow and system boundaries |
+| [Delivery checklist](docs/delivery-checklist.md) | Feature status and acceptance evidence |
+| [Threat model](docs/threat-model.md) | Security assumptions and limitations |
+| [Cryptography](docs/crypto.md) | Implemented primitives and protocol notes |
+| [Self-hosting](docs/self-hosting.md) | Backend setup and operational requirements |
+| [Render deployment](docs/render-deploy.md) | Deploy the API and PostgreSQL with Render |
+| [Test builds](docs/test-builds.md) | Android/iOS test distribution and device testing |
+| [Performance notes](docs/performance.md) | Android sync tuning, APK size, and measured limits |
+| [Contributing](CONTRIBUTING.md) | Contribution workflow |
+| [Security](SECURITY.md) | Responsible vulnerability reporting |
 
-```bash
-git clone https://github.com/Chatur7x/Chhaya.git
-cd Chhaya
-flutter pub get
-flutter run
-```
+The repository's licensing intent also needs owner confirmation; check the [LICENSE](LICENSE) file before redistribution.
 
-### Build release APK
-
-```bash
-flutter build apk --release
-# build/app/outputs/flutter-apk/app-release.apk
-```
-
-### Run the backend
-
-```bash
-cd backend/server
-npm install
-cp .env.example .env   # configure secrets (never commit .env)
-npm run dev
-```
-
-### Deploy with Docker
-
-```bash
-docker-compose up -d
-```
-
----
-
-## Security
-
-See [SECURITY.md](SECURITY.md) for the threat model, audit status, and how
-to report vulnerabilities. Do not open public issues for security bugs.
-
----
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). All contributions go through
-pull requests against `main`. One logical change per commit.
-
----
-
----
-
-<p align="center">Your data belongs to you.</p>
+<p align="center">Built for quieter, more private conversations.</p>

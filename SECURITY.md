@@ -1,39 +1,33 @@
-# Security Policy
+# Security policy and current claims
 
-## Threat model
+Chhaya is an in-progress privacy-focused messenger. This document describes the checked-in implementation, not a certification or guarantee of protection from state-level attackers.
 
-Chhaya protects message content and metadata against network observers,
-compromised servers, and device coercion:
+## Current implementation
 
-- End-to-end encryption (X25519 + AES-256-GCM, Double Ratchet)
-- Post-quantum hybrid key exchange (X25519 + ML-KEM-1024, V14)
-- Onion-routed transport (3-hop, region-diverse circuits)
-- No phone number, email, or central identity
-- Coercion resistance (duress PIN, decoy vault, V14)
+- Direct message bodies are encrypted on-device with AES-GCM. Session setup currently uses X25519 over account identity keys, followed by Chhaya's custom Double Ratchet and a deterministic HKDF epoch chain.
+- Contacts must be marked verified locally before ratchet sessions can be used. Users can scan a contact QR or compare the full identity through a trusted channel. Verification depends on the user making that comparison correctly.
+- The normal delivery backend stores encrypted message envelopes and can observe account IDs, conversation membership, sender, IP address, request timing, delivery activity and message sizes.
+- Group messages create a fresh body key for the message and wrap it for each current member. This does not make previously delivered group history disappear after a member is removed.
+- SQLCipher and platform secure-storage integration exist, but native at-rest encryption and key-wrapping behavior still require physical-device evidence on each platform.
+- ML-KEM/ML-DSA native primitives exist in the repository. They are not currently integrated into the live session-establishment/message path. Chhaya therefore does not claim post-quantum protected conversations.
+- The onion router is experimental and not used by the normal API messaging path. Chhaya therefore does not claim onion anonymity or IP-address protection.
+- Panic PIN, capture prevention, duress safety, secure deletion and memory clearing have platform and endpoint limitations and are not absolute guarantees.
 
-Out of scope: endpoint compromise with unlocked device, rubber-hose
-attacks beyond the duress design, quantum attacks against classical
-signatures before the ML-DSA migration completes.
+See [the delivery checklist](docs/delivery-checklist.md) and [the competitive security analysis](docs/security-competitive-analysis.md) for status, evidence gaps and comparison context.
+
+## Threat-model limits
+
+E2EE is intended to protect message content from passive network observers and the delivery server when the implementation and identity checks operate correctly. It does not by itself protect against compromised/unlocked endpoints, malicious or coerced recipients, screenshots or external cameras, traffic analysis, account/device takeover, abusive contacts, or denial of service. No independent cryptographic protocol audit, mobile penetration test or production operations review has been completed for this version.
+
+Do not use Chhaya as a claimed intelligence-agency, military, clandestine-operations or state-adversary protection system. There is no relevant certification or deployment evidence in this repository.
 
 ## Reporting a vulnerability
 
-**Do not open public issues for security bugs.**
+Please do not publish exploitable security issues before maintainers can investigate. Send the affected version/commit, reproducible steps and impact through a private maintainer contact established by the project. Do not include real users' private data.
 
-Email the maintainers privately with:
-1. Affected version / commit
-2. Steps to reproduce (proof of concept preferred)
-3. Impact assessment
+## Cryptography changes
 
-We aim to acknowledge within 72 hours and ship a fix within 30 days.
-Credit is given with reporter consent.
-
-## Cryptography policy
-
-- Only audited primitives: X25519, Ed25519, AES-256-GCM, HKDF-SHA256,
-  PBKDF2-HMAC-SHA256, SHA-256/512, ML-KEM-1024, ML-DSA-87.
-- No custom ciphers, no ECB, no nonce reuse, no `Random()` for secrets.
-- New protocol code (ratchet, handshake, mesh) requires external audit
-  before release — see the V14 roadmap.
+Do not add custom cipher or key-exchange designs as a feature shortcut. Any protocol change requires a versioned specification, test vectors, replay/downgrade/state-rollback analysis, Android and iOS native tests, independent security review and updates to the claims above. Primitive availability in a dependency is not evidence that the application protocol uses it securely.
 
 ## Historical issues (V13 entropy disclosure, TASK A1)
 
@@ -63,6 +57,7 @@ Credit is given with reporter consent.
      pre-V1.0.4 APK should upgrade; sessions from those builds should be
      considered suspect.
 
-3. Known placeholder (not key material, flagged for a later part):
-   `lib/ui/screens/contacts/contacts_tab.dart` fabricates a 66-char hex
-   placeholder pubkey from `DateTime.now().microsecond` when empty.
+3. Historical placeholder (not key material): an earlier version of
+   `lib/ui/screens/contacts/contacts_tab.dart` fabricated a 66-character
+   placeholder public key from the current time when empty. The current
+   contact flow validates an actual Chhaya ID instead.

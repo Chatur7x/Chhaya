@@ -31,9 +31,9 @@ class GlassContainer extends StatelessWidget {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: color ?? ChhayaColors.cardSurface,
+        color: color ?? ChhayaPalette.of(context).cardSurface,
         borderRadius: BorderRadius.circular(borderRadius),
-        border: withBorder ? Border.all(color: ChhayaColors.borderSoft) : null,
+        border: withBorder ? Border.all(color: ChhayaPalette.of(context).borderSoft) : null,
       ),
       child: child,
     );
@@ -65,9 +65,9 @@ class ChhayaCard extends StatelessWidget {
     final card = Container(
       padding: padding,
       decoration: ChhayaDecorations.elevatedCard(borderRadius: radius).copyWith(
-        color: color ?? ChhayaColors.cardSurface,
+        color: color ?? ChhayaPalette.of(context).cardSurface,
         border: border ?? Border.all(
-          color: ChhayaColors.opaqueSeparator.withValues(alpha: 0.45),
+          color: ChhayaPalette.of(context).opaqueSeparator.withValues(alpha: 0.45),
           width: 0.7,
         ),
       ),
@@ -118,7 +118,7 @@ class SettingsSwitch extends StatelessWidget {
         ),
         child: Icon(icon, color: iconColor, size: 18),
       ),
-      title: Text(title, style: ChhayaTypography.bodyMedium),
+      title: Text(title, style: ChhayaType.of(context).bodyMedium),
       value: value,
       onChanged: (v) {
         ChhayaHaptics.selection();

@@ -38,9 +38,9 @@ class ChhayaBottomNav extends StatelessWidget {
     return Container(
       height: 72,
       decoration: BoxDecoration(
-        color: ChhayaColors.cream.withValues(alpha: 0.9),
-        border: const Border(
-          top: BorderSide(color: ChhayaColors.borderMed, width: 0.5),
+        color: ChhayaPalette.of(context).cream.withValues(alpha: 0.9),
+        border: Border(
+          top: BorderSide(color: ChhayaPalette.of(context).borderMed, width: 0.5),
         ),
       ),
       child: Row(
@@ -69,16 +69,16 @@ class ChhayaBottomNav extends StatelessWidget {
                             : items[i].icon,
                         size: 24,
                         color: i == currentIndex
-                            ? ChhayaColors.coralDeep
-                            : ChhayaColors.inkMuted,
+                            ? ChhayaPalette.of(context).coralDeep
+                            : ChhayaPalette.of(context).inkMuted,
                       ),
                       const SizedBox(height: ChhayaSpacing.space1),
                       Text(
                         items[i].label,
-                        style: ChhayaTypography.labelSmall.copyWith(
+                        style: ChhayaType.of(context).labelSmall.copyWith(
                           color: i == currentIndex
-                              ? ChhayaColors.coralDeep
-                              : ChhayaColors.inkMuted,
+                              ? ChhayaPalette.of(context).coralDeep
+                              : ChhayaPalette.of(context).inkMuted,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
