@@ -1,7 +1,7 @@
 name: chaaya
 description: "Chhaya - The Ultimate Secure Messenger. Combining Threema + Session privacy with Apple-grade UI."
 publish_to: 'none'
-version: 14.0.0+1
+version: 14.0.1+2
 
 environment:
   sdk: ^3.7.0

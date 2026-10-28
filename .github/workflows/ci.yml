@@ -61,3 +61,38 @@ jobs:
       - run: npm ci
       - run: npm run lint --if-present
       - run: npm test --if-present
+      - name: Check backend dependency advisories
+        run: npm audit --audit-level=low
+      - name: Generate backend production SBOM
+        run: npm sbom --sbom-format=cyclonedx --omit=dev > backend.cdx.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Chhaya-Backend-SBOM
+          path: backend/server/backend.cdx.json
+          if-no-files-found: error
+
+  database-recovery:
+    name: Database backup and isolated restore drill
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: ci_disposable_database_password
+      JWT_SECRET: ci_only_random_fixture_726cae8b047e45dbb286cd59
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s scripts -p test_database_ops.py -v
+      - run: docker compose up -d --wait postgres
+      - run: docker compose build chhaya-api
+      - name: Initialize the actual application schema
+        run: >-
+          docker compose run --rm -T --no-deps chhaya-api node -e
+          "const db=require('./dist/db'); db.initDb().then(()=>db.closeDb()).catch(()=>process.exit(1))"
+      - name: Back up and restore into a separate disposable server
+        run: |
+          python scripts/database_ops.py backup "$RUNNER_TEMP/chhaya.dump"
+          python scripts/database_ops.py restore-drill "$RUNNER_TEMP/chhaya.dump"
+      - name: Remove disposable CI database
+        if: always()
+        run: docker compose down --volumes

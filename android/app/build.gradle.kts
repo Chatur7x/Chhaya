@@ -1,8 +1,19 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+val releaseKeys = Properties()
+val releaseKeysFile = rootProject.file("key.properties")
+if (releaseKeysFile.exists()) releaseKeysFile.inputStream().use { releaseKeys.load(it) }
+val allowDebugRelease = System.getenv("CHHAYA_ALLOW_DEBUG_SIGNING") == "true"
+val releaseRequested = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
+if (releaseRequested && !releaseKeysFile.exists() && !allowDebugRelease) {
+    throw GradleException("Release signing requires android/key.properties. For a test artifact only, set CHHAYA_ALLOW_DEBUG_SIGNING=true.")
 }
 
 android {
@@ -32,6 +43,17 @@ android {
         versionName = flutter.versionName
     }
 
+    if (releaseKeysFile.exists()) {
+        signingConfigs {
+            create("release") {
+                storeFile = rootProject.file(releaseKeys.getProperty("storeFile"))
+                storePassword = releaseKeys.getProperty("storePassword")
+                keyAlias = releaseKeys.getProperty("keyAlias")
+                keyPassword = releaseKeys.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             // CI debug APKs use ephemeral signing keys. Give them a separate
@@ -41,9 +63,11 @@ android {
             manifestPlaceholders["appLabel"] = "Chhaya Test"
         }
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            if (releaseKeysFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            } else if (allowDebugRelease) {
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
 }

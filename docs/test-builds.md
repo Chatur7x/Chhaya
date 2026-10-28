@@ -23,6 +23,21 @@ The Android release build requires the AWS-LC native provider build and can
 take several minutes on a clean checkout. Do not infer device-level SQLCipher
 or cryptographic correctness from successful compilation alone.
 
+### Local release signing (14.0.1 and later)
+
+Run `python scripts/setup_android_signing.py` once before a local release build.
+It generates a private RSA signing key under `~/.chhaya/signing/` and an ignored
+`android/key.properties`. Existing keys/configuration are preserved. Back up both
+in encrypted offline storage: losing this key prevents signing compatible updates.
+Neither file is committed or uploaded. A normal release build now uses this key
+and refuses to silently fall back to the debug certificate. CI explicitly opts
+into test signing with `CHHAYA_ALLOW_DEBUG_SIGNING=true`.
+
+A build signed with the new key cannot update an older debug-signed installation
+of the same package. Export important account data before deciding how to migrate;
+uninstalling an existing app deletes its local data. Release signing establishes
+artifact identity and does not establish that unfinished roadmap features work.
+
 ## iPhone
 
 The iOS workflow exports an unsigned Runner.app archive for developers.

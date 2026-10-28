@@ -133,6 +133,16 @@ test('real API: registration, authentication, conversations, messages, isolation
   };
   try{
     const alice=await signup(),bob=await signup(),outsider=await signup();
+    // Accounts sharing one NAT must have independent authenticated budgets.
+    const {config}=require('../dist/config');
+    const aliceBucket='api:'+createHmac('sha256',config.JWT_SECRET).update(`account:${alice.userId}`).digest('hex');
+    assert.equal((await req('GET','/users/me',null,alice.token)).status,200);
+    await query('UPDATE rate_limits SET count=$2,window_start=NOW() WHERE key=$1',[aliceBucket,config.API_AUTH_RATE_LIMIT]);
+    const throttled=await req('GET','/users/me',null,alice.token);
+    assert.equal(throttled.status,429);
+    assert.equal((await req('GET','/users/me',null,bob.token)).status,200);
+    assert.equal((await req('GET','/users/me',null,randomBytes(32).toString('hex'))).status,401);
+    await query('DELETE FROM rate_limits WHERE key=$1',[aliceBucket]);
     // Knowing a public ID and recovery proof is insufficient without its private key.
     const invalidClaim=await claim(outsider.pair,alice.body,'login');
     assert.equal((await req('POST','/auth/login',{...alice.body,...invalidClaim})).status,401);
@@ -178,6 +188,24 @@ test('real API: registration, authentication, conversations, messages, isolation
     const currentEnvelope=JSON.stringify({v:1,kind:'chhaya-group-v1',conversationId:groupId,messageId:currentId,senderId:alice.userId,keys:{[bob.userId]:'bob-wrapper'},body:'opaque-body'});
     assert.equal((await req('POST','/messages',{messageId:currentId,conversationId:groupId,content:currentEnvelope},alice.token)).status,201);
     assert.equal((await req('DELETE',`/conversations/${groupId}/participants/${bob.userId}`,null,bob.token)).status,409);
+    // Concurrent removal and sends must serialize, never accepting a new stale
+    // envelope after removal commits. Already accepted retries remain exact.
+    const racingGroup=await req('POST','/conversations',{type:'group',participantIds:[bob.userId,outsider.userId],name:'Race'},alice.token);
+    assert.equal(racingGroup.status,201);
+    const racingId=racingGroup.data.conversationId;
+    const racingMessage=randomUUID();
+    const racingEnvelope=JSON.stringify({v:1,kind:'chhaya-group-v1',conversationId:racingId,messageId:racingMessage,senderId:alice.userId,keys:{[bob.userId]:'bob-wrapper',[outsider.userId]:'guest-wrapper'},body:'opaque-body'});
+    const [racingSend,racingRemove]=await Promise.all([
+      req('POST','/messages',{messageId:racingMessage,conversationId:racingId,content:racingEnvelope},alice.token),
+      req('DELETE',`/conversations/${racingId}/participants/${outsider.userId}`,null,alice.token),
+    ]);
+    assert.equal(racingRemove.status,200);
+    assert.ok([201,409].includes(racingSend.status));
+    assert.equal((await req('POST','/messages',{messageId:racingMessage,conversationId:racingId,content:racingEnvelope},alice.token)).status,racingSend.status===201?200:409);
+    const rejectedMessage=randomUUID();
+    const rejectedEnvelope=JSON.stringify({...JSON.parse(racingEnvelope),messageId:rejectedMessage});
+    assert.equal((await req('POST','/messages',{messageId:rejectedMessage,conversationId:racingId,content:rejectedEnvelope},alice.token)).status,409);
+    assert.equal((await req('GET',`/messages/${racingId}`,null,outsider.token)).status,403);
     const {startSignalingServer}=require('../dist/signaling');
     const WebSocket=require('ws');
     signaling=startSignalingServer();

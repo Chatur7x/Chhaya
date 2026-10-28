@@ -26,8 +26,9 @@ For a new setup, prefer the Blueprint steps below; the Blueprint already sets
 1. Push this repository and branch to GitHub.
 2. Sign in to Render, choose **New → Blueprint**, and connect the Chhaya repo.
 3. Review the two services and the current monthly estimate before applying the
-   Blueprint. The configuration uses paid, always-on plans; it does not use
-   Render's expiring free Postgres database or sleeping free web service.
+   Blueprint. At the owner's request, both services use free testing plans.
+   The web service sleeps when idle and the database expires after 30 days.
+   This configuration is for testing, not permanent production hosting.
 4. Apply the Blueprint and wait for the first deployment to pass `/health`. The
    endpoint checks PostgreSQL readiness and returns HTTP 503 if the database is
    unavailable, so Render will not route traffic to a process that cannot serve
@@ -38,15 +39,12 @@ For a new setup, prefer the Blueprint steps below; the Blueprint already sets
    HTTPS URL (no trailing slash). Call signaling uses the same host over WSS at
    `/signaling`.
 
-At the prices currently listed, the selected web plan is $7/month and the
-smallest paid 256 MB Postgres compute plan is $6/month, for an expected starting
-total of about **$13/month** with the configured 1 GB database disk, before
-taxes, bandwidth, storage growth, or other usage. Verify the estimate in
-Render's dashboard before applying. PostgreSQL data
-is durable and paid instances include Render-managed backups, but this initial
-setup is a single service and single database; it is not a high-availability
-production deployment. Configure and test database restore procedures before
-using the server for important conversations.
+The configured plans have no compute subscription charge. Render's included
+bandwidth and build-minute limits still apply. The database has 1 GB of storage,
+expires after 30 days, and has no managed backups. Export any test data you need
+before expiry. Use the local Docker deployment for ongoing self-hosting without
+a Render subscription, or explicitly authorize a paid deployment separately.
+See [Render's current free-plan limits](https://render.com/docs/free).
 
 ## Before using it with real users
 

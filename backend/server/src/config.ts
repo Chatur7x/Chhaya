@@ -26,7 +26,8 @@ const envSchema = z.object({
   // Security
   JWT_SECRET: z.string().min(32).default('chhaya-dev-secret-change-in-production'),
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(2).default(0),
-  API_RATE_LIMIT: z.coerce.number().default(100),
+  API_RATE_LIMIT: z.coerce.number().int().positive().default(100),
+  API_AUTH_RATE_LIMIT: z.coerce.number().int().positive().default(600),
   WS_RATE_LIMIT: z.coerce.number().default(50),
   
   // Monitoring

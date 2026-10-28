@@ -1,26 +1,40 @@
 import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
 import { config } from './config';
 import { logger } from './log';
+import { applyMigrations } from './migrations';
 
 let pool: Pool | null = null;
+let initializing: Promise<Pool> | null = null;
 
 export const initDb = async (): Promise<Pool> => {
+  if (initializing) return initializing;
   if (pool) return pool;
 
-  pool = new Pool({
+  const candidate = new Pool({
     connectionString: config.DATABASE_URL,
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
   });
 
-  pool.on('error', (err) => {
+  candidate.on('error', (err) => {
     logger.error('Unexpected database error', { error: err.message });
   });
 
-  await runMigrations(pool);
-  logger.info('Database initialized');
-  return pool;
+  initializing = (async () => {
+    try {
+      await runMigrations(candidate);
+      pool = candidate;
+      logger.info('Database initialized');
+      return candidate;
+    } catch (error) {
+      await candidate.end().catch(() => undefined);
+      throw error;
+    } finally {
+      initializing = null;
+    }
+  })();
+  return initializing;
 };
 
 export const getDb = (): Pool => {
@@ -196,9 +210,7 @@ const runMigrations = async (p: Pool): Promise<void> => {
 
   ];
 
-  for (const migration of migrations) {
-    await p.query(migration);
-  }
+  await applyMigrations(p, migrations);
 };
 
 export const query = async <T extends QueryResultRow = any>(text: string, params?: any[]): Promise<QueryResult<T>> => {

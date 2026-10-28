@@ -13,6 +13,7 @@ import { registerRoutes } from './routes';
 import { ZodError } from 'zod';
 import { collectDefaultMetrics, register, Counter } from 'prom-client';
 import { consumeIpRateLimit, pruneExpiredRateLimits } from './rate-limit';
+import { authenticateToken } from './session';
 
 export const app = express();
 app.set('trust proxy',config.TRUST_PROXY_HOPS);
@@ -30,9 +31,15 @@ app.use(cors({ origin: false }));
 app.use(async (req, res, next) => {
   if (req.path === '/health' || req.path === '/metrics') return next();
   try {
+    // Resolve real sessions before assigning account buckets; arbitrary bearer
+    // strings must not let an anonymous caller rotate through unlimited buckets.
+    const authorization = req.headers.authorization;
+    const userId = !req.path.startsWith('/api/v1/auth/') && authorization?.startsWith('Bearer ')
+      ? await authenticateToken(authorization.substring(7)) : null;
+    if (userId) res.locals.authenticatedUserId = userId;
     const decision = await consumeIpRateLimit(
-      req.ip || req.socket.remoteAddress || 'unknown',
-      config.API_RATE_LIMIT,
+      userId ? `account:${userId}` : req.ip || req.socket.remoteAddress || 'unknown',
+      userId ? config.API_AUTH_RATE_LIMIT : config.API_RATE_LIMIT,
       60,
     );
     if (!decision.allowed) {
@@ -58,14 +65,14 @@ app.get('/health', async (_req, res) => {
       status: 'ok',
       database: 'ready',
       timestamp: new Date().toISOString(),
-      version: '14.0.0',
+      version: '14.0.1',
     });
   } catch {
     res.status(503).json({
       status: 'unavailable',
       database: 'unavailable',
       timestamp: new Date().toISOString(),
-      version: '14.0.0',
+      version: '14.0.1',
     });
   }
 });
@@ -82,6 +89,16 @@ registerRoutes(app);
 // Error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (err instanceof ZodError) return res.status(400).json({error:'Invalid input'});
+  const parserError = err as Error & { type?: string };
+  if (parserError.type === 'entity.too.large') {
+    return res.status(413).json({error:'Request body too large'});
+  }
+  if (parserError.type === 'entity.parse.failed' || parserError.type === 'request.size.invalid') {
+    return res.status(400).json({error:'Invalid request body'});
+  }
+  if (parserError.type === 'encoding.unsupported' || parserError.type === 'charset.unsupported') {
+    return res.status(415).json({error:'Unsupported request encoding'});
+  }
   logger.error('Request failed');
   res.status(500).json({ error: 'Internal server error' });
 });
