@@ -920,6 +920,46 @@ class LocalDatabase {
     _settingsCache = s;
   }
 
+  bool getConversationReadReceiptsEnabled(String conversationId) {
+    final overrides = _getSettingsSync()['conversation_read_receipts'];
+    return getReadReceiptsEnabled() &&
+        (overrides is Map ? overrides[conversationId] as bool? ?? true : true);
+  }
+
+  Future<void> setConversationReadReceiptsEnabled(
+    String conversationId,
+    bool enabled,
+  ) async {
+    final settings = await _getSettings();
+    final overrides = Map<String, dynamic>.from(
+      settings['conversation_read_receipts'] as Map? ?? {},
+    );
+    overrides[conversationId] = enabled;
+    settings['conversation_read_receipts'] = overrides;
+    await _saveSettings(settings);
+    _settingsCache = settings;
+  }
+
+  bool getConversationTypingIndicatorsEnabled(String conversationId) {
+    final overrides = _getSettingsSync()['conversation_typing_indicators'];
+    return getTypingIndicatorsEnabled() &&
+        (overrides is Map ? overrides[conversationId] as bool? ?? true : true);
+  }
+
+  Future<void> setConversationTypingIndicatorsEnabled(
+    String conversationId,
+    bool enabled,
+  ) async {
+    final settings = await _getSettings();
+    final overrides = Map<String, dynamic>.from(
+      settings['conversation_typing_indicators'] as Map? ?? {},
+    );
+    overrides[conversationId] = enabled;
+    settings['conversation_typing_indicators'] = overrides;
+    await _saveSettings(settings);
+    _settingsCache = settings;
+  }
+
   bool getReadReceiptsEnabled() =>
       _getSettingsSync()['read_receipts'] as bool? ?? true;
   Future<void> setReadReceiptsEnabled(bool v) async {

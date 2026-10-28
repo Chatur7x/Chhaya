@@ -16,7 +16,7 @@ The shared security boundaries and server-visible metadata are in [threat-model.
 |---:|---|---|---|
 | 1 | E2EE text chat | Triple Ratchet encryption | Classical direct path exists; custom protocol remains unaudited and PQ ratchet is not active. |
 | 2 | Disappearing messages | Per-contact + per-group timers | Local timer and encrypted expiry exist; cross-device and retention semantics incomplete. |
-| 3 | Read receipts | Opt-out per contact | Global toggle exists; per-contact opt-out missing. |
+| 3 | Read receipts | Opt-out per contact | Global and per-conversation opt-out implemented; native peer/lifecycle evidence pending. |
 | 4 | Reply threading | Quoted replies | Encrypted reply IDs and UI exist; device tests pending. |
 | 5 | Media messages | Images, files, voice notes | Inline encrypted attachments limited to 256 KB; native tests pending. |
 | 6 | Group conversations | Admin rights, participant management | Group administration exists; authenticated membership and device tests pending. |

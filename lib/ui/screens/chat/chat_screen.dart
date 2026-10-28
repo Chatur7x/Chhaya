@@ -103,7 +103,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           )) {
         return;
       }
-      if (!ref.read(localDatabaseProvider).getTypingIndicatorsEnabled()) {
+      if (!ref
+          .read(localDatabaseProvider)
+          .getConversationTypingIndicatorsEnabled(widget.conversationId)) {
         _clearRemoteTyping();
         return;
       }
@@ -131,7 +133,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if (hasText != _isTyping) setState(() => _isTyping = hasText);
     if (!_supportsTyping) return;
 
-    if (!ref.read(localDatabaseProvider).getTypingIndicatorsEnabled()) {
+    if (!ref
+        .read(localDatabaseProvider)
+        .getConversationTypingIndicatorsEnabled(widget.conversationId)) {
       _typingKeepAliveTimer?.cancel();
       _typingKeepAliveTimer = null;
       _typingStopTimer?.cancel();
@@ -145,7 +149,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       if (_typingKeepAliveTimer == null) {
         _queueTypingSignal(true);
         _typingKeepAliveTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-          if (ref.read(localDatabaseProvider).getTypingIndicatorsEnabled()) {
+          if (ref
+              .read(localDatabaseProvider)
+              .getConversationTypingIndicatorsEnabled(widget.conversationId)) {
             _queueTypingSignal(true, refresh: true);
           } else {
             _typingKeepAliveTimer?.cancel();
@@ -167,8 +173,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   void _queueTypingSignal(bool active, {bool refresh = false}) {
     if (!_supportsTyping) return;
-    final enabled =
-        ref.read(localDatabaseProvider).getTypingIndicatorsEnabled();
+    final enabled = ref
+        .read(localDatabaseProvider)
+        .getConversationTypingIndicatorsEnabled(widget.conversationId);
     if (active && !enabled) return;
     if (!refresh && _localTypingActive == active) return;
     _localTypingActive = active;
@@ -176,6 +183,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if (service == null) return;
     _typingSignalTail = _typingSignalTail.then((_) async {
       try {
+        // Check again after earlier queued network work finishes: privacy can
+        // change while a typing update is waiting to be sent.
+        if (active &&
+            (!mounted ||
+                !ref
+                    .read(localDatabaseProvider)
+                    .getConversationTypingIndicatorsEnabled(
+                      widget.conversationId,
+                    ))) {
+          return;
+        }
         await service.sendTyping(widget.conversationId, active);
       } catch (_) {
         // Typing metadata is best-effort and never blocks sending a message.
@@ -213,7 +231,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       for (final message in msgs.where(
         (m) => m.senderId != 'me' && !m.isRead && !m.isExpired,
       )) {
-        if (!db.getReadReceiptsEnabled()) {
+        if (!db.getConversationReadReceiptsEnabled(widget.conversationId)) {
           break;
         }
         try {
@@ -266,7 +284,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       );
       if (_supportsTyping &&
           _msgCtrl.text.trim().isNotEmpty &&
-          ref.read(localDatabaseProvider).getTypingIndicatorsEnabled()) {
+          ref
+              .read(localDatabaseProvider)
+              .getConversationTypingIndicatorsEnabled(widget.conversationId)) {
         _handleDraftChanged();
       }
     } else if (_supportsTyping) {
@@ -783,6 +803,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         PopupMenuButton<String>(
           tooltip: 'Chat options',
           onSelected: (action) {
+            if (action == 'privacy') {
+              _showPrivacySheet();
+              return;
+            }
             if (action == 'timer') {
               _showTtlSheet();
               return;
@@ -815,6 +839,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                           ),
                         ),
                         PopupMenuItem(
+                          value: 'privacy',
+                          child: Text('Chat privacy'),
+                        ),
+                        PopupMenuItem(
                           value: 'timer',
                           child: Text('Disappearing messages'),
                         ),
@@ -829,6 +857,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                           child: Text('Video call'),
                         ),
                         PopupMenuItem(
+                          value: 'privacy',
+                          child: Text('Chat privacy'),
+                        ),
+                        PopupMenuItem(
                           value: 'timer',
                           child: Text('Disappearing messages'),
                         ),
@@ -837,6 +869,92 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       ],
     ),
   );
+
+  Future<void> _showPrivacySheet() async {
+    final db = ref.read(localDatabaseProvider);
+    var saving = false;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder:
+          (sheetContext) => StatefulBuilder(
+            builder: (context, updateSheet) {
+              Future<void> save(Future<void> Function() write) async {
+                updateSheet(() => saving = true);
+                try {
+                  await write();
+                  if (mounted) {
+                    _clearRemoteTyping();
+                    _handleDraftChanged();
+                  }
+                } catch (_) {
+                  if (sheetContext.mounted) {
+                    ScaffoldMessenger.of(sheetContext).showSnackBar(
+                      const SnackBar(
+                        content: Text('Could not save chat privacy.'),
+                      ),
+                    );
+                  }
+                } finally {
+                  if (sheetContext.mounted) updateSheet(() => saving = false);
+                }
+              }
+
+              return SafeArea(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SwitchListTile(
+                        title: const Text('Read receipts in this chat'),
+                        subtitle: Text(
+                          db.getReadReceiptsEnabled()
+                              ? 'Share when you have read messages in this conversation.'
+                              : 'Read receipts are disabled in Settings.',
+                        ),
+                        value: db.getConversationReadReceiptsEnabled(
+                          widget.conversationId,
+                        ),
+                        onChanged:
+                            saving || !db.getReadReceiptsEnabled()
+                                ? null
+                                : (enabled) => save(
+                                  () => db.setConversationReadReceiptsEnabled(
+                                    widget.conversationId,
+                                    enabled,
+                                  ),
+                                ),
+                      ),
+                      if (_supportsTyping)
+                        SwitchListTile(
+                          title: const Text('Typing indicators in this chat'),
+                          subtitle: Text(
+                            db.getTypingIndicatorsEnabled()
+                                ? 'Share and show typing activity in this conversation.'
+                                : 'Typing indicators are disabled in Settings.',
+                          ),
+                          value: db.getConversationTypingIndicatorsEnabled(
+                            widget.conversationId,
+                          ),
+                          onChanged:
+                              saving || !db.getTypingIndicatorsEnabled()
+                                  ? null
+                                  : (enabled) => save(
+                                    () => db
+                                        .setConversationTypingIndicatorsEnabled(
+                                          widget.conversationId,
+                                          enabled,
+                                        ),
+                                  ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+    );
+  }
 
   Future<void> _showGroupManagement(Conversation conversation) async {
     final api = ref.read(apiServiceProvider);

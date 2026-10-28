@@ -136,6 +136,17 @@ void main() {
           await tester.tap(find.byTooltip('Hide recovery phrase'));
           await tester.pump();
         }
+        if(entry.key=='conversation') {
+          await tester.tap(find.byTooltip('Chat options'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Chat privacy'));
+          await tester.pumpAndSettle();
+          expect(find.text('Read receipts in this chat'),findsOneWidget);
+          expect(find.text('Typing indicators in this chat'),findsOneWidget);
+          expect(tester.takeException(),isNull);
+          Navigator.of(tester.element(find.text('Read receipts in this chat'))).pop();
+          await tester.pumpAndSettle();
+        }
         if(entry.key=='conversation-rich') {
           await tester.scrollUntilVisible(find.text('Meeting notes.txt'),160,scrollable:find.byType(Scrollable).first);
           await tester.pumpAndSettle();

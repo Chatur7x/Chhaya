@@ -461,6 +461,42 @@ void main() {
       },
     );
 
+    test(
+      'conversation receipts persist, isolate chats and respect global privacy',
+      () async {
+        final db = await makeDb(FakeDatabaseOpener());
+        expect(db.getConversationReadReceiptsEnabled('a'), isTrue);
+        await db.setConversationReadReceiptsEnabled('a', false);
+        await db.preloadSettings();
+        expect(db.getConversationReadReceiptsEnabled('a'), isFalse);
+        expect(db.getConversationReadReceiptsEnabled('b'), isTrue);
+        await db.setReadReceiptsEnabled(false);
+        await db.setConversationReadReceiptsEnabled('a', true);
+        expect(db.getConversationReadReceiptsEnabled('a'), isFalse);
+        expect(db.getConversationReadReceiptsEnabled('b'), isFalse);
+        await db.setReadReceiptsEnabled(true);
+        expect(db.getConversationReadReceiptsEnabled('a'), isTrue);
+      },
+    );
+
+    test(
+      'conversation typing indicators persist, isolate chats and respect global privacy',
+      () async {
+        final db = await makeDb(FakeDatabaseOpener());
+        expect(db.getConversationTypingIndicatorsEnabled('a'), isTrue);
+        await db.setConversationTypingIndicatorsEnabled('a', false);
+        await db.preloadSettings();
+        expect(db.getConversationTypingIndicatorsEnabled('a'), isFalse);
+        expect(db.getConversationTypingIndicatorsEnabled('b'), isTrue);
+        await db.setTypingIndicatorsEnabled(false);
+        await db.setConversationTypingIndicatorsEnabled('a', true);
+        expect(db.getConversationTypingIndicatorsEnabled('a'), isFalse);
+        expect(db.getConversationTypingIndicatorsEnabled('b'), isFalse);
+        await db.setTypingIndicatorsEnabled(true);
+        expect(db.getConversationTypingIndicatorsEnabled('a'), isTrue);
+      },
+    );
+
     test('settings toggles persist', () async {
       final db = await makeDb(FakeDatabaseOpener());
       expect(db.getBiometricLockEnabled(), isTrue);
