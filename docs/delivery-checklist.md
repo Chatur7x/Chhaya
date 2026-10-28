@@ -4,6 +4,7 @@ The user's complete-project reference is the requested scope. Its checkmarks,
 percentages, benchmark numbers and uniqueness claims are not evidence of delivery.
 This file tracks implementation separately from release verification. No merge,
 hosted service, Apple membership or external audit is assumed.
+The [feature register](feature-register.md) indexes all 127 requested reference items and additional product requests.
 
 | Requirement | Current implementation | Acceptance evidence still required |
 |---|---|---|
