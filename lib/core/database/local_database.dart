@@ -509,8 +509,7 @@ class LocalDatabase {
     });
   }
 
-  /// Loads and de-envelopes the session blob. Null when absent or
-  /// tampered — callers treat that as "no session".
+  /// Null means absent. A present but unauthenticatable session fails closed.
   Future<String?> loadSessionBlob(String peerId) async {
     _ensureInitialized();
     final rows = await DbQueries.find(
@@ -522,7 +521,9 @@ class LocalDatabase {
     if (rows.isEmpty) {
       return null;
     }
-    return _dec(rows.first[DbCols.value] as String?);
+    final plain = _dec(rows.first[DbCols.value] as String?);
+    if (plain == null) throw StateError('Stored session authentication failed');
+    return plain;
   }
 
   /// Deletes the session blob for [peerId].

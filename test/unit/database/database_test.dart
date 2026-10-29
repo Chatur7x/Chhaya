@@ -122,6 +122,25 @@ void main() {
   });
 
   test(
+    'present but unauthenticatable session cannot become a fresh session',
+    () async {
+      final opener = FakeDatabaseOpener();
+      final db = await makeDb(opener);
+      addTearDown(db.close);
+      expect(await db.loadSessionBlob('peer'), isNull);
+      await db.saveSessionBlob('peer', 'valid state');
+      expect(await db.loadSessionBlob('peer'), 'valid state');
+      await opener.opened!.update(
+        DbTables.kv,
+        {DbCols.value: 'tampered'},
+        where: '${DbCols.key} = ?',
+        whereArgs: ['ratchet_session/peer'],
+      );
+      await expectLater(db.loadSessionBlob('peer'), throwsStateError);
+    },
+  );
+
+  test(
     'outgoing commit rolls back every row if the outbox write fails',
     () async {
       final opener = FakeDatabaseOpener();

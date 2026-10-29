@@ -36,8 +36,8 @@ class LocalDatabaseSessionStorage implements SessionStorage {
     try {
       return SessionState.fromJson(jsonDecode(raw) as Map<String, dynamic>);
     } catch (_) {
-      // Corrupt session: unusable, never partially trusted.
-      return null;
+      // Treating corruption as a new session can reuse deterministic initial keys.
+      throw StateError('Stored messaging session is corrupt; recovery is required');
     }
   }
 
