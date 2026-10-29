@@ -17,7 +17,9 @@ class ApiService {
   static final ApiService _instance = ApiService._internal();
   factory ApiService() => _instance;
   ApiService._internal():_secure=SecureStorages.platformDefault(),_client=http.Client();
+  // Public parameter names keep the test constructor usable outside this library.
   ApiService.forTesting({required SecureStorage storage,required http.Client client})
+      // ignore: prefer_initializing_formals
       :_secure=storage,_client=client;
 
   String _baseUrl = const String.fromEnvironment('CHHAYA_API_URL');

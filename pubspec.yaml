@@ -31,6 +31,9 @@ dependencies:
   # DateTime.microsecond entropy — broken by design). Whole-file
   # encryption via SQLCipher; field-level AES-GCM retained on content.
   sqflite_sqlcipher: ^3.0.0
+  # Windows uses the SQLCipher native asset and the FFI database factory.
+  sqflite_common_ffi: ^2.3.0
+  sqlite3: ^3.7.0
   path: ^1.9.0
   
   # Utilities
@@ -84,13 +87,13 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
-  # Desktop/in-memory SQLite for unit tests (Part 3). Production uses
-  # SQLCipher on-device; tests inject an ffi factory (see
-  # test/unit/database/). No SQLCipher native libs exist for test hosts.
-  sqflite_common_ffi: ^2.3.0
-  # A2-authorized: plain-sqlite open attempt for the at-rest proof
-  # (test/integration/database_encryption_test.dart). Test-only.
-  sqlite3: ^3.7.0
+
+hooks:
+  user_defines:
+    sqlite3:
+      source:
+        windows: sqlcipher
+        default: sqlite3
 
 flutter:
   uses-material-design: true

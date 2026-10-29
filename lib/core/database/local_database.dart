@@ -13,10 +13,13 @@
 // `chhaya_v14.db`; the legacy file is left untouched on disk.
 // V13 public API is preserved verbatim — no call-site changes.
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart' as ffi;
 import 'package:sqflite_sqlcipher/sqflite.dart';
 import '../crypto/key_manager.dart';
 import '../crypto/ratchet/session_state.dart';
@@ -85,6 +88,40 @@ class SqlCipherOpener implements DatabaseOpener {
   }
 }
 
+/// Windows uses the SQLCipher native asset through the sqflite FFI factory.
+class WindowsSqlCipherOpener implements DatabaseOpener {
+  @override
+  Future<Database> open({
+    required String path,
+    required int version,
+    required String passwordHex,
+    required Future<void> Function(Database db) onOpen,
+  }) async {
+    if (!RegExp(r'^[0-9a-f]{64}$').hasMatch(passwordHex)) {
+      throw ArgumentError('Invalid database key');
+    }
+    ffi.sqfliteFfiInit();
+    return ffi.databaseFactoryFfi.openDatabase(
+      path,
+      options: ffi.OpenDatabaseOptions(
+        version: version,
+        singleInstance: false,
+        onConfigure: (db) async {
+          await db.execute("PRAGMA key = '$passwordHex'");
+          final cipher = await db.rawQuery('PRAGMA cipher_version');
+          if (cipher.isEmpty || cipher.first.values.firstOrNull == null) {
+            throw StateError('SQLCipher is unavailable');
+          }
+          await db.execute('PRAGMA cipher_memory_security = ON');
+          await db.rawQuery('PRAGMA journal_mode = DELETE');
+        },
+        onCreate: (db, _) => onOpen(db),
+        onUpgrade: (db, _, __) => onOpen(db),
+      ),
+    );
+  }
+}
+
 /// PRAGMA statements the production opener applies. Tests assert the
 /// fake opener records exactly these (see test/unit/database/).
 const List<String> kHardeningPragmas = [
@@ -128,7 +165,7 @@ class LocalDatabase {
     FlutterSecureStorage? secureStorage,
     String? dbPath,
   }) : _keyManager = keyManager ?? KeyManager(),
-       _opener = opener ?? SqlCipherOpener(),
+       _opener = opener ?? (Platform.isWindows ? WindowsSqlCipherOpener() : SqlCipherOpener()),
        _dbPathOverride = dbPath,
        _secure = secureStorage ?? const FlutterSecureStorage();
 
@@ -185,8 +222,16 @@ class LocalDatabase {
     final dbKey = await DatabaseKey.derive(_keyManager, userId: _ownerId);
     try {
       final passwordHex = DatabaseKey.toPragmaHex(dbKey);
-      final dbPath =
-          _dbPathOverride ?? p.join(await getDatabasesPath(), _dbName);
+      late final String dbPath;
+      if (_dbPathOverride != null) {
+        dbPath = _dbPathOverride;
+      } else if (Platform.isWindows) {
+        final directory = await getApplicationSupportDirectory();
+        await directory.create(recursive: true);
+        dbPath = p.join(directory.path, _dbName);
+      } else {
+        dbPath = p.join(await getDatabasesPath(), _dbName);
+      }
       final runner = MigrationRunner(chhayaMigrations());
       _db = await _opener.open(
         path: dbPath,
