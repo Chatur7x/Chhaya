@@ -60,6 +60,8 @@ android {
             // package so testers can install updates without deleting data
             // from an existing Chhaya installation.
             val deviceVerification = System.getenv("CHHAYA_DEVICE_VERIFICATION") == "true"
+            // Use scripts/run_android_acceptance.ps1 for device tests. Flutter
+            // can otherwise uninstall the package ID from a stale cached APK.
             val acceptanceInstance = System.getenv("CHHAYA_ACCEPTANCE_INSTANCE")
             if (acceptanceInstance != null && !acceptanceInstance.matches(Regex("[a-z][a-z0-9]{0,15}"))) {
                 throw GradleException("CHHAYA_ACCEPTANCE_INSTANCE must be 1–16 lowercase letters or digits, starting with a letter")
