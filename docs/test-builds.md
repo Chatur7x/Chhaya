@@ -38,6 +38,28 @@ of the same package. Export important account data before deciding how to migrat
 uninstalling an existing app deletes its local data. Release signing establishes
 artifact identity and does not establish that unfinished roadmap features work.
 
+### Isolated Android verification
+
+The Pixel 8a device run uses the separate package
+`com.chaaya.app.chaaya.verification`, leaving both existing Chhaya packages intact.
+To reproduce on a dedicated test device, set `CHHAYA_DEVICE_VERIFICATION=true`
+in the build environment, then run:
+
+```text
+flutter test integration_test/native_security_test.dart -d ANDROID_DEVICE_ID
+```
+
+The test creates synthetic secrets and a temporary encrypted database in that
+isolated package. It checks native wrapping/tamper rejection, reports actual key
+backing, reads the native SQLCipher version, rejects plain-SQLite schema access,
+reopens the encrypted database, and runs the pinned PQ primitive self-test plus
+ML-KEM/ML-DSA round-trip and rejection checks. It refuses to replace an existing
+account ID. Use the isolated package; never run it against an account installation.
+
+`dist/Chhaya-14.0.1-device-preview.apk` is the ordinary app UI in that isolated
+package, with the Render test origin prefilled. It is debug signed. The separately
+signed release artifact is `dist/Chhaya-14.0.1-arm64.apk`.
+
 ## iPhone
 
 The iOS workflow exports an unsigned Runner.app archive for developers.
@@ -49,8 +71,9 @@ for local Apple signing and device development.
 
 ## Two-person foreground test
 
-1. Deploy the backend using self-hosting.md. A server/domain and trusted TLS
-   certificate must be provisioned separately; none is running for this project.
+1. Use the free test backend `https://chhaya-ys50.onrender.com`, or deploy
+   your own backend using self-hosting.md. The free test database expires on
+   27 November 2026; a sleeping server can take a minute to respond.
 2. Create an account on each device and securely save its recovery words.
 3. In Settings, connect both apps to the same server HTTPS origin.
 4. Add the other person's full Chhaya ID. The recipient will see the conversation
@@ -69,8 +92,9 @@ not complete. The app does not claim onion/mesh transport is active.
 
 ## Remaining release gates
 
-Physical Android/iPhone testing, native at-rest encryption proof, secure enclave
-and StrongBox behavior, accessibility/performance measurements, security audit,
-complete roadmap features, production Android signing and Apple distribution.
+Two-phone and broader Android/iPhone lifecycle testing, iOS native storage/key
+proof, accessibility/performance measurements, security audit, complete roadmap
+features, release-key custody and Apple distribution. The isolated Pixel 8a
+checks established SQLCipher and StrongBox behavior on that device only.
 The repository's LICENSE file still needs the owner's licensing decision.
 Successful compilation and mocked unit tests do not establish these gates.

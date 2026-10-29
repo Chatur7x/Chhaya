@@ -72,28 +72,8 @@ class AndroidSecureStorage implements SecureStorage {
     if (native != null) {
       return native;
     }
-    try {
-      final available =
-          await _channel.invokeMethod<bool>('isStrongBoxAvailable');
-      if (available == true) {
-        return HardwareSecurityLevel.strongBox;
-      }
-      // Probe answered "no StrongBox": Keystore is still hardware-backed
-      // (TEE) on any device with encrypted shared preferences.
-      return HardwareSecurityLevel.tee;
-    } on MissingPluginException {
-      ChhayaLog.w(
-        'StrongBox probe unavailable (no native handler); assuming TEE Keystore',
-        name: 'SecureStorage.android',
-      );
-      return HardwareSecurityLevel.tee;
-    } catch (error) {
-      ChhayaLog.w(
-        'StrongBox probe failed; assuming TEE Keystore',
-        name: 'SecureStorage.android',
-        error: error,
-      );
-      return HardwareSecurityLevel.tee;
-    }
+    ChhayaLog.w('Wrapping-key security level unavailable',
+        name: 'SecureStorage.android');
+    return HardwareSecurityLevel.unknown;
   }
 }

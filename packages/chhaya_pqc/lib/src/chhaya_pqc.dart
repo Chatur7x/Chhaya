@@ -164,7 +164,8 @@ class ChhayaPqc {
     if (output == null || output.length > 8192) {
       throw const FormatException('Native provider returned an invalid result.');
     }
-    return output;
+    // Platform codecs can return read-only views; own the buffer we later wipe.
+    return Uint8List.fromList(output);
   }
 
   @visibleForTesting

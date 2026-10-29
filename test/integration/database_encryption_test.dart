@@ -68,7 +68,14 @@ void main() {
 
       // The whole point: plain sqlite must reject the encrypted file.
       expect(
-        () => sqlite3.open(dbPath),
+        () {
+          final plaintext = sqlite3.open(dbPath);
+          try {
+            plaintext.select('SELECT name FROM sqlite_master');
+          } finally {
+            plaintext.close();
+          }
+        },
         throwsA(
           isA<SqliteException>().having(
             (e) => e.message,

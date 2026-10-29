@@ -22,6 +22,10 @@ services:
       API_RATE_LIMIT: ${API_RATE_LIMIT:-100}
       API_AUTH_RATE_LIMIT: ${API_AUTH_RATE_LIMIT:-600}
     expose: ['8443']
+    read_only: true
+    tmpfs: ['/tmp']
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
     depends_on:
       postgres: {condition: service_healthy}
     healthcheck:

@@ -84,26 +84,8 @@ class IOSSecureStorage implements SecureStorage {
     if (native != null) {
       return native;
     }
-    try {
-      final available =
-          await _channel.invokeMethod<bool>('isSecureEnclaveAvailable');
-      if (available == true) {
-        return HardwareSecurityLevel.secureEnclave;
-      }
-      return HardwareSecurityLevel.tee;
-    } on MissingPluginException {
-      ChhayaLog.w(
-        'Secure Enclave probe unavailable (no native handler); using Keychain',
-        name: 'SecureStorage.ios',
-      );
-      return HardwareSecurityLevel.tee;
-    } catch (error) {
-      ChhayaLog.w(
-        'Secure Enclave probe failed; using Keychain',
-        name: 'SecureStorage.ios',
-        error: error,
-      );
-      return HardwareSecurityLevel.tee;
-    }
+    ChhayaLog.w('Wrapping-key security level unavailable',
+        name: 'SecureStorage.ios');
+    return HardwareSecurityLevel.unknown;
   }
 }

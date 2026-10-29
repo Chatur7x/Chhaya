@@ -35,6 +35,12 @@ DATABASE_URL pointing to a dedicated PostgreSQL database. CI supplies PostgreSQL
 Tests create and delete isolated accounts. Do not point tests at a production DB.
 No claim of load-test capacity or external security audit is made.
 
+Opt-in Flutter verification can also target a dedicated HTTPS testing service:
+set `CHHAYA_TEST_API_ORIGIN` to its HTTPS origin and run the two
+`test/integration/live_*_test.dart` files. Remote mode uses real TLS validation
+and checks authenticated WSS. It creates synthetic test accounts and conversation
+history on that service; use a testing deployment, not a database with real users.
+
 ## Schema upgrades and rollback
 
 Startup applies append-only, checksummed migrations in one PostgreSQL transaction.

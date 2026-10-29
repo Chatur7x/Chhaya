@@ -15,9 +15,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  for (final existingAccount in [false, true]) {
+  for (final scenario in [
+    (existing: false, coldStart: false),
+    (existing: true, coldStart: false),
+    (existing: false, coldStart: true),
+  ]) {
+    final existingAccount = scenario.existing;
     test(
-      'connect account sends valid challenge proofs for ${existingAccount ? 'login' : 'registration'}',
+      'connect account sends valid challenge proofs for ${existingAccount ? 'login' : 'registration'}${scenario.coldStart ? ' after a slow server wake' : ''}',
       () async {
         SharedPreferences.setMockInitialValues({});
         final identity = await ChhayaCryptoEngine.generateKeyPair();
@@ -42,6 +47,9 @@ void main() {
             paths.add(request.url.path);
             final body = jsonDecode(request.body) as Map<String, dynamic>;
             if (request.url.path.endsWith('/challenge')) {
+              if (scenario.coldStart) {
+                await Future<void>.delayed(const Duration(seconds: 16));
+              }
               challengePurpose = body['purpose'] as String;
               challengeDevice = body['deviceId'] as String;
               expect(body['publicKey'], identity.publicKeyHex);

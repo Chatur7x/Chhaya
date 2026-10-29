@@ -21,6 +21,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _biometricLock = false;
   bool _changingLock = false;
+  bool _connectingServer = false;
   final bool _onionRouting = false;
   bool _readReceipts = true;
   bool _typingIndicators = true;
@@ -40,6 +41,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _configureServer() async {
+    if (_connectingServer) return;
     final api=ref.read(apiServiceProvider);
     final controller=TextEditingController(text:api.baseUrl);
     final url=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(
@@ -52,6 +54,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         TextButton(onPressed:()=>Navigator.pop(ctx,controller.text.trim()),child:const Text('Connect'))]));
     controller.dispose();
     if(url==null||!mounted) { return; }
+    setState(() => _connectingServer = true);
     try {
       final user=ref.read(currentUserProvider);
       if(user==null) { throw StateError('Create an account first'); }
@@ -61,6 +64,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Connected to messaging server')));
     } catch(error) {
       if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Connection failed: $error')));
+    } finally {
+      if (mounted) setState(() => _connectingServer = false);
     }
   }
 
@@ -137,7 +142,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
             _sectionHeader('CONNECTION'),
             _settingsCard([
-              _settingsTile(Icons.dns_rounded, ChhayaPalette.of(context).info, 'Connect messaging server', onTap: _configureServer),
+              _settingsTile(Icons.dns_rounded, ChhayaPalette.of(context).info,
+                _connectingServer ? 'Connecting…' : 'Connect messaging server',
+                subtitle: _connectingServer ? 'A sleeping server may take a minute to respond.' : null,
+                trailing: _connectingServer ? const SizedBox(width: 24, height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2, semanticsLabel: 'Connecting to messaging server')) : null,
+                onTap: _connectingServer ? null : _configureServer),
             ]),
             _sectionHeader('ACCOUNT'),
             _settingsCard([
@@ -228,18 +238,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
             _sectionHeader('ABOUT'),
             _settingsCard([
-              _settingsTile(Icons.info_rounded, ChhayaPalette.of(context).labelSecondary, 'Version', subtitle: '14.0.0 test build', onTap: () {
+              _settingsTile(Icons.info_rounded, ChhayaPalette.of(context).labelSecondary, 'Version', subtitle: '14.0.1 test build', onTap: () {
                 showDialog(context: context, builder: (_) => AlertDialog(
                   backgroundColor: ChhayaPalette.of(context).cardSurfaceElevated,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ChhayaRadius.xxl)),
                   title: const Text('Chhaya'),
-                  content: const Text('Version 14.0.0 test build • 2026\n\n© 2026 Chhaya Project'),
+                  content: const Text('Version 14.0.1 test build • 2026\n\n© 2026 Chhaya Project'),
                   actions: [TextButton(child: const Text('OK'), onPressed: () => Navigator.pop(context))],
                 ));
               }),
               const Divider(height: 0, indent: 56),
               _settingsTile(Icons.description_outlined, ChhayaPalette.of(context).labelSecondary, 'Licenses', onTap: () {
-                showLicensePage(context:context,applicationName:'Chhaya',applicationVersion:'14.0.0 test build');
+                showLicensePage(context:context,applicationName:'Chhaya',applicationVersion:'14.0.1 test build');
               }),
               const Divider(height: 0, indent: 56),
             ]),

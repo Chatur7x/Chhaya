@@ -56,16 +56,16 @@ void main() {
       expect(await android.read(key: 'k'), 'v');
     });
 
-    test('falls back to TEE when the probe channel is missing', () async {
+    test('reports unknown when the probe channel is missing', () async {
       final android =
           AndroidSecureStorage(delegate: SecureStorageMock());
       expect(
         await android.securityLevel(),
-        HardwareSecurityLevel.tee,
+        HardwareSecurityLevel.unknown,
       );
     });
 
-    test('reports StrongBox when the probe confirms it', () async {
+    test('a boolean capability probe cannot prove StrongBox key backing', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async => true);
       final android = AndroidSecureStorage(
@@ -74,11 +74,11 @@ void main() {
       );
       expect(
         await android.securityLevel(),
-        HardwareSecurityLevel.strongBox,
+        HardwareSecurityLevel.unknown,
       );
     });
 
-    test('reports TEE when the probe denies StrongBox', () async {
+    test('a missing StrongBox capability cannot prove TEE key backing', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async => false);
       final android = AndroidSecureStorage(
@@ -87,7 +87,7 @@ void main() {
       );
       expect(
         await android.securityLevel(),
-        HardwareSecurityLevel.tee,
+        HardwareSecurityLevel.unknown,
       );
     });
   });
@@ -124,7 +124,7 @@ void main() {
       expect(await android.securityLevel(), HardwareSecurityLevel.tee);
     });
 
-    test('unknown native level falls back to boolean probe', () async {
+    test('unknown native key level stays unknown despite a true capability probe', () async {
       stubLevel('bogus-future-level', booleanProbe: true);
       final android = AndroidSecureStorage(
         delegate: SecureStorageMock(),
@@ -132,7 +132,7 @@ void main() {
       );
       expect(
         await android.securityLevel(),
-        HardwareSecurityLevel.strongBox,
+        HardwareSecurityLevel.unknown,
       );
     });
 
@@ -173,13 +173,13 @@ void main() {
       expect(await ios.read(key: 'k'), 'v');
     });
 
-    test('falls back to Keychain when the probe channel is missing',
+    test('reports unknown key backing when the probe channel is missing',
         () async {
       final ios = IOSSecureStorage(delegate: SecureStorageMock());
-      expect(await ios.securityLevel(), HardwareSecurityLevel.tee);
+      expect(await ios.securityLevel(), HardwareSecurityLevel.unknown);
     });
 
-    test('reports Secure Enclave when the probe confirms it', () async {
+    test('a boolean enclave capability cannot prove stored-key backing', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async => true);
       final ios = IOSSecureStorage(
@@ -188,7 +188,7 @@ void main() {
       );
       expect(
         await ios.securityLevel(),
-        HardwareSecurityLevel.secureEnclave,
+        HardwareSecurityLevel.unknown,
       );
     });
   });

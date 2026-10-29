@@ -126,8 +126,11 @@ class ApiService {
       final cleanBody=Map<String,dynamic>.from(body)..removeWhere((key,value)=>value==null);
       request.body=jsonEncode(cleanBody);
     }
+    // Free hosts can take over 50 seconds to wake for the initial challenge.
+    final sendTimeout = path == '/api/v1/auth/challenge'
+        ? const Duration(seconds: 75) : const Duration(seconds: 15);
     final response=await http.Response.fromStream(
-        await _client.send(request).timeout(const Duration(seconds:15))).timeout(const Duration(seconds:15));
+        await _client.send(request).timeout(sendTimeout)).timeout(const Duration(seconds:15));
     if(response.statusCode>=300&&response.statusCode<400) {
       throw ApiException(response.statusCode,'Server redirects are not accepted; configure its final HTTPS origin',null);
     }

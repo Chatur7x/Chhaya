@@ -59,8 +59,9 @@ android {
             // CI debug APKs use ephemeral signing keys. Give them a separate
             // package so testers can install updates without deleting data
             // from an existing Chhaya installation.
-            applicationIdSuffix = ".test"
-            manifestPlaceholders["appLabel"] = "Chhaya Test"
+            val deviceVerification = System.getenv("CHHAYA_DEVICE_VERIFICATION") == "true"
+            applicationIdSuffix = if (deviceVerification) ".verification" else ".test"
+            manifestPlaceholders["appLabel"] = if (deviceVerification) "Chhaya Verification" else "Chhaya Test"
         }
         release {
             if (releaseKeysFile.exists()) {

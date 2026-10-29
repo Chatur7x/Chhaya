@@ -20,7 +20,7 @@ The server can see account IDs, conversation membership, timing, message sizes, 
 
 Encrypted backups protect confidentiality under their recovery-derived key, but key/database restore is not fully atomic, and active ratchet state is not yet included in backup. Restoring an existing conversation therefore requires further protocol recovery work. Do not treat backup tests as proof of uninterrupted multi-device messaging. Linked-device enrollment is not a complete authenticated device-transfer protocol.
 
-Disappearing messages currently hide expired local content; remote copies, backups, screenshots, and forensic erasure are not guaranteed. Panic PIN removes local account data and roots only. It does not erase remote recipients or backups. No active network service has been deployed for this repository.
+Disappearing messages currently hide expired local content; remote copies, backups, screenshots, and forensic erasure are not guaranteed. Panic PIN removes local account data and roots only. It does not erase remote recipients or backups. A free Render testing service is live; it is subject to sleeping and database-expiry limits and is not a production availability guarantee.
 
 ## Required production gates
 

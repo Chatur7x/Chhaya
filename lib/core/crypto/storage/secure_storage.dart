@@ -126,7 +126,8 @@ class FlutterSecureStorageAdapter implements SecureStorage {
 /// Queries `getStorageLevel()` on the native `chhaya/security` channel.
 ///
 /// Returns null when the native handler is missing, outdated, or errors —
-/// callers must fall back to their boolean probes. Never throws.
+/// callers must report unknown rather than infer key backing from device capabilities.
+/// Never throws.
 Future<HardwareSecurityLevel?> queryNativeStorageLevel(
     MethodChannel channel) async {
   try {

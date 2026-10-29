@@ -35,7 +35,7 @@ Install Flutter 3.47 or newer and the Android toolchain. From the repository roo
 
 <pre>flutter pub get<br>flutter run</pre>
 
-To run the backend, use Node.js 20 or newer, configure the environment from the checked-in example, and follow [self-hosting.md](docs/self-hosting.md). Messaging will not work between devices until both apps use the same live HTTPS server.
+To run the backend, use a supported Node.js 24 LTS release, configure the environment from the checked-in example, and follow [self-hosting.md](docs/self-hosting.md). Messaging will not work between devices until both apps use the same live HTTPS server.
 
 ## Verification
 
