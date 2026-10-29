@@ -60,8 +60,14 @@ android {
             // package so testers can install updates without deleting data
             // from an existing Chhaya installation.
             val deviceVerification = System.getenv("CHHAYA_DEVICE_VERIFICATION") == "true"
-            applicationIdSuffix = if (deviceVerification) ".verification" else ".test"
-            manifestPlaceholders["appLabel"] = if (deviceVerification) "Chhaya Verification" else "Chhaya Test"
+            val acceptanceInstance = System.getenv("CHHAYA_ACCEPTANCE_INSTANCE")
+            if (acceptanceInstance != null && !acceptanceInstance.matches(Regex("[a-z][a-z0-9]{0,15}"))) {
+                throw GradleException("CHHAYA_ACCEPTANCE_INSTANCE must be 1–16 lowercase letters or digits, starting with a letter")
+            }
+            applicationIdSuffix = if (acceptanceInstance != null) ".acceptance_$acceptanceInstance"
+                else if (deviceVerification) ".verification" else ".test"
+            manifestPlaceholders["appLabel"] = if (acceptanceInstance != null) "Chhaya Acceptance"
+                else if (deviceVerification) "Chhaya Verification" else "Chhaya Test"
         }
         release {
             if (releaseKeysFile.exists()) {
