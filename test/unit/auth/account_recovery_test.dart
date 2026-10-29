@@ -68,6 +68,17 @@ class MemoryAccountDatabase extends LocalDatabase {
 }
 
 void main() {
+  test('profile editing persists a trimmed name and rejects empty names', () async {
+    final db = MemoryAccountDatabase();
+    final auth = AuthService(database: db,
+      keyManager: KeyManager(secureBackend: SecureStorageMock()));
+    final original = await auth.createAccount(displayName: 'Alice');
+    await auth.updateDisplayName('  Updated Alice  ');
+    expect(db.profile!.displayName, 'Updated Alice');
+    expect(auth.currentUser!.chhayaId.publicKey, original.chhayaId.publicKey);
+    await expectLater(auth.updateDisplayName('   '), throwsArgumentError);
+    expect(auth.currentUser!.displayName, 'Updated Alice');
+  });
   TestWidgetsFlutterBinding.ensureInitialized();
   test(
     'signup phrase restores the same identity, with no demo contacts',

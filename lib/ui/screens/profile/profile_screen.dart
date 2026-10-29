@@ -20,6 +20,35 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Contact? _contact;
   bool _blocked = false;
+  bool _savingProfile = false;
+
+  Future<void> _editProfile() async {
+    final controller = TextEditingController(
+      text: ref.read(currentUserProvider)?.displayName ?? '',
+    );
+    final name = await showDialog<String>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Edit profile'),
+      content: TextField(controller: controller, maxLength: 80,
+        decoration: const InputDecoration(labelText: 'Display name')),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(ctx, controller.text), child: const Text('Save'))],
+    ));
+    controller.dispose();
+    if (name == null || !mounted) return;
+    setState(() => _savingProfile = true);
+    try {
+      final auth = ref.read(authServiceProvider);
+      await auth.updateDisplayName(name);
+      ref.read(currentUserProvider.notifier).state = auth.currentUser;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not save profile. Use a name of 1–80 characters and try again.')));
+      }
+    } finally {
+      if (mounted) setState(() => _savingProfile = false);
+    }
+  }
 
   @override
   void initState() {
@@ -79,6 +108,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ),
                     ),
                   if (isOwnProfile) ...[
+                    TextButton.icon(onPressed: _savingProfile ? null : _editProfile,
+                      icon: const Icon(Icons.edit_outlined),
+                      label: Text(_savingProfile ? 'Saving…' : 'Edit profile')),
                     _buildInfoCard(
                       title: 'Your Chhaya ID',
                       child: Row(

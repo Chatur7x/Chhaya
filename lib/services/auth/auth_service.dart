@@ -87,11 +87,16 @@ class AuthService {
   }
 
   Future<void> updateDisplayName(String name) async {
+    name = name.trim();
+    if (name.isEmpty || name.length > 80) {
+      throw ArgumentError('Display name must contain 1 to 80 characters');
+    }
     if (_currentUser == null) {
       return;
     }
-    _currentUser = _currentUser!.copyWith(displayName: name);
-    await _database.saveUserProfile(_currentUser!);
+    final updated = _currentUser!.copyWith(displayName: name);
+    await _database.saveUserProfile(updated);
+    _currentUser = updated;
   }
 
   Future<void> logout() async {
