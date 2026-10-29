@@ -1,15 +1,19 @@
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'crypto';
+import { createHash, randomBytes, scrypt, timingSafeEqual } from 'crypto';
+import { promisify } from 'util';
 import { query } from './db';
 
 export const tokenHash = (token: string): string => createHash('sha256').update(token).digest('hex');
-export function hashCredential(proof: string): string {
+const deriveCredential = promisify(scrypt);
+export async function hashCredential(proof: string): Promise<string> {
   const salt = randomBytes(16).toString('hex');
-  return `scrypt:${salt}:${scryptSync(proof, salt, 32).toString('hex')}`;
+  const derived = await deriveCredential(proof, salt, 32) as Buffer;
+  return `scrypt:${salt}:${derived.toString('hex')}`;
 }
-export function verifyCredential(proof: string, stored: string): boolean {
+export async function verifyCredential(proof: string, stored: string): Promise<boolean> {
   const [algorithm, salt, digest] = stored.split(':');
   if (algorithm !== 'scrypt' || !salt || !digest || !/^[0-9a-f]{64}$/.test(digest)) return false;
-  return timingSafeEqual(scryptSync(proof, salt, 32), Buffer.from(digest, 'hex'));
+  const derived = await deriveCredential(proof, salt, 32) as Buffer;
+  return timingSafeEqual(derived, Buffer.from(digest, 'hex'));
 }
 export async function issueSession(userId: string): Promise<string> {
   const token = randomBytes(32).toString('hex');

@@ -1,21 +1,32 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {createServer}=require('node:http');
-const {randomUUID,randomBytes,generateKeyPairSync,createPublicKey,diffieHellman,createHmac}=require('node:crypto');
+const {randomUUID,randomBytes,generateKeyPairSync,createPublicKey,diffieHellman,createHmac,scryptSync}=require('node:crypto');
 const WebSocket=require('ws');
 const {hashCredential,verifyCredential,tokenHash}=require('../dist/session');
 
-test('credentials are salted, verified and reject legacy plaintext',()=>{
-  const one=hashCredential('proof'),two=hashCredential('proof');
+test('credentials are salted, verified and reject legacy plaintext',async()=>{
+  const [one,two]=await Promise.all([hashCredential('proof'),hashCredential('proof')]);
   assert.notEqual(one,two);
-  assert.equal(verifyCredential('proof',one),true);
-  assert.equal(verifyCredential('wrong',one),false);
-  assert.equal(verifyCredential('proof','proof'),false);
-  const pinOne=hashCredential('1234'),pinTwo=hashCredential('1234');
+  assert.equal(await verifyCredential('proof',one),true);
+  assert.equal(await verifyCredential('wrong',one),false);
+  assert.equal(await verifyCredential('proof','proof'),false);
+  const [pinOne,pinTwo]=await Promise.all([hashCredential('1234'),hashCredential('1234')]);
   assert.notEqual(pinOne,pinTwo);
-  assert.equal(verifyCredential('1234',pinOne),true);
+  assert.equal(await verifyCredential('1234',pinOne),true);
+  const oldSalt='0123456789abcdef0123456789abcdef';
+  const oldHash=`scrypt:${oldSalt}:${scryptSync('proof',oldSalt,32).toString('hex')}`;
+  assert.equal(await verifyCredential('proof',oldHash),true);
   assert.ok(pinOne.length>64);
   assert.equal(tokenHash('token').length,64);
+});
+
+test('credential derivation does not block the event loop',async()=>{
+  let finished=false;
+  const work=hashCredential('proof').then(()=>{finished=true;});
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(finished,false);
+  await work;
 });
 
 test('shared API rate limiter hashes identities and enforces fixed-window decisions',async()=>{
@@ -157,8 +168,8 @@ test('real API: registration, authentication, conversations, messages, isolation
     assert.equal((await req('PUT','/users/me/settings',{pin:'1234',panicPin:'9876'},login.data.token)).status,200);
     const {verifyCredential}=require('../dist/session');
     const storedPins=await query('SELECT pin_hash,panic_pin_hash FROM users WHERE id=$1',[alice.userId]);
-    assert.equal(verifyCredential('1234',storedPins.rows[0].pin_hash),true);
-    assert.equal(verifyCredential('9876',storedPins.rows[0].panic_pin_hash),true);
+    assert.equal(await verifyCredential('1234',storedPins.rows[0].pin_hash),true);
+    assert.equal(await verifyCredential('9876',storedPins.rows[0].panic_pin_hash),true);
     const contact=await req('POST','/contacts',{chhayaId:bob.body.chhayaId,displayName:'Bob'},alice.token);
     assert.equal(contact.status,201);
     const cid=contact.data.conversationId;

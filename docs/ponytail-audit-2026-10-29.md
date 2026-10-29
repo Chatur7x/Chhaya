@@ -111,3 +111,9 @@ Windows now chooses an FFI database opener backed by the SQLCipher native asset 
 The previous full Flutter CI run for the audio migration failed analysis on an existing public test-constructor initializer lint. Its argument names are part of test callers, so the lint is locally suppressed with a reason; targeted analysis passes. The next CI run must verify this against its pinned Flutter version.
 
 Windows storage follow-up: database open and explicit destruction now resolve the same app-specific path and use the Windows FFI factory. A native test destroyed only a disposable test database and confirmed a neighboring encrypted test file remained. This tests the database operation only, not a real account logout or panic-PIN flow.
+
+## Authentication responsiveness
+
+Credential hashing and verification previously used synchronous scrypt on the Node event loop, delaying unrelated requests during registration, login or PIN updates. These operations now use asynchronous scrypt with the same salt and hash format; registration computes the hash before opening its database transaction. A compatibility test verifies an existing synchronous-format hash, and an event-loop test verifies derivation does not block a scheduled callback. The backend suite passed 19 tests against a disposable PostgreSQL database, including real registration, login and PIN storage. This does not establish throughput under load: the shared crypto worker pool and authentication rate limits still need load testing.
+
+The current debug verification APK was installed with `adb install -r` and launched on the Pixel 8a on 29 October 2026. This was an upgrade of the isolated verification package, not a clean-install, release-signing or full acceptance test; existing app data was not cleared.

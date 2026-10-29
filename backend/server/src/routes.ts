@@ -113,6 +113,7 @@ router.post('/auth/register', safe(async (req: Request, res: Response) => {
     if (data.chhayaId !== `05${data.publicKey}`) return res.status(400).json({error:'Identity does not match key'});
     const userId = uuidv4();
     const now = new Date();
+    const recoveryHash = await hashCredential(data.recoveryPhraseHash);
 
     await withTransaction(async (client) => {
       await client.query(
@@ -120,7 +121,7 @@ router.post('/auth/register', safe(async (req: Request, res: Response) => {
           recovery_phrase_hash, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [userId, data.chhayaId, data.displayName, data.publicKey, data.encryptedPrivateKey,
-         hashCredential(data.recoveryPhraseHash), now]
+         recoveryHash, now]
       );
 
       // Register device
@@ -161,7 +162,7 @@ router.post('/auth/login', safe(async (req: Request, res: Response) => {
       [data.chhayaId]
     );
 
-    if (userResult.rows.length === 0 || !verifyCredential(data.recoveryPhraseHash, userResult.rows[0].recovery_phrase_hash)) {
+    if (userResult.rows.length === 0 || !await verifyCredential(data.recoveryPhraseHash, userResult.rows[0].recovery_phrase_hash)) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -230,11 +231,11 @@ router.put('/users/me/settings', authMiddleware, safe(async (req: Request, res: 
   }
   if (data.pin) {
     updates.push(`pin_hash = $${paramIndex++}`);
-    values.push(hashCredential(data.pin));
+    values.push(await hashCredential(data.pin));
   }
   if (data.panicPin) {
     updates.push(`panic_pin_hash = $${paramIndex++}`);
-    values.push(hashCredential(data.panicPin));
+    values.push(await hashCredential(data.panicPin));
   }
 
   if (updates.length > 0) {
