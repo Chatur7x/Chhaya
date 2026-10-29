@@ -392,52 +392,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _showLinkedDevices() {
-    final db = ref.read(localDatabaseProvider);
-    var devices = db.getLinkedDevices();
+    final devices = ref.read(localDatabaseProvider).getLinkedDevices();
     showModalBottomSheet(
       context: context,
       backgroundColor: ChhayaPalette.of(context).sheetBackground,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(ChhayaRadius.xxl))),
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setSt) => _buildBottomSheet(
-          title: 'Linked Devices',
-          child: Column(
-            children: [
-              ...devices.map((d) => Container(
-                margin: const EdgeInsets.only(bottom: ChhayaSpacing.space2),
-                padding: const EdgeInsets.all(ChhayaSpacing.space3),
-                decoration: BoxDecoration(
-                  color: ChhayaPalette.of(context).fillTertiary,
-                  borderRadius: BorderRadius.circular(ChhayaRadius.md),
-                  border: Border.all(color: ChhayaPalette.of(context).separator),
-                ),
-                child: Row(children: [
-                  Icon(Icons.devices_rounded, color: ChhayaPalette.of(context).info, size: 24),
-                  const SizedBox(width: ChhayaSpacing.space3),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(d['name'] as String? ?? 'Device', style: ChhayaType.of(context).bodyMedium),
-                    Text(d['id'] as String? ?? '', style: ChhayaType.of(context).code.copyWith(fontSize: 10, color: ChhayaPalette.of(context).labelTertiary)),
-                  ])),
-                  TextButton(
-                    onPressed: () async {
-                      await db.removeLinkedDevice(d['id'] as String);
-                      setSt(() => devices = db.getLinkedDevices());
-                      ChhayaHaptics.medium();
-                    },
-                    child: Text('Revoke', style: TextStyle(color: ChhayaPalette.of(context).error, fontSize: 14)),
-                  ),
-                ]),
-              )),
-              const SizedBox(height: ChhayaSpacing.space3),
-              SizedBox(width: double.infinity, child: ChhayaPrimaryButton(label: 'Add Device', height: 48, onPressed: () async {
-                final id = 'device_${DateTime.now().millisecondsSinceEpoch}';
-                await db.addLinkedDevice({'id': id, 'name': 'Desktop ${devices.length + 1}'});
-                setSt(() => devices = db.getLinkedDevices());
-                ChhayaHaptics.success();
-              })),
-            ],
-          ),
-        ),
+      builder: (_) => _buildBottomSheet(
+        title: 'Linked Devices',
+        child: Column(children: [
+          const Text('Secure device linking and revocation are not available yet. The entries below are local records, not proof of linked or revoked devices.'),
+          for (final device in devices)
+            ListTile(
+              leading: const Icon(Icons.devices_rounded),
+              title: Text(device['name'] as String? ?? 'Device'),
+              subtitle: Text(device['id'] as String? ?? ''),
+            ),
+        ]),
       ),
     );
   }
