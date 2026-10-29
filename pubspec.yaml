@@ -4,8 +4,8 @@ publish_to: 'none'
 version: 14.0.1+2
 
 environment:
-  sdk: ^3.7.0
-  flutter: ">=3.29.0"
+  sdk: ^3.12.0
+  flutter: ">=3.44.0"
 
 dependencies:
   flutter:
@@ -71,7 +71,8 @@ dependencies:
   
   # Image Processing (Steganography)
   image: ^4.1.7
-  flutter_sound: ^9.28.0
+  record: 7.1.2
+  audioplayers: 6.5.1
   
   # Background Tasks (disabled for V10 - use isolate)
   # workmanager: ^0.5.2

@@ -8,6 +8,7 @@ import 'ui/theme/chhaya_theme.dart';
 import 'core/providers/app_providers.dart';
 import 'core/log.dart';
 import 'ui/widgets/chhaya_brand_mark.dart';
+import 'services/messaging/voice_temporary_files.dart';
 
 /// Identifies which local startup stage failed without exposing exception
 /// messages that could contain paths or other device-specific details.
@@ -123,6 +124,12 @@ final appUnlockedProvider = StateProvider<bool>((ref) => false);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await VoiceTemporaryFiles.cleanup();
+  } catch (_) {
+    // An unavailable temporary directory must not prevent access to the app.
+  }
 
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
