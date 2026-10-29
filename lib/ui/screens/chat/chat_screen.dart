@@ -42,8 +42,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   final _msgCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   List<Message> _messages = [];
-  List<Message> get _visibleMessages =>
-      _messages.where((message) => !_isPollVote(message)).toList();
+  List<Message> _visibleMessages = [];
   bool _loading = true;
   bool _isTyping = false;
   bool _otherTyping = false;
@@ -61,6 +60,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   Timer? _refreshTimer;
   bool _sending = false;
   bool _refreshing = false;
+  bool _refreshRequested = false;
   bool _pollSending = false;
   Message? _replyTo;
   MessageAttachment? _attachment;
@@ -203,6 +203,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   Future<void> _loadMessages() async {
     if (_refreshing) {
+      _refreshRequested = true;
       return;
     }
     _refreshing = true;
@@ -220,6 +221,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       }
       setState(() {
         _messages = msgs.where((message) => !message.isExpired).toList();
+        _visibleMessages = _messages.where((message) => !_isPollVote(message)).toList();
         _loading = false;
         _loadError = null;
       });
@@ -250,6 +252,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       }
     } finally {
       _refreshing = false;
+      if (_refreshRequested && mounted) {
+        _refreshRequested = false;
+        unawaited(_loadMessages());
+      }
     }
   }
 
@@ -705,6 +711,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(conversationsProvider, (_, __) {
+      if (mounted) unawaited(_loadMessages());
+    });
     final disableAnimations = MediaQuery.of(context).disableAnimations;
     final conversations = ref.watch(conversationsProvider);
     final convo =
