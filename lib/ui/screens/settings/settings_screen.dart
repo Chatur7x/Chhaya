@@ -476,7 +476,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _showDisappearingDuration() {
-    final options = {'5 seconds': 5, '30 seconds': 30, '1 minute': 60, '1 hour': 3600, '1 day': 86400};
+    final options = {'Never (keep messages)': 0, '5 seconds': 5, '30 seconds': 30, '1 minute': 60, '1 hour': 3600, '1 day': 86400};
     showModalBottomSheet(
       context: context,
       backgroundColor: ChhayaPalette.of(context).sheetBackground,
@@ -490,7 +490,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onTap: () async {
               Navigator.pop(context);
               await ref.read(localDatabaseProvider).setGlobalDisappearingDuration(e.value);
-              setState(() => _disappearingMessages = true);
+              if (!mounted) return;
+              setState(() => _disappearingMessages = e.value > 0);
               ChhayaHaptics.selection();
             },
           )).toList(),
