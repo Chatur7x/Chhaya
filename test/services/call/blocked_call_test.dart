@@ -11,12 +11,17 @@ import 'package:chaaya/services/call/call_service.dart';
 class BlockedCallDatabase extends LocalDatabase {
   final bool contactFlag;
   BlockedCallDatabase(this.contactFlag);
-  Contact get peer => Contact(id: 'peer', displayName: 'Peer',
+  Contact get peer => Contact(
+    id: 'peer',
+    displayName: 'Peer',
     chhayaId: ChhayaId.fromPublicKey('05${List.filled(64, 'a').join()}'),
-    isVerified: true, isBlocked: contactFlag);
+    isVerified: true,
+    isBlocked: contactFlag,
+  );
   @override
   Future<List<Conversation>> getAllConversations() async => [
-    Conversation(id: 'chat', participants: [peer], createdAt: DateTime(2026))];
+    Conversation(id: 'chat', participants: [peer], createdAt: DateTime(2026)),
+  ];
   @override
   Future<Contact?> getContact(String id) async => peer;
   @override
@@ -26,13 +31,26 @@ class BlockedCallDatabase extends LocalDatabase {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   for (final contactFlag in [true, false]) {
-    test('blocked calls fail before signaling or media (contact flag: $contactFlag)', () async {
-      final service = CallService(api: ApiService(),
-        database: BlockedCallDatabase(contactFlag),
-        keys: KeyManager(secureBackend: SecureStorageMock()));
-      addTearDown(service.dispose);
-      await expectLater(service.call('chat', false),
-        throwsA(isA<StateError>().having((e) => e.message, 'reason', contains('Unblock'))));
-    });
+    test(
+      'blocked calls fail before signaling or media (contact flag: $contactFlag)',
+      () async {
+        final service = CallService(
+          api: ApiService(),
+          database: BlockedCallDatabase(contactFlag),
+          keys: KeyManager(secureBackend: SecureStorageMock()),
+        );
+        addTearDown(service.dispose);
+        await expectLater(
+          service.call('chat', false),
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'reason',
+              contains('Unblock'),
+            ),
+          ),
+        );
+      },
+    );
   }
 }
