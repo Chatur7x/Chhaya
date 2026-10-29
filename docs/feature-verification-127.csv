@@ -1,0 +1,128 @@
+id,feature,requirement,register_evidence,release_status,current_run
+1,E2EE text chat,Triple Ratchet encryption,Classical direct path exists; custom protocol remains unaudited and PQ ratchet is not active.,NOT RELEASE VERIFIED,Live HTTPS direct encrypted messaging test passed; custom protocol audit and two-phone UI test pending
+2,Disappearing messages,Per-contact + per-group timers,Local timer and encrypted expiry exist; cross-device and retention semantics incomplete.,NOT RELEASE VERIFIED,Messaging payload/expiry tests passed; remote retention and timer synchronization pending
+3,Read receipts,Opt-out per contact,Global and per-conversation opt-out implemented; native peer/lifecycle evidence pending.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+4,Reply threading,Quoted replies,Encrypted reply IDs and UI exist; device tests pending.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+5,Media messages,"Images, files, voice notes",Inline encrypted attachments limited to 256 KB; native tests pending.,NOT RELEASE VERIFIED,Live encrypted small attachment test passed; large resumable transfers absent
+6,Group conversations,"Admin rights, participant management",Group administration exists; authenticated membership and device tests pending.,NOT RELEASE VERIFIED,Live three-client group messaging/membership-removal test passed; invitations and native devices pending
+7,Message status,Sent / delivered / read,Delivery/read timestamps exist; group semantics and device evidence pending.,NOT RELEASE VERIFIED,Messaging status regression tests passed; group/device semantics pending
+8,Sealed Sender,Server never knows sender,Not implemented.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+9,E2EE voice calls,SFrame + DTLS-SRTP,Foreground WebRTC exists; SFrame and background integration missing.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+10,E2EE video calls,Same stack,Foreground WebRTC exists; SFrame and background integration missing.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+11,LAN calls (offline),mDNS signaling on same Wi-Fi,Not implemented.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+12,X25519,Key agreement (RFC 7748),Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+13,Ed25519,Signatures (RFC 8032),Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+14,AES-256-GCM,AEAD encryption,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+15,HKDF-SHA256,Key derivation (RFC 5869),Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+16,PBKDF2-HMAC-SHA256,100k iterations,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+17,SHA-256/512,Hashing,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+18,BIP-39,12-word recovery,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+19,ML-KEM-1024,"Post-quantum KEM (Kyber, FIPS 203)",AWS-LC primitive exists; not integrated into live session establishment.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+20,ML-DSA-87,"Post-quantum signatures (Dilithium, FIPS 204)",AWS-LC primitive exists; production authentication use and native validation pending.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+21,Hybrid PQXDH,X25519 + ML-KEM-1024,Scaffold only; not live.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+22,Dual-KEM,Kyber + NTRU (algorithm diversity),Placeholder; design decision and review needed.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+23,Triple Ratchet,Symmetric + DH + SPQR,Classical ratchet exists; no fresh PQ ratchet contribution.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+24,SPQR,Sparse Post-Quantum Ratchet,Deterministic epoch chain is not a PQ ratchet.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+25,Skipped-key cache,Out-of-order (MAX_SKIP=1000),Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+26,3-hop onion routing,Region-diverse relays,Experimental code is not on the messaging path.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+27,512B fixed padding,Traffic analysis resistance,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+28,Circuit auto-renew,10-minute lifetime,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+29,Zero persistent ID,No phone/email/username,"No phone/email required, but account IDs persist and are visible to server.",NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+30,Arke handshake,Unlinkable discovery,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+31,Rotating Shadow Codes,"60s, single-use",Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+32,BLE mesh,~30m offline,Not implemented.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+33,Wi-Fi Aware (Android),~100m offline,Not implemented.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+34,MultipeerConnectivity (iOS),Apple offline transport,Not implemented.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+35,Cover traffic,Traffic padding,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+36,No-push mode,Tor + TAP heartbeat,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+37,SQLCipher DB,AES-256 page encryption,Integration exists; native at-rest evidence pending.,NOT RELEASE VERIFIED,Database unit tests passed; earlier Pixel 8a native proof documented separately
+38,Android Keystore,Hardware key storage,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,Storage adapter tests passed; earlier native wrapping proof documented separately
+39,StrongBox,Secure element (API 28+),Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,Earlier Pixel 8a StrongBox measurement only; not rerun in this turn
+40,iOS Secure Enclave,P-256 wraps X25519/Ed25519,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+41,Windows DPAPI,Per-user protection,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+42,Key zeroization,On background,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+43,Per-user DB keys,Derived from master,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+44,Rate limiting,API + WebSocket,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+45,Certificate pinning,SPKI fingerprint,"Verify active implementation, rotation and failure behavior.",NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+46,APK signature verify,Anti-repackaging,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+47,Play Integrity,Server attestation,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+48,Duress PIN,Decoy UI + key destruction,Panic PIN local removal exists; decoy and duress design incomplete.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+49,Duress iris,Android only,OS biometric APIs do not identify a particular duress biometric.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+50,Duress Face ID,iOS alternative,OS biometric APIs do not identify a particular duress biometric.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+51,CANARY protocol,Silent duress alert,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+52,Dead man's switch,Auto-destruct on no check-in,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+53,Plausible deniability,Hidden layer under decoy,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+54,Auto-blank on peek,Second-face detection,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+55,Gaze detection,Blank before peeker reads,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+56,Contextual blur,Blur content only,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+57,Root detection,su / Frida / Xposed,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+58,Jailbreak detection,iOS equivalent,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+59,Emulator detection,QEMU / build props,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+60,FLAG_SECURE,Screenshot prevention,Platform behavior and device evidence need verification.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+61,Screen capture detect,iOS + Android 14+,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+62,Custom secure keyboard,For sensitive input,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+63,Clipboard auto-clear,30-second wipe,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+64,Screenshot vault,Never reaches gallery,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+65,Per-file encryption,ChaCha20 or AES-256-GCM,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+66,Hardware-backed keys,Keystore / Enclave,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+67,Biometric unlock,Fingerprint / Face / Iris,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+68,Tamper detection,SHA-256 hash,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+69,Send from vault,Re-encrypt with session key,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+70,Cross-platform pairing,Android / iOS / Windows,Enrollment scaffolding only; no complete authenticated linking.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+71,QR-based linking,Ephemeral key exchange,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+72,Cryptographic binding,Server never sees keys,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+73,Remote revocation,Instant,Full device revocation protocol incomplete.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+74,Session reset on revoke,Ratchet reset,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+75,Per-device push tokens,FCM / APNs,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+76,BIP-39 recovery,12 words,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,Account recovery tests passed
+77,Encrypted backup,Master-key encrypted,Encrypted local backup exists; session recovery/device tests pending.,NOT RELEASE VERIFIED,Encrypted backup restore and failure rollback tests passed; device workflow pending
+78,Local file export,User location,Export exists; platform validation pending.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+79,Cloud backup (optional),User-controlled,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+80,Account restore,From recovery phrase,Phrase-based identity recovery exists; device recovery testing pending.,NOT RELEASE VERIFIED,Phrase recovery tests passed; native UI acceptance pending
+81,Multi-device restore,Re-link after restore,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+82,Chat (BLE),~30m range,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+83,Chat (Wi-Fi Aware),~100m,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+84,Voice/video (LAN),Same Wi-Fi,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+85,QR contact add,Both present,QR identity check exists; device camera testing pending.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+86,Vault/duress,Fully local,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+87,Message queue,30s retry,Outbox and foreground retry exist; 30-second schedule not established.,NOT RELEASE VERIFIED,Live lost-acknowledgment and offline outbox retry tests passed
+88,Zero network calls,Local-Only mode verified,Local-only mode is not implemented.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+89,Claude Light theme,Coral on cream,Cream/coral UI exists; accessibility and device review pending.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+90,V13 dark theme,Optional,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+91,DEPΛ2TɄRE_MONO,Technical font,Bundled Departure Mono exists; typography coverage needs review.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+92,Inter + Tiempos,Body + display,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+93,Full color picker,Custom themes,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+94,App icon variants,Multiple,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+95,Proxy support,SOCKS5/HTTP/HTTPS,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+96,Connection toggle,Online/Local/Auto,Not implemented.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+97,Spring physics,Critically damped,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+98,Message send animation,Slide+scale+sweep+check,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+99,Skeleton loading,Coral shimmer,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+100,Typing indicator,Coral ripple / mono cursor,Direct-chat typing exists; device and lifecycle testing pending.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+101,Encryption pulse,Breathing lock,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+102,Shared element transitions,Avatar flight,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+103,Haptic language,Consistent per action,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+104,Onboarding ritual,Word-by-word reveal,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+105,Empty state art,Animated diagram,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+106,Duress visual mode,Full transformation,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+107,Responsive layouts,Phone/tablet/desktop,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+108,A11y compliant,"Screen readers, 44×44",Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+109,Express API,17 endpoints,Node/Express backend exists; live operations still required.,NOT RELEASE VERIFIED,Live account and messaging HTTP client tests passed
+110,WebSocket signaling,Port 8444,Authenticated signaling exists on shared HTTP listener /signaling; deployment validation pending.,NOT RELEASE VERIFIED,Authenticated WSS integration test passed
+111,Onion relay,Port 8445,No production onion relay deployment.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+112,PostgreSQL 16,10-table schema,PostgreSQL backend exists; production operation not established.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+113,Redis 7,Sessions/circuits,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+114,FCM + APNs,Push,Scaffolding only; provider credentials and mobile integration missing.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+115,Docker Compose,One-command deploy,Self-hosting scaffolding exists; restore and deployment drills pending.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+116,Nginx TLS,Reverse proxy,TLS reverse-proxy configuration exists; live certificate and deployment pending.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+117,Prometheus,`/metrics`,Metrics exist; deployed monitoring and alerts pending.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+118,Winston logging,Structured JSON,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+119,Self-hostable,Full stack,Deployment preparation exists; no production deployment evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+120,CI Android,analyze+test+APK,Workflow exists; signed release/device evidence pending.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+121,CI iOS,macOS runner,Workflow exists; signed distribution/device evidence pending.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+122,Test coverage,75+ tests,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,"Current targeted run: 71 tests passed, zero reported skips; not full feature acceptance"
+123,External audit prep,"Parts 4,5,12,14",Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+124,SBOM,Bill of materials,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+125,Pentest checklist,12 categories,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+126,Play Store + App Store,Listings,Store distribution not complete.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+127,Documentation,Complete,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
