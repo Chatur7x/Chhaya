@@ -170,6 +170,12 @@ test('real API: registration, authentication, conversations, messages, isolation
     const storedPins=await query('SELECT pin_hash,panic_pin_hash FROM users WHERE id=$1',[alice.userId]);
     assert.equal(await verifyCredential('1234',storedPins.rows[0].pin_hash),true);
     assert.equal(await verifyCredential('9876',storedPins.rows[0].panic_pin_hash),true);
+    for (const setting of [{readReceipts:false},{disappearingDuration:0},{onionRouting:true},{notifications:false}]) {
+      const response=await req('PUT','/users/me/settings',{biometricEnabled:true,...setting},login.data.token);
+      assert.equal(response.status,501);
+    }
+    const unchanged=await query('SELECT biometric_enabled FROM users WHERE id=$1',[alice.userId]);
+    assert.equal(unchanged.rows[0].biometric_enabled,false);
     const contact=await req('POST','/contacts',{chhayaId:bob.body.chhayaId,displayName:'Bob'},alice.token);
     assert.equal(contact.status,201);
     const cid=contact.data.conversationId;

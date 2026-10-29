@@ -221,6 +221,13 @@ router.put('/users/me/settings', authMiddleware, safe(async (req: Request, res: 
   const userId = (req as any).userId;
   const data = updateSettingsSchema.parse(req.body);
 
+  // These settings are not persisted or enforced by this endpoint yet. Reject
+  // the whole request before writing anything instead of reporting success.
+  if (data.readReceipts !== undefined || data.disappearingDuration !== undefined ||
+      data.onionRouting !== undefined || data.notifications !== undefined) {
+    return res.status(501).json({ error: 'One or more requested settings are not supported by the server' });
+  }
+
   const updates: string[] = [];
   const values: any[] = [userId];
   let paramIndex = 2;
