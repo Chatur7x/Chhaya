@@ -79,3 +79,9 @@ retain their statuses in the delivery checklist and 127-feature register.
 - Native provider harness and six ML-DSA ACVP signature-verification vectors:
   https://github.com/Chatur7x/Chhaya/actions/runs/40814153957 (passed after fixing
   an outdated workflow source-directory path).
+- iOS build and host tests (unsigned distribution):
+  https://github.com/Chatur7x/Chhaya/actions/runs/40813789021 (passed).
+- Final 29 October HTTPS/WSS client rerun against the deployed Node 24 service:
+  two passed in 23 seconds. A duplicate local full-suite run was stopped during
+  the long fuzz test after the equivalent full CI suite passed; it is not counted
+  as another completed local full-suite result.
