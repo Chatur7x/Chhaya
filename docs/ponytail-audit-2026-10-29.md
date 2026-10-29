@@ -121,3 +121,7 @@ The current debug verification APK was installed with `adb install -r` and launc
 ## Server settings acknowledgement
 
 The settings endpoint accepted read-receipt, disappearing-duration, onion-routing and notification values but ignored them and returned success. It now rejects requests containing those unsupported server settings before applying any other fields. Database-backed tests cover each unsupported value and confirm a mixed request does not partially change biometric settings. This avoids a false success; the missing server-side functionality and its end-to-end behavior remain unfinished. Local per-chat privacy controls are separate and are not established by this endpoint test.
+
+## HKDF expand bound
+
+The custom HKDF-Expand helper did not enforce the one-byte block counter limit in RFC 5869. It now rejects requests above 8,160 bytes for SHA-256; existing ratchet callers request much shorter outputs. Tests cover the RFC expand vector and the maximum and first invalid lengths, alongside the existing primitive and ratchet tests (31 passed). This is a primitive-level check, not an independent review of the messaging protocol.

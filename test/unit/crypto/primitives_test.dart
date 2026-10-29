@@ -59,6 +59,18 @@ void main() {
         '34007208d5b887185865',
       );
     });
+
+    test('expand matches the RFC vector and enforces the counter limit', () {
+      final prk = hex('077709362c2e32df0ddc3f0dc47bba63'
+          '90b6c73bb50f9c3122ec844ad7c2b3e5');
+      final info = hex('f0f1f2f3f4f5f6f7f8f9');
+      expect(Sha.hexOf(Hkdf.expand(prk, info, 42)),
+          '3cb25f25faacd57a90434f64d0362f2a'
+          '2d2d0a90cf1a5a4c5db02d56ecc4c5bf'
+          '34007208d5b887185865');
+      expect(Hkdf.expand(prk, info, 8160), hasLength(8160));
+      expect(() => Hkdf.expand(prk, info, 8161), throwsArgumentError);
+    });
   });
 
   group('PBKDF2-HMAC-SHA256 (RFC 8018)', () {

@@ -48,11 +48,13 @@ class Hkdf {
     Uint8List info,
     int outputLength,
   ) {
-    if (outputLength <= 0) {
+    // RFC 5869 uses a one-byte block counter, so SHA-256 permits at most
+    // 255 blocks. Reject longer output rather than wrapping the counter.
+    if (outputLength <= 0 || outputLength > 255 * 32) {
       throw ArgumentError.value(
         outputLength,
         'outputLength',
-        'Must be positive',
+        'Must be between 1 and 8160 bytes',
       );
     }
     final hmac = pc.HMac(pc.SHA256Digest(), 64);

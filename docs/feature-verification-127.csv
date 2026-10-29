@@ -13,7 +13,7 @@ id,feature,requirement,register_evidence,release_status,current_run
 12,X25519,Key agreement (RFC 7748),Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
 13,Ed25519,Signatures (RFC 8032),Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
 14,AES-256-GCM,AEAD encryption,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
-15,HKDF-SHA256,Key derivation (RFC 5869),Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+15,HKDF-SHA256,Key derivation (RFC 5869),Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,RFC 5869 SHA-256 extract/expand vectors and maximum output boundary passed locally; protocol integration and device acceptance remain unverified
 16,PBKDF2-HMAC-SHA256,100k iterations,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
 17,SHA-256/512,Hashing,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
 18,BIP-39,12-word recovery,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
