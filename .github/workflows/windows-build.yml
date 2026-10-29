@@ -21,3 +21,10 @@ jobs:
       - run: flutter pub get
       - run: flutter build windows --debug
       - run: flutter test --no-pub test/unit/ui/voice_recorder_test.dart test/unit/messaging/voice_temporary_files_test.dart test/integration/windows_sqlcipher_test.dart
+      - name: Save Windows developer build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Chhaya-Windows-Developer-Build
+          path: build/windows/x64/runner/Debug/
+          if-no-files-found: error
+          retention-days: 14

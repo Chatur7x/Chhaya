@@ -32,8 +32,8 @@ String _safeInitializationError(Object error) {
   final lower = raw.toLowerCase();
   if (lower.contains('no implementation found') ||
       lower.contains('notimplementederror')) {
-    return 'A required Android storage plugin is unavailable. Restart the app; '
-        'if this continues, reinstall the latest APK.';
+    return 'A required secure storage plugin is unavailable. Restart the app; '
+        'your local account data has been left untouched.';
   }
   if (lower.contains('not a database') ||
       lower.contains('file is encrypted') ||
@@ -44,7 +44,7 @@ String _safeInitializationError(Object error) {
   if (lower.contains('unable to open database') ||
       lower.contains('cantopen') ||
       lower.contains('cannot open')) {
-    return 'Android could not open the local database. Check free storage '
+    return 'The app could not open the local database. Check free storage '
         'space and try again.';
   }
   if (lower.contains('no such table') || lower.contains('no such column') ||

@@ -29,4 +29,14 @@ void main() {
     expect(failure.causeType, 'StateError');
     expect(failure.toString(), isNot(contains('private diagnostic text')));
   });
+
+  test('missing storage plugin guidance does not suggest deleting account data', () {
+    final failure = AppInitializationFailure(
+      stage: 'local storage',
+      cause: MissingPluginException('No implementation found'),
+    );
+    expect(failure.safeSummary, contains('secure storage plugin'));
+    expect(failure.safeSummary.toLowerCase(), isNot(contains('reinstall')));
+    expect(failure.safeSummary, contains('left untouched'));
+  });
 }
