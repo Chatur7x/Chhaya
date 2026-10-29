@@ -165,6 +165,11 @@ test('real API: registration, authentication, conversations, messages, isolation
     assert.equal((await req('POST','/auth/login',{...alice.body,...await claim(alice.pair,alice.body,'login'),recoveryPhraseHash:'0'.repeat(64)})).status,401);
     const login=await req('POST','/auth/login',{...alice.body,...await claim(alice.pair,alice.body,'login')});
     assert.equal(login.status,200);
+    assert.equal((await req('PUT','/users/me/profile',{displayName:'Changed'},null)).status,401);
+    assert.equal((await req('PUT','/users/me/profile',{displayName:'   '},login.data.token)).status,400);
+    assert.equal((await req('PUT','/users/me/profile',{displayName:' Alice Updated '},login.data.token)).status,200);
+    assert.equal((await req('GET','/users/me',null,alice.token)).data.display_name,'Alice Updated');
+    assert.equal((await req('GET','/users/me',null,bob.token)).data.display_name,'Test');
     assert.equal((await req('PUT','/users/me/settings',{pin:'1234',panicPin:'9876'},login.data.token)).status,200);
     const {verifyCredential}=require('../dist/session');
     const storedPins=await query('SELECT pin_hash,panic_pin_hash FROM users WHERE id=$1',[alice.userId]);
@@ -185,6 +190,7 @@ test('real API: registration, authentication, conversations, messages, isolation
     const groupId=createdGroup.data.conversationId;
     const groupList=await req('GET','/conversations',null,alice.token);
     const group=groupList.data.find(c=>c.id===groupId);
+    assert.equal(group.participants.find(p=>p.id===alice.userId).display_name,'Alice Updated');
     assert.equal(group.is_admin,true);
     assert.deepEqual(group.participants.map(p=>p.is_admin).sort(),[false,false,true]);
     assert.equal((await req('PATCH',`/conversations/${groupId}/participants/${alice.userId}`,{isAdmin:false},alice.token)).status,409);

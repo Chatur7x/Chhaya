@@ -216,6 +216,17 @@ router.get('/users/me', authMiddleware, safe(async (req: Request, res: Response)
   res.json(result.rows[0]);
 }));
 
+// PUT /api/v1/users/me/profile
+router.put('/users/me/profile', authMiddleware, safe(async (req: Request, res: Response) => {
+  const { displayName } = z.object({ displayName: z.string().trim().min(1).max(80) }).strict().parse(req.body);
+  const result = await query(
+    'UPDATE users SET display_name = $2, updated_at = NOW() WHERE id = $1 RETURNING display_name',
+    [(req as any).userId, displayName]
+  );
+  if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+  res.json({ displayName: result.rows[0].display_name });
+}));
+
 // PUT /api/v1/users/me/settings
 router.put('/users/me/settings', authMiddleware, safe(async (req: Request, res: Response) => {
   const userId = (req as any).userId;

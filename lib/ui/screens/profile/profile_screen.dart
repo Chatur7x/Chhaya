@@ -23,27 +23,31 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _savingProfile = false;
 
   Future<void> _editProfile() async {
-    final controller = TextEditingController(
-      text: ref.read(currentUserProvider)?.displayName ?? '',
-    );
+    var editedName = ref.read(currentUserProvider)?.displayName ?? '';
     final name = await showDialog<String>(context: context, builder: (ctx) => AlertDialog(
       title: const Text('Edit profile'),
-      content: TextField(controller: controller, maxLength: 80,
+      content: TextFormField(initialValue: editedName, maxLength: 80,
+        onChanged: (value) => editedName = value,
         decoration: const InputDecoration(labelText: 'Display name')),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-        TextButton(onPressed: () => Navigator.pop(ctx, controller.text), child: const Text('Save'))],
+        TextButton(onPressed: () => Navigator.pop(ctx, editedName), child: const Text('Save'))],
     ));
-    controller.dispose();
     if (name == null || !mounted) return;
     setState(() => _savingProfile = true);
     try {
+      final trimmed = name.trim();
+      if (trimmed.isEmpty || trimmed.length > 80) {
+        throw ArgumentError('Invalid display name');
+      }
+      final api = ref.read(apiServiceProvider);
+      if (api.isAuthenticated) await api.updateDisplayName(trimmed);
       final auth = ref.read(authServiceProvider);
-      await auth.updateDisplayName(name);
+      await auth.updateDisplayName(trimmed);
       ref.read(currentUserProvider.notifier).state = auth.currentUser;
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not save profile. Use a name of 1–80 characters and try again.')));
+          const SnackBar(content: Text('Could not save profile. Check the name and server connection, then try again.')));
       }
     } finally {
       if (mounted) setState(() => _savingProfile = false);

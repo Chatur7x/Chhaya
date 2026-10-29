@@ -248,6 +248,12 @@ class ApiService {
     );
   }
 
+  Future<void> updateDisplayName(String displayName) async {
+    await _request('PUT', '/api/v1/users/me/profile', body: {
+      'displayName': displayName,
+    });
+  }
+
   Future<void> updateSettings({
     bool? biometricEnabled,
     String? pin,
