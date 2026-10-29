@@ -1,8 +1,9 @@
 # Hosting the messenger backend
 
-A running backend is required for internet messaging. No server, domain,
-Apple membership, or Firebase account is bundled or provisioned by this repo.
-The Docker configuration is deployment preparation, not a live service.
+A running backend is required for internet messaging. The free testing service
+is https://chhaya-ys50.onrender.com; its free database expires on 27 November
+2026. Apple membership and Firebase registration are not provisioned. Follow
+these steps for a separately operated deployment.
 
 1. Provision a Linux server with Docker Compose and a domain pointing to it.
 2. Copy .env.example to .env. Generate unique random values for both variables.
@@ -73,3 +74,14 @@ ports or production volumes. It restores all objects in one transaction, checks 
 tables, then removes the container and its temporary data. It never restores into
 the configured production database. Retain the command output and date as drill
 evidence. This verifies database restoration, not mobile account/session recovery.
+
+## Windows Docker startup recovery
+
+Start installed Docker Desktop with `powershell -File scripts/start_docker.ps1`.
+If its logs specifically report an inaccessible Windows AF_UNIX runtime socket
+under `Docker/run` or `docker-secrets-engine`, use
+`powershell -File scripts/start_docker.ps1 -RepairStaleSockets`. This stops Docker
+Desktop, preserves those two runtime directories under dated names, and restarts
+it. It does not reset Docker, remove volumes, or alter WSL disks. Verify
+`docker version`, then run `docker compose up -d --wait postgres chhaya-api`.
+The nginx service additionally requires your trusted TLS certificate files.

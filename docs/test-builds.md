@@ -10,14 +10,16 @@ build can prevent upgrades. Back up important data before replacing an app;
 uninstalling removes its data. Do not rely on this development build for
 sensitive communication.
 
-The locally built `dist/Chhaya-V14-NEW.apk` is generated with
-`flutter build apk --release --target-platform android-arm64 --no-pub`, has
-package name `com.chaaya.app.chaaya`, and is signed with the repository's debug
-key. It is optimized in release mode, but it is still a test artifact: it has
-not been signed with an owner-controlled release key or tested on a physical
-device. It installs alongside the separate `com.chaaya.app.chaaya.test` app, so
-the two apps have separate local accounts and databases. Its SHA-256 is recorded
-in `dist/Chhaya-V14-NEW.apk.sha256`.
+The current local release artifact is `dist/Chhaya-14.0.1-arm64.apk`, package
+`com.chaaya.app.chaaya`, version 14.0.1/code 2, signed with the private Chhaya
+release key. Its checksum is in the adjacent `.apk.sha256` file and the
+[verification record](release-verification-14.0.1.md). Build with
+`flutter build apk --release --target-platform android-arm64 --dart-define=CHHAYA_API_URL=https://chhaya-ys50.onrender.com`.
+Run Flutter builds/tests serially in one checkout: tests regenerate debug plugin
+registrants, which can break a simultaneous release build.
+
+`dist/Chhaya-V14-NEW.apk`, if still present, is an older debug-signed artifact.
+Use the current artifact or isolated preview for this verification pass.
 
 The Android release build requires the AWS-LC native provider build and can
 take several minutes on a clean checkout. Do not infer device-level SQLCipher

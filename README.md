@@ -4,7 +4,7 @@
 
 <p align="center"><a href="https://github.com/Chatur7x/Chhaya/actions/workflows/ci.yml"><img src="https://github.com/Chatur7x/Chhaya/actions/workflows/ci.yml/badge.svg" alt="CI"></a> <img src="https://img.shields.io/badge/Flutter-3.47%2B-02569B?logo=flutter" alt="Flutter 3.47 or newer"> <img src="https://img.shields.io/badge/status-development-orange" alt="Development status"></p>
 
-> **Development build, not a production messenger.** Internet messaging needs a Chhaya backend that you host. Android test APKs are debug signed; no signed iOS build or store release is available. Cryptography and transport have not had an independent security audit.
+> **Development build, not a production messenger.** A free Render testing backend is live. The local 14.0.1 Android release APK uses a private release key; CI test APKs remain debug signed. No signed iOS distribution or store release is available. Cryptography and transport have not had an independent security audit.
 
 ## What works today
 
@@ -25,7 +25,7 @@ Group creation, member administration, encrypted polls, background call delivery
 - **Mobile:** Flutter and Dart, with Riverpod state management.
 - **Local security:** SQLCipher database, platform secure storage, X25519 identity, AES-GCM message envelopes, and a ratcheted direct-message session.
 - **Backend:** Node.js and TypeScript with Express, PostgreSQL, REST endpoints, and authenticated WebSocket call signaling.
-- **Deployment:** Docker Compose and Nginx configuration for self-hosting; no public Chhaya server is included.
+- **Deployment:** Docker Compose and Nginx for self-hosting; free test API at https://chhaya-ys50.onrender.com (database expires 27 November 2026).
 
 Read the [architecture overview](docs/architecture.md), [threat model](docs/threat-model.md), [cryptography notes](docs/crypto.md), and [backend hosting guide](docs/self-hosting.md) before testing sensitive workflows.
 
@@ -45,7 +45,7 @@ The full Flutter test suite includes a deliberately large ratchet fuzz test and 
 
 ## Sharing builds
 
-See [test-builds.md](docs/test-builds.md). The Android artifact is for testing and uses a debug certificate. Installing a differently signed build may require uninstalling the prior one, which deletes that installation's local data. iOS installation requires Apple signing and provisioning.
+See [test-builds.md](docs/test-builds.md) and the [14.0.1 verification record](docs/release-verification-14.0.1.md). The local signed release APK and isolated debug preview are separate artifacts. Preserve existing account installations when certificates differ; use the isolated preview rather than uninstalling an account app. iOS distribution requires Apple signing and provisioning.
 
 ## Project guide
 

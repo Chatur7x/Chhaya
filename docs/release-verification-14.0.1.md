@@ -1,4 +1,4 @@
-# Chhaya 14.0.1 verification, 28 October 2026
+# Chhaya 14.0.1 verification, 29 October 2026
 
 This is a development release with a signed Android artifact. It does not close
 the feature register or the independent security/device acceptance gates.
@@ -7,20 +7,36 @@ the feature register or the independent security/device acceptance gates.
 
 - Docker Desktop engine 29.6.2 starts and runs containers. Stale runtime sockets
   prevented startup; their parent runtime directories were preserved outside the
-  active paths before restart. No application/database volume was deleted.
+  active paths before restart. No application/database volume was deleted. The
+  same Windows socket error recurred on 29 October; the narrowly scoped recovery
+  command is `powershell -File scripts/start_docker.ps1 -RepairStaleSockets`.
+  Engine startup was reverified afterward; an OS/vendor root-cause fix is not claimed.
 - PostgreSQL 16 backend suite: 17 passed, zero skipped, including account
   challenges, authentication, direct/group messages, idempotent retries, receipt
   timestamps, membership isolation, concurrent membership/send, rate limiting,
   migration concurrency/rollback and signaling.
-- Two opt-in Flutter integration tests passed against a real local Node/PostgreSQL
-  server: account connection, direct messages in both directions, three-client
-  group replies and messaging after member removal. Client storage in these tests
-  uses separate in-memory test databases; this is not a native SQLCipher proof.
+- Two opt-in Flutter integration tests passed against both local Node/PostgreSQL
+  and public Render HTTPS/WSS: account connection, direct messages, offline queue
+  and lost-acknowledgment exact retry, service recreation, encrypted attachments,
+  three-client group replies/polls and membership removal. These clients use
+  separate in-memory databases; device-level messaging remains unverified.
 - Flutter analysis: no issues. Full host suite in the preceding implementation
   pass: 253 passed, three environment-dependent skips, including the million-message
   ratchet fuzz test. The two live integration skips were subsequently run above;
-  native SQLCipher evidence remains unavailable on this host.
-- Compose API image builds and passes its database-backed container health check.
+  host SQLCipher remains unavailable; the separate native device test below passed.
+- Compose API image builds and passes its database-backed container health check
+  on Node 24.22.1 as uid 1000 with read-only root filesystem and dropped capabilities.
+- Pixel 8a / Android 17: all three isolated native security tests pass. Measured
+  wrapping level is StrongBox; tampering is rejected. SQLCipher 4.10.0 community
+  rejects plain SQLite access and reopens encrypted contacts. AWS-LC 5.11.0
+  self-tests, ML-KEM round-trip/rejection and ML-DSA signing/rejection pass.
+  These primitive tests do not establish a live post-quantum messaging protocol.
+- Native testing found a read-only platform-buffer bug in the PQ bridge; the
+  bridge now copies results before wiping them, with a host regression test.
+- The isolated preview installed and launched with FLAG_SECURE confirmed. Both
+  existing account packages were preserved. USB subsequently disconnected, so
+  a repeat startup/lifecycle check could not run.
+- Targeted account, measured-storage and platform-buffer tests: 27 passed.
 - Custom-format database backup and isolated PostgreSQL restore passed. This
   first drill used an empty application schema; it is not a production-data or
   mobile-account recovery drill. Five backup-operation safeguard tests pass.
@@ -35,7 +51,10 @@ the feature register or the independent security/device acceptance gates.
 
 Artifact: `dist/Chhaya-14.0.1-arm64.apk` (ignored local output).
 
-SHA-256: `97fac2bf62501e0718f194ecb5db510614e079b136b76d650d0e6501146dcc53`.
+SHA-256: `e7dbcba744170e4e809cf0550726d6a801fc3b63df581d86013b99bf7329bfad`.
+
+Public testing service: https://chhaya-ys50.onrender.com (`/health` reports
+14.0.1 and database ready). Authenticated WSS was exercised by the live test.
 
 ## Hosting decision
 
@@ -46,7 +65,17 @@ idle; free databases have no managed backups. No paid resources are authorized.
 
 ## Unverified boundaries
 
-Physical Android/iPhone lifecycle, calls, push, native at-rest storage, hardware
-key protection, iOS signing, public deployment and rollback, and independent
+Two-phone messaging, broader Android/iPhone lifecycle, calls, push, iOS native
+storage/key protection and signing, deployment rollback, and independent
 protocol review remain separate acceptance gates. Unimplemented roadmap features
 retain their statuses in the delivery checklist and 127-feature register.
+
+## CI evidence
+
+- Updated backend, analysis, Flutter host tests and isolated restore drill:
+  https://github.com/Chatur7x/Chhaya/actions/runs/40814153886 (passed).
+- Android debug and release builds:
+  https://github.com/Chatur7x/Chhaya/actions/runs/40813789033 (passed).
+- Native provider harness and six ML-DSA ACVP signature-verification vectors:
+  https://github.com/Chatur7x/Chhaya/actions/runs/40814153957 (passed after fixing
+  an outdated workflow source-directory path).

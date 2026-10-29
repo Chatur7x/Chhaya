@@ -16,7 +16,9 @@ Alternatively, in **Service → Settings → Build**, set **Root Directory** to
 `backend/server` and keep **Dockerfile Path** as `Dockerfile`; that uses the
 backend-local Dockerfile. Save the setting and trigger a deploy from the latest
 commit. The dashboard's failed first deploy was for an older `main` commit, so
-it will not pick up this fix until the updated commit is deployed.
+the updated `codex/release-reliability` branch is now deployed successfully.
+The free testing origin is `https://chhaya-ys50.onrender.com`, with database
+expiry on 27 November 2026. No paid plan was purchased.
 
 For a new setup, prefer the Blueprint steps below; the Blueprint already sets
 `rootDir: backend/server` and provisions its matching Postgres database.

@@ -11,7 +11,7 @@ Protect recovery words, identity private keys, database keys, message plaintext,
 - Account registration/login requires a short-lived single-use proof bound to the public key, device, purpose, and fresh server challenge. Credentials and random session tokens are hashed at rest on the server; tokens expire and can be revoked.
 - Membership checks restrict conversation messages and signaling. Device IDs cannot be reassigned across users. Message retries verify the existing sender/conversation/content before returning an existing record.
 - Direct-message ciphertext authenticates the conversation, message ID, sender, and ratchet header. Tamper, replay, and failed database-commit behavior have automated coverage.
-- SQLCipher and encrypted payloads protect database contents at rest. Platform wrapping attempts to protect stored roots. Native SQLCipher and hardware-backed key behavior still require real-device evidence.
+- SQLCipher and encrypted payloads protect database contents at rest. Platform wrapping attempts to protect stored roots. Isolated Pixel 8a tests measured SQLCipher 4.10.0 and StrongBox wrapping with tamper rejection. Other devices and iOS still require native evidence; unavailable capability probes report unknown.
 - The lock screen fails closed when device authentication fails and no app PIN exists. Enabling/disabling the lock requires native device authentication. The current lock needs further lifecycle/background review.
 
 ## Metadata and residual risks
