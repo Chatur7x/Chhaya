@@ -71,7 +71,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final user = ref.watch(currentUserProvider);
     final displayName = _contact?.displayName ?? user?.displayName ?? 'Chhaya User';
     final chhayaIdText = _contact?.chhayaId.publicKey ?? user?.chhayaId.publicKey ?? '—';
-    final verificationLevel = _contact?.verificationLevel ?? 3;
+    final verified = _contact?.isVerified == true;
 
     return Scaffold(
       backgroundColor: ChhayaPalette.of(context).primaryBackground,
@@ -84,8 +84,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             const SizedBox(height:20),
             Text(displayName,textAlign:TextAlign.center,style:ChhayaType.of(context).title.copyWith(fontSize:24)),
             const SizedBox(height:8),
-            if(!isOwnProfile) Text(_verificationLabel(verificationLevel),
-              style:ChhayaType.of(context).body.copyWith(color:_verificationColor(verificationLevel))),
+            if(!isOwnProfile) Text(verified ? 'Verified' : 'Unverified',
+              style:ChhayaType.of(context).body.copyWith(color:verified
+                ? ChhayaPalette.of(context).verifiedLevel3
+                : ChhayaPalette.of(context).verifiedLevel1)),
           ]))),
           SliverToBoxAdapter(
             child: Padding(
@@ -183,22 +185,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       setState(() { _blocked=!_blocked; _contact=updated; });
     } catch(_) {
       if(mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Could not save this change. Try again.'))); }
-    }
-  }
-
-  Color _verificationColor(int level) {
-    switch (level) {
-      case 3: return ChhayaPalette.of(context).verifiedLevel3;
-      case 2: return ChhayaPalette.of(context).verifiedLevel2;
-      default: return ChhayaPalette.of(context).verifiedLevel1;
-    }
-  }
-
-  String _verificationLabel(int level) {
-    switch (level) {
-      case 3: return 'Verified';
-      case 2: return 'Matched';
-      default: return 'Unverified';
     }
   }
 

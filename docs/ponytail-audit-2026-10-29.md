@@ -127,3 +127,7 @@ The settings endpoint accepted read-receipt, disappearing-duration, onion-routin
 ## HKDF expand bound
 
 The custom HKDF-Expand helper did not enforce the one-byte block counter limit in RFC 5869. It now rejects requests above 8,160 bytes for SHA-256; existing ratchet callers request much shorter outputs. Tests cover the RFC expand vector and the maximum and first invalid lengths, alongside the existing primitive and ratchet tests (31 passed). This is a primitive-level check, not an independent review of the messaging protocol.
+
+## Contact profile verification label
+
+The contact profile derived its verification label from a separate numeric level and defaulted to level 3 while the contact was loading. It could therefore show “Verified” even when the locally stored `isVerified` flag was false. The label and color now follow the flag used by messaging authorization, with an unverified state while the contact is unavailable. Widget tests cover a level-3 contact with each flag value. This only corrects the display; independently authenticated device and contact verification still need end-to-end security review.
