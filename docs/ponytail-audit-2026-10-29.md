@@ -89,3 +89,9 @@ The prior checklist described file export but the settings flow only copied encr
 ## Desktop backup overwrite safety
 
 Desktop save dialogs return a path and require the application to write the backup. The original implementation wrote directly to that path, which could truncate an existing backup if writing failed. Export now writes and flushes a temporary file in the destination directory before renaming it to the selected path; temporary files are removed on failure. On Windows, tests passed for first save, replacing an existing file, failed replacement preserving an existing destination, and cleanup, plus bounded/invalid import handling. Mobile save remains delegated to the operating-system picker and still requires device acceptance evidence.
+
+## Windows build attempt
+
+On 29 October 2026, `flutter build windows --debug` reached CMake but failed: generated plugin configuration references `flutter_sound_plugin`, while the installed `flutter_sound` 9.30.0 Windows CMake defines `taudio_plugin` and its native handler implements only a platform-version method. This is an upstream Windows implementation mismatch, not evidence of a usable voice feature. Fixing generated files or adding a dummy target would only conceal the absence of recording and playback. A replacement must support real recording and playback on Android, iOS and Windows, preserve bounded recording, cleanup, privacy and AAC interoperability, and be tested on devices. SQLCipher Windows support remains a separate runtime blocker. Build did not produce a usable Windows app.
+
+Potential candidates require evaluation rather than blind substitution: `record` documents AAC capture on Android/iOS/Windows (https://pub.dev/packages/record); `audioplayers` documents Windows support (https://pub.dev/packages/audioplayers). Verify actual container/codec compatibility, temporary plaintext behavior, dependency licenses and platform tests before migration.
