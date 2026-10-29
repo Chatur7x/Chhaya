@@ -76,7 +76,7 @@ id,feature,requirement,register_evidence,release_status,current_run
 75,Per-device push tokens,FCM / APNs,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
 76,BIP-39 recovery,12 words,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,Account recovery tests passed
 77,Encrypted backup,Master-key encrypted,Encrypted local backup exists; session recovery/device tests pending.,NOT RELEASE VERIFIED,Encrypted backup restore and failure rollback tests passed; device workflow pending
-78,Local file export,User location,Export exists; platform validation pending.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
+78,Local file export,User location,Encrypted backup file export and bounded import implemented; Android/iOS file-picker acceptance pending,NOT RELEASE VERIFIED,Desktop selected-path file write and bounded stream checks pass; actual mobile picker and full restore after file import unverified; 16 MB file limit
 79,Cloud backup (optional),User-controlled,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement
 80,Account restore,From recovery phrase,Phrase-based identity recovery exists; device recovery testing pending.,NOT RELEASE VERIFIED,Phrase recovery tests passed; native UI acceptance pending
 81,Multi-device restore,Re-link after restore,Audit implementation and define feature-specific acceptance evidence.,NOT RELEASE VERIFIED,No current end-to-end result recorded for this complete requirement

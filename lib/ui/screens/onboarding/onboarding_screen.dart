@@ -7,6 +7,7 @@ import '../../widgets/chhaya_brand_mark.dart';
 import '../../widgets/chhaya_button.dart';
 import '../../../core/router/chhaya_router.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../services/auth/backup_file.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -29,6 +30,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
   // Login state
   final _loginPhraseCtrl = TextEditingController();
   final _loginBackupCtrl = TextEditingController();
+  String? _selectedBackup;
   bool _loginLoading = false;
   bool _loginObscure = true;
 
@@ -112,7 +114,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
 
   Future<void> _handleLogin() async {
     final phraseText = _loginPhraseCtrl.text.trim();
-    final backupText = _loginBackupCtrl.text.trim();
+    final pastedBackup = _loginBackupCtrl.text.trim();
+    final backupText = pastedBackup.isNotEmpty ? pastedBackup : (_selectedBackup ?? '');
     if (phraseText.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter 12-word recovery phrase')));
       return;
@@ -484,6 +487,26 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
               contentPadding: const EdgeInsets.all(ChhayaSpacing.space4),
             ),
           ),
+          TextButton.icon(
+            onPressed: _loginLoading ? null : () async {
+              try {
+                final backup = await BackupFile.pick();
+                if (backup != null && mounted) {
+                  setState(() { _selectedBackup = backup; _loginBackupCtrl.clear(); });
+                }
+              } catch (_) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('Could not read backup. Choose a UTF-8 backup file up to 16 MB.')));
+                }
+              }
+            },
+            icon: const Icon(Icons.file_open_outlined),
+            label: const Text('Choose backup file'),
+          ),
+          if (_selectedBackup != null)
+            TextButton(onPressed: () => setState(() => _selectedBackup = null),
+              child: const Text('Backup file selected · Remove')),
           const SizedBox(height: ChhayaSpacing.space5),
           ChhayaPrimaryButton(label: 'Log In & Restore', icon: Icons.lock_open_rounded, isLoading: _loginLoading, onPressed: _handleLogin),
           const SizedBox(height: ChhayaSpacing.space3),

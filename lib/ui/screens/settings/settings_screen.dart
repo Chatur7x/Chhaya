@@ -10,6 +10,7 @@ import '../../widgets/glass_container.dart';
 import '../../widgets/chhaya_button.dart';
 import '../../../core/router/chhaya_router.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../services/auth/backup_file.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -413,7 +414,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _showBackup() async {
     final auth = ref.read(authServiceProvider);
-    final backup = await auth.generateBackup();
+    late final String backup;
+    try {
+      backup = await auth.generateBackup();
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not create backup. Unlock your account and try again.')));
+      return;
+    }
     if(!mounted) { return; }
     showModalBottomSheet(
       context: context,
@@ -435,6 +442,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: ChhayaSpacing.space4),
+          SizedBox(width: double.infinity, child: ChhayaPrimaryButton(label: 'Save encrypted backup', icon: Icons.save_alt_rounded, height: 48, onPressed: () async {
+            try {
+              final saved = await BackupFile.save(backup);
+              if (saved != null && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Encrypted backup saved')));
+              }
+            } on FormatException catch (error) {
+              if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+            } catch (_) {
+              if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not save backup')));
+            }
+          })),
+          const SizedBox(height: ChhayaSpacing.space2),
           SizedBox(width: double.infinity, child: ChhayaPrimaryButton(label: 'Copy to Clipboard', icon: Icons.copy_rounded, height: 48, onPressed: () {
             SensitiveClipboard.copy(backup);
             ChhayaHaptics.success();
