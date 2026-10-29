@@ -112,6 +112,8 @@ The previous full Flutter CI run for the audio migration failed analysis on an e
 
 Windows storage follow-up: database open and explicit destruction now resolve the same app-specific path and use the Windows FFI factory. A native test destroyed only a disposable test database and confirmed a neighboring encrypted test file remained. This tests the database operation only, not a real account logout or panic-PIN flow.
 
+GitHub Actions Windows run 40866770193 at commit 8a534cf successfully built the debug desktop app, ran the voice widget/cleanup and native Windows SQLCipher tests, and uploaded a developer build. This build has not been launched against an isolated Windows account, and it is not a signed release or end-to-end desktop acceptance result.
+
 ## Authentication responsiveness
 
 Credential hashing and verification previously used synchronous scrypt on the Node event loop, delaying unrelated requests during registration, login or PIN updates. These operations now use asynchronous scrypt with the same salt and hash format; registration computes the hash before opening its database transaction. A compatibility test verifies an existing synchronous-format hash, and an event-loop test verifies derivation does not block a scheduled callback. The backend suite passed 19 tests against a disposable PostgreSQL database, including real registration, login and PIN storage. This does not establish throughput under load: the shared crypto worker pool and authentication rate limits still need load testing.
