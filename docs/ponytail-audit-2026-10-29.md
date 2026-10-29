@@ -55,3 +55,9 @@ The preceding work verified Android native SQLCipher/StrongBox/PQ primitives on 
 Verdict: not ready to label Version 15 complete. Resolve desktop storage, authenticated linking, protocol integration and real-device calling/messaging acceptance before publication as a final product.
 
 Not checked: every one of the 127 features end to end; independent cryptographic review; Windows runtime; two-phone calling/NAT and push; iOS native runtime; production load; complete dependency/license inventory; relay deployment; full UI accessibility. This is a prioritized release-path audit, not a claim that every repository file was read. Remaining checklist items retain their existing status.
+
+## Follow-up: call-path tracing
+
+- Fixed the signaling readiness ordering: concurrent callers now wait for the pending authenticated join before reusing the socket. Old socket close/error callbacks cannot clear a replacement socket. Static analysis passes; a delayed-join regression test remains required.
+- Found and fixed missing block enforcement in the shared call peer lookup. Both contact-record blocking and the persisted block list now reject calls before signaling/media access. Two new regression tests pass.
+- Native audio/video, background ringing, reconnect and cross-network calls are not established by these tests. No new full-repository or 127-feature completion claim is made.

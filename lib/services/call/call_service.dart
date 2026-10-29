@@ -58,8 +58,9 @@ class CallService extends ChangeNotifier {
   Future<void> _signalTail=Future.value();
 
   Future<void> ensureConnected() async {
-    if(!api.isAuthenticated||_socket!=null) { return; }
+    if(!api.isAuthenticated) { return; }
     if(_connecting!=null) { return _connecting; }
+    if(_socket!=null) { return; }
     final pending=_connect(); _connecting=pending;
     try { await pending; } catch (_) { await _socket?.sink.close(); _socket=null; rethrow; } finally { _connecting=null; }
   }
@@ -82,7 +83,7 @@ class CallService extends ChangeNotifier {
     socket.stream.listen((raw){
       _signalTail=_signalTail.then((_)=>_handle(jsonDecode(raw as String) as Map<String,dynamic>))
           .catchError((Object error){ status='Call signaling failed'; notifyListeners(); });
-    },onError:(Object error){ _socket=null; status='Signaling offline'; notifyListeners(); },onDone:(){ _socket=null; });
+    },onError:(Object error){ if(identical(_socket,socket)) { _socket=null; status='Signaling offline'; notifyListeners(); } },onDone:(){ if(identical(_socket,socket)) _socket=null; });
     socket.sink.add(jsonEncode({'type':'join','payload':{'token':api.authToken,'deviceId':api.deviceId},'from':api.userId,'timestamp':DateTime.now().millisecondsSinceEpoch}));
     await _joined!.future.timeout(const Duration(seconds:15));
     unawaited(_deliverPendingInvites());
@@ -113,6 +114,9 @@ class CallService extends ChangeNotifier {
     final conversation=(await database.getAllConversations()).where((c)=>c.id==conversationId).firstOrNull;
     if(conversation==null||conversation.isGroup||conversation.participants.length!=1) { throw StateError('A direct conversation is required'); }
     final peer=await database.getContact(conversation.participants.single.id)??conversation.participants.single;
+    if(peer.isBlocked || database.getBlockedContacts().contains(peer.id)) {
+      throw StateError('Unblock this contact before calling');
+    }
     if(!peer.isVerified) { throw StateError('Verify this contact before calling'); }
     return peer;
   }
