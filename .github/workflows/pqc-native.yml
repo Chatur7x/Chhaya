@@ -38,5 +38,5 @@ jobs:
       - name: Run FIPS KAT and failure checks
         run: ctest --test-dir build/pqc-host --output-on-failure
       - name: Run AWS-LC ML-DSA ACVP known-answer tests
-        working-directory: build/pqc-host/pinned-awslc/source/aws-lc-fa9bc8d6f7cfb2cf849b247fb06bbbfc41ecc9d6
+        working-directory: build/pqc-host/lc/source/aws-lc
         run: ../../../awslc/crypto/crypto_test --gtest_filter='*ACVPSigVer*'
