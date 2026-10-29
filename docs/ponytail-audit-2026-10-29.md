@@ -81,3 +81,7 @@ Remaining related blocker: backups clear old ratchets/outboxes but retain the ac
 ## Backup file workflow follow-up
 
 The prior checklist described file export but the settings flow only copied encrypted text. Settings now offers explicit encrypted file export; onboarding can choose an encrypted backup file. Reads are bounded at 16 MB and reject invalid UTF-8/empty input. Windows save dialogs return a path rather than writing the supplied bytes, so desktop explicitly writes the selected file. Eight file/recovery tests pass, including a real temporary-file write with a simulated picker. Android/iOS picker and restore UI remain unverified, and peer-coordinated post-restore session recovery remains incomplete.
+
+## Database key identity review
+
+`LocalDatabase.init` derives its database key using the secure-storage Chhaya ID when present, otherwise the fixed local owner ID. `AuthService.createAccount` and phrase restore do not write that secure-storage ID, and the only production `storeChhayaId` call found is rollback of a previously existing value. Consequently the current account flow ordinarily uses the installation master secret with the fixed local owner context; the requested per-user derivation is not established. Do not simply start writing the ID: changing the derivation context for existing installations would make existing encrypted databases unreadable without an explicitly tested migration. Preserve existing data and design a crash-safe migration before claiming requirement 43 complete.
