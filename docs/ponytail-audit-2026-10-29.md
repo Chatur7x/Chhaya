@@ -61,3 +61,13 @@ Not checked: every one of the 127 features end to end; independent cryptographic
 - Fixed the signaling readiness ordering: concurrent callers now wait for the pending authenticated join before reusing the socket. Old socket close/error callbacks cannot clear a replacement socket. Static analysis passes; a delayed-join regression test remains required.
 - Found and fixed missing block enforcement in the shared call peer lookup. Both contact-record blocking and the persisted block list now reject calls before signaling/media access. Two new regression tests pass.
 - Native audio/video, background ringing, reconnect and cross-network calls are not established by these tests. No new full-repository or 127-feature completion claim is made.
+
+## Follow-up verification: authenticated signaling and socket lifetime
+
+The delayed-join regression now passes: two concurrent client actions share one connection and neither completes before the authenticated join response. The client accepts an injectable socket factory solely to exercise that boundary without opening microphone/camera streams. All six call service/window tests pass, and targeted analysis reports no issues.
+
+A separate server defect was found in `backend/server/src/signaling.ts`: the heartbeat removed stale/unauthenticated sockets from bookkeeping but did not terminate the network connection. The heartbeat now terminates them. A real WebSocket regression waits for the production 15-second heartbeat and verifies disconnection. All 18 backend tests pass against disposable PostgreSQL, with zero skips; npm audit reports zero vulnerabilities.
+
+The isolated Android preview was rebuilt, installed with `adb install -r` and launched on the connected Pixel 8a. It includes profile editing, explicit Never retention and the call fixes. The running process was verified after launch. Existing account packages were preserved. Installation/launch is not a two-phone call, profile UI acceptance or all-feature device test.
+
+Pipeline review covered CI, Android, iOS and PQ native workflow definitions. Existing CI covers Flutter analysis/tests, backend tests/advisories/SBOM and isolated database restore. Android compiles debug/release; iOS exports unsigned developer builds. There is no Windows runtime pipeline or automated two-phone native acceptance suite. Missing pipeline/device coverage remains a release blocker, rather than a passing feature check.

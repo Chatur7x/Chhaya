@@ -33,7 +33,10 @@ class CallService extends ChangeNotifier {
   final ApiService api;
   final LocalDatabase database;
   final KeyManager keys;
-  CallService({required this.api,required this.database,required this.keys});
+  CallService({required this.api,required this.database,required this.keys,
+    WebSocketChannel Function(Uri)? connectSocket})
+      : _connectSocket = connectSocket ?? WebSocketChannel.connect;
+  final WebSocketChannel Function(Uri) _connectSocket;
   final localRenderer=RTCVideoRenderer();
   final remoteRenderer=RTCVideoRenderer();
   final _incoming=StreamController<IncomingCall>.broadcast();
@@ -76,7 +79,7 @@ class CallService extends ChangeNotifier {
   }
   Future<void> _connect() async {
     final uri=Uri.parse(api.baseUrl).replace(scheme:'wss',path:'/signaling');
-    final socket=WebSocketChannel.connect(uri);
+    final socket=_connectSocket(uri);
     await socket.ready.timeout(const Duration(seconds:15));
     _socket=socket;
     _joined=Completer<void>();

@@ -61,6 +61,7 @@ export const startSignalingServer = (sharedServer?: Server): WebSocketServer => 
       const client = clients.get(clientId);
       if (!client || Date.now() - client.lastPing > 30000) {
         clearInterval(pingInterval);
+        ws.terminate();
         handleDisconnect(clientId);
         return;
       }
