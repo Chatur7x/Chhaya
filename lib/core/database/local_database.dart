@@ -169,6 +169,16 @@ class LocalDatabase {
        _dbPathOverride = dbPath,
        _secure = secureStorage ?? const FlutterSecureStorage();
 
+  Future<String> _resolveDatabasePath({bool createParent = false}) async {
+    if (_dbPathOverride != null) return _dbPathOverride;
+    if (Platform.isWindows) {
+      final directory = await getApplicationSupportDirectory();
+      if (createParent) await directory.create(recursive: true);
+      return p.join(directory.path, _dbName);
+    }
+    return p.join(await getDatabasesPath(), _dbName);
+  }
+
   Future<bool> isBiometricAvailable() async {
     try {
       final canCheck = await _localAuth.canCheckBiometrics;
@@ -222,16 +232,7 @@ class LocalDatabase {
     final dbKey = await DatabaseKey.derive(_keyManager, userId: _ownerId);
     try {
       final passwordHex = DatabaseKey.toPragmaHex(dbKey);
-      late final String dbPath;
-      if (_dbPathOverride != null) {
-        dbPath = _dbPathOverride;
-      } else if (Platform.isWindows) {
-        final directory = await getApplicationSupportDirectory();
-        await directory.create(recursive: true);
-        dbPath = p.join(directory.path, _dbName);
-      } else {
-        dbPath = p.join(await getDatabasesPath(), _dbName);
-      }
+      final dbPath = await _resolveDatabasePath(createParent: true);
       final runner = MigrationRunner(chhayaMigrations());
       _db = await _opener.open(
         path: dbPath,
@@ -283,9 +284,13 @@ class LocalDatabase {
   }
 
   Future<void> destroy() async {
-    final path = _dbPathOverride ?? p.join(await getDatabasesPath(), _dbName);
+    final path = await _resolveDatabasePath();
     await close();
-    await deleteDatabase(path);
+    if (Platform.isWindows) {
+      await ffi.databaseFactoryFfi.deleteDatabase(path);
+    } else {
+      await deleteDatabase(path);
+    }
   }
 
   void _ensureInitialized() {

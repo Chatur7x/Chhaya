@@ -91,7 +91,9 @@ void main() {
       final again = LocalDatabase(keyManager: keys, dbPath: localPath);
       expect(await again.init(requireBiometric: false), isTrue);
       expect((await again.getContact('synthetic'))?.displayName, 'Test');
-      await again.close();
+      await again.destroy();
+      expect(await File(localPath).exists(), isFalse);
+      expect(await File(path).exists(), isTrue);
     },
     skip: !Platform.isWindows
         ? 'Windows SQLCipher native asset required'
