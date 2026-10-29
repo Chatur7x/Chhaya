@@ -36,6 +36,31 @@ void main() {
       FilePicker.platform = DesktopSavePicker(path);
       expect(await BackupFile.save('{"ciphertext":"example"}'), path);
       expect(await File(path).readAsString(), '{"ciphertext":"example"}');
+      expect(await BackupFile.save('{"ciphertext":"updated"}'), path);
+      expect(await File(path).readAsString(), '{"ciphertext":"updated"}');
+    },
+  );
+  test(
+    'failed replacement leaves the existing destination and cleans temporary files',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'chhaya-backup-test-',
+      );
+      final existing =
+          await Directory(
+            '${directory.path}${Platform.pathSeparator}existing',
+          ).create();
+      addTearDown(() async {
+        await existing.delete();
+        await directory.delete();
+      });
+      FilePicker.platform = DesktopSavePicker(existing.path);
+      await expectLater(
+        BackupFile.save('{"ciphertext":"example"}'),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(await existing.exists(), isTrue);
+      expect(await directory.list().length, 1);
     },
   );
   test('reads encrypted backup across stream chunks', () async {
@@ -62,3 +87,4 @@ void main() {
     );
   });
 }
+

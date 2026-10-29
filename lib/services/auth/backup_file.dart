@@ -45,7 +45,21 @@ class BackupFile {
       bytes: mobile ? bytes : null,
     );
     if (path != null && !mobile) {
-      await File(path).writeAsBytes(bytes, flush: true);
+      // Keep any existing backup intact until the replacement is fully written.
+      final target = File(path);
+      final temporaryDirectory = await target.parent.createTemp(
+        '.chhaya-backup-',
+      );
+      final temporaryFile = File(
+        '${temporaryDirectory.path}${Platform.pathSeparator}backup',
+      );
+      try {
+        await temporaryFile.writeAsBytes(bytes, flush: true);
+        await temporaryFile.rename(path);
+      } finally {
+        if (await temporaryFile.exists()) await temporaryFile.delete();
+        await temporaryDirectory.delete();
+      }
     }
     return path;
   }
