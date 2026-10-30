@@ -4,6 +4,8 @@ This register transcribes the 127 numbered requests in the supplied Chhaya V14 r
 
 **Status for every item below: not verified for release.** An existing implementation or partial implementation is described only where the current checklist supports it. Items without a note require a code and evidence audit; they are not assumed to be implemented. No item has an assigned human owner yet: the project owner must designate maintainers and independent reviewers.
 
+The execution ledger, [feature-verification-127.csv](feature-verification-127.csv), separately records source-based implementation status and release evidence. `assessment pending` is a temporary indication that a requirement has not yet received a complete source-to-acceptance assessment; it is not a passing result or a removed requirement. Assessed requirements use the requested implementation categories. All 127 original IDs remain in scope.
+
 ## Shared acceptance requirements
 
 For each entry, record its design and named owner; verify the user flow and supported Android/iOS behavior, backend changes where applicable, protocol/data and dependencies; document security/privacy limits; add meaningful automated and adversarial tests; and retain physical-device results for applicable platforms. Mark verified only when these checks and any independent security review required for that feature pass on the release commit. Windows support is a separate release decision.
