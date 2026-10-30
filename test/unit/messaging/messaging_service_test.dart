@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:chaaya/core/crypto/chhaya_crypto_engine.dart';
 import 'package:chaaya/core/crypto/key_manager.dart';
 import 'package:chaaya/core/crypto/ratchet/session_state.dart';
+import 'package:chaaya/core/crypto/ratchet/session_store.dart';
 import 'package:chaaya/core/crypto/storage/secure_storage_mock.dart';
 import 'package:chaaya/core/database/local_database.dart';
 import 'package:chaaya/core/models/chhaya_id.dart';
@@ -16,6 +17,8 @@ import 'package:chaaya/core/models/user_profile.dart';
 import 'package:chaaya/services/api/api_service.dart';
 import 'package:chaaya/services/messaging/messaging_service.dart';
 import 'package:chaaya/services/messaging/poll_payload.dart';
+import 'package:chaaya/services/messaging/ratchet_message_codec.dart';
+import 'package:chaaya/services/messaging/message_payload.dart';
 
 class OutboxDatabase extends LocalDatabase {
   late UserProfile profile;
@@ -70,6 +73,18 @@ class GroupHistoryDatabase extends LocalDatabase {
   late Conversation conversation;
   final contacts = <String, Contact>{};
   final messages = <String, Message>{};
+  final blobs = <String, String>{};
+
+  @override
+  Future<String?> loadSessionBlob(String id) async => blobs[id];
+  @override
+  Future<void> commitReceivedMessage(
+    SessionState state,
+    Message message,
+  ) async {
+    blobs[state.peerId] = jsonEncode(state.toJson());
+    messages[message.id] = message;
+  }
 
   @override
   Future<UserProfile?> getUserProfile() async => profile;
@@ -127,6 +142,7 @@ class GroupHistoryApi extends ApiService {
 
   final Conversation conversation;
   final List<Message> messages;
+  final cursors = <String?>[];
 
   @override
   bool get isAuthenticated => true;
@@ -140,7 +156,14 @@ class GroupHistoryApi extends ApiService {
     int limit = 50,
     String? before,
     String? beforeId,
-  }) async => messages;
+  }) async {
+    cursors.add(beforeId);
+    final end = beforeId == null
+        ? messages.length
+        : messages.indexWhere((m) => m.id == beforeId);
+    if (end < 0) throw StateError('Unknown pagination cursor');
+    return messages.sublist(end > limit ? end - limit : 0, end);
+  }
 }
 
 void main() {
@@ -397,6 +420,163 @@ void main() {
       expect(db.messages[messageId]?.content, contains('unavailable'));
     },
   );
+
+  test(
+    'group paging retains older history gaps beyond a known own message',
+    () async {
+      final self = await ChhayaCryptoEngine.generateKeyPair();
+      final remote = await ChhayaCryptoEngine.generateKeyPair();
+      final keys = KeyManager(secureBackend: SecureStorageMock());
+      await keys.storeKeyPair(self);
+      final peer = Contact(
+        id: 'peer',
+        chhayaId: ChhayaId.fromPublicKey('05${remote.publicKeyHex}'),
+        displayName: 'Peer',
+        isVerified: true,
+      );
+      final conversation = Conversation(
+        id: 'group',
+        participants: [peer],
+        isGroup: true,
+        createdAt: DateTime(2026),
+      );
+      final db = GroupHistoryDatabase()
+        ..profile = UserProfile(
+          chhayaId: ChhayaId.fromPublicKey('05${self.publicKeyHex}'),
+          displayName: 'Self',
+          recoveryPhrase: const [],
+          createdAt: DateTime(2026),
+        )
+        ..conversation = conversation;
+      db.contacts[peer.id] = peer;
+      final own = Message(
+        id: 'known',
+        conversationId: 'group',
+        senderId: 'me',
+        content: 'local send',
+        timestamp: DateTime(2026).add(const Duration(seconds: 201)),
+      );
+      db.messages[own.id] = own;
+      final api = GroupHistoryApi(conversation, [
+        Message(
+          id: 'old-gap',
+          conversationId: 'group',
+          senderId: 'peer',
+          timestamp: DateTime(2026),
+          content: jsonEncode({
+            'v': 1,
+            'kind': 'chhaya-group-v1',
+            'conversationId': 'group',
+            'messageId': 'old-gap',
+            'senderId': 'peer',
+            'keys': <String, String>{},
+          }),
+        ),
+        for (var i = 0; i < 199; i++)
+          own.copyWith(id: 'archive-$i', senderId: 'self'),
+        own.copyWith(senderId: 'self'),
+      ]);
+      await MessagingService(api: api, database: db, keys: keys).sync();
+      expect(api.cursors, [null, 'archive-0']);
+      expect(db.messages['old-gap']?.type, MessageType.system);
+      expect(db.messages['old-gap']?.content, contains('unavailable'));
+    },
+  );
+
+  test('a recent local send does not hide an older offline message', () async {
+    final self = await ChhayaCryptoEngine.generateKeyPair();
+    final remote = await ChhayaCryptoEngine.generateKeyPair();
+    final selfId = ChhayaId.fromPublicKey('05${self.publicKeyHex}');
+    final peer = Contact(
+      id: 'peer',
+      chhayaId: ChhayaId.fromPublicKey('05${remote.publicKeyHex}'),
+      displayName: 'Peer',
+      isVerified: true,
+    );
+    final selfContact = Contact(
+      id: 'self',
+      chhayaId: selfId,
+      displayName: 'Self',
+      isVerified: true,
+    );
+    final keys = KeyManager(secureBackend: SecureStorageMock());
+    await keys.storeKeyPair(self);
+    final conversation = Conversation(
+      id: 'chat',
+      participants: [peer],
+      createdAt: DateTime.now(),
+    );
+    final db = GroupHistoryDatabase()
+      ..profile = UserProfile(
+        chhayaId: selfId,
+        displayName: 'Self',
+        recoveryPhrase: const [],
+        createdAt: DateTime.now(),
+      )
+      ..conversation = conversation;
+    db.contacts[peer.id] = peer;
+    final sender = RatchetMessageCodec(
+      sessions: InMemorySessionStorage(),
+      identity: remote,
+      ownId: peer.chhayaId.publicKey,
+    );
+    final older = Message(
+      id: 'older',
+      conversationId: 'chat',
+      senderId: 'peer',
+      content: 'older offline message',
+      timestamp: DateTime(2026),
+    );
+    final recent = older.copyWith(
+      id: 'recent',
+      content: 'recent incoming message',
+      timestamp: older.timestamp.add(const Duration(seconds: 200)),
+    );
+    final olderWire = await sender.encrypt(
+      selfContact,
+      'chat',
+      older.id,
+      'peer',
+      MessagePayload.encode(older),
+    );
+    final recentWire = await sender.encrypt(
+      selfContact,
+      'chat',
+      recent.id,
+      'peer',
+      MessagePayload.encode(recent),
+    );
+    final own = older.copyWith(
+      id: 'own-known',
+      senderId: 'me',
+      content: 'queued own send',
+      timestamp: older.timestamp.add(const Duration(seconds: 201)),
+    );
+    db.messages[own.id] = own;
+    final api = GroupHistoryApi(conversation, [
+      older.copyWith(content: olderWire),
+      for (var i = 0; i < 198; i++)
+        own.copyWith(
+          id: 'archive-$i',
+          senderId: 'self',
+          timestamp: older.timestamp.add(Duration(seconds: i + 1)),
+        ),
+      recent.copyWith(content: recentWire),
+      own.copyWith(senderId: 'self'),
+    ]);
+    await MessagingService(api: api, database: db, keys: keys).sync();
+    expect(api.cursors, [null, 'archive-0']);
+    expect(db.messages[older.id]?.content, older.content);
+    expect(db.messages[recent.id]?.content, recent.content);
+    expect(db.messages[own.id]?.content, own.content);
+    // A fully known page may stop paging without downloading older history.
+    for (final message in api.messages.where((m) => m.senderId == 'self')) {
+      db.messages[message.id] = message.copyWith(senderId: 'me');
+    }
+    api.cursors.clear();
+    await MessagingService(api: api, database: db, keys: keys).sync();
+    expect(api.cursors, [null]);
+  });
 
   test(
     'receipt sync preserves message content without loading history',

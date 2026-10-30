@@ -374,7 +374,7 @@ class MessagingService {
             ),
           );
           batches.insertAll(0, batch);
-          if (batch.length < 200 || batch.any((m) => known.contains(m.id))) {
+          if (batch.length < 200 || batch.every((m) => known.contains(m.id))) {
             break;
           }
           beforeId = batch.first.id;
@@ -494,7 +494,7 @@ class MessagingService {
             ),
           );
           batches.insertAll(0, batch);
-          if (batch.length < 200 || batch.any((m) => known.contains(m.id))) {
+          if (batch.length < 200 || batch.every((m) => known.contains(m.id))) {
             break;
           }
           beforeId = batch.first.id;

@@ -130,7 +130,13 @@ Sync checks known IDs only for the current server page (at most 200), reconciles
 
 `flutter test tool/benchmarks/local_sync_test.dart` uses a disposable Windows SQLCipher file. In the debug test run with 40 synthetic 16 KiB attachments, the median full-history read was 1590.892 ms; known-ID + pending + latest lookups took 55.219 ms. This is a local storage comparison, not Android UI, network, battery, release-mode or production-load evidence. An earlier larger run (200 × 64 KiB, five samples) exceeded its three-minute test limit and yielded no usable timing; its disposable file was removed after the process exited.
 
-Still open: initial legacy backfill cost, paginated chat display, local search/poll-history scans, repeated network history fetches and physical-device performance. Also found that sync currently stops paging when **any** fetched row is already local; a newly queued own message can therefore stop an offline backlog scan too early. That reliability issue needs a separate regression and fix before calling message synchronization complete.
+Still open: initial legacy backfill cost, paginated chat display, local search/poll-history scans, repeated network history fetches and physical-device performance.
+
+## Backlog paging after a local send — 30 October 2026
+
+Confirmed a sync defect where one known message in the newest page stopped pagination, hiding an older incoming message after an offline backlog and a recent local send. The direct-message regression failed before the fix (one page fetched instead of two). Direct and group sync now stop at a fully known page rather than any known row. The regression decrypts two real direct envelopes in chronological order around a 201-row history; the group regression preserves an older unavailable-key marker. The messaging suite passed seven tests and targeted analysis passed.
+
+This fixes the demonstrated overlap case. A fully known page still does not prove there are no older gaps from earlier interrupted or failed syncs, and the existing 50-page cap remains. Durable forward checkpoints, explicit incomplete-history reporting and large-backlog/ratchet-limit recovery still need implementation and acceptance tests. No general reliable-messaging completion claim is made.
 
 ## Authentication responsiveness
 
