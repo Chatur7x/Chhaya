@@ -138,6 +138,10 @@ Confirmed a sync defect where one known message in the newest page stopped pagin
 
 This fixes the demonstrated overlap case. A fully known page still does not prove there are no older gaps from earlier interrupted or failed syncs, and the existing 50-page cap remains. Durable forward checkpoints, explicit incomplete-history reporting and large-backlog/ratchet-limit recovery still need implementation and acceptance tests. No general reliable-messaging completion claim is made.
 
+## Real-backend regression — 30 October 2026
+
+At commit 5b2ebcf, `live_account_connection_test.dart` and `live_messaging_flow_test.dart` both passed against the actual loopback Node service and the disposable `chhaya_test` PostgreSQL database. Coverage includes authenticated account connection, bidirectional direct messages, server-accepted/lost-acknowledgement retry with one stored/received message, injected offline queue retry, encrypted 4 KiB attachment transfer, three-client group messages/polls, membership removal and denied access for the removed member. Local client databases in this test are in-memory FFI databases; this does not prove physical-device restart, native SQLCipher or actual airplane-mode behavior. GitHub CI for 5b2ebcf also passed Flutter analysis/tests, backend lint/tests and the database backup/restore drill. Platform builds for that commit are tracked separately.
+
 ## Authentication responsiveness
 
 Credential hashing and verification previously used synchronous scrypt on the Node event loop, delaying unrelated requests during registration, login or PIN updates. These operations now use asynchronous scrypt with the same salt and hash format; registration computes the hash before opening its database transaction. A compatibility test verifies an existing synchronous-format hash, and an event-loop test verifies derivation does not block a scheduled callback. The backend suite passed 19 tests against a disposable PostgreSQL database, including real registration, login and PIN storage. This does not establish throughput under load: the shared crypto worker pool and authentication rate limits still need load testing.
