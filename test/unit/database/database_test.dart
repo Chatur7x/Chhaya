@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:convert';
 import 'package:chaaya/core/crypto/ratchet/session_state.dart';
 // Part 3 tests — SQLCipher database layer.
 //
@@ -27,6 +28,8 @@ import 'package:chaaya/core/models/user_profile.dart';
 /// in-memory ffi database. Refuses empty passwords, mirroring the
 /// production invariant that a key is always supplied.
 class FakeDatabaseOpener implements DatabaseOpener {
+  FakeDatabaseOpener({this.beforeMigration});
+  final Future<void> Function(Database db, String key)? beforeMigration;
   String? passwordHex;
   Database? opened;
   final List<String> pragmas = [];
@@ -51,7 +54,10 @@ class FakeDatabaseOpener implements DatabaseOpener {
       inMemoryDatabasePath,
       options: OpenDatabaseOptions(
         version: version,
-        onCreate: (db, _) => onOpen(db),
+        onCreate: (db, _) async {
+          await beforeMigration?.call(db, passwordHex);
+          await onOpen(db);
+        },
         onUpgrade: (db, _, __) => onOpen(db),
       ),
     );
@@ -168,15 +174,19 @@ void main() {
         throwsA(anything),
       );
       expect(await db.getMessages('atomic'), isEmpty);
+      expect(await db.getKnownMessageIds('atomic'), isEmpty);
+      expect(await db.getPendingMessages('atomic'), isEmpty);
       expect(await db.loadSessionBlob('peer'), isNull);
       expect(await db.loadSessionBlob('outbox:pending'), isNull);
       await opener.opened!.execute('DROP TRIGGER reject_outbox');
       await db.commitOutgoingMessage(state, message, 'ciphertext');
       expect((await db.getMessages('atomic')).single.isSent, isFalse);
+      expect((await db.getPendingMessages('atomic')).single.id, 'pending');
       expect(await db.loadSessionBlob('peer'), isNotNull);
       expect(await db.loadSessionBlob('outbox:pending'), 'ciphertext');
       await db.commitMessageSent(message.copyWith(isSent: true));
       expect((await db.getMessages('atomic')).single.isSent, isTrue);
+      expect(await db.getPendingMessages('atomic'), isEmpty);
       expect(await db.loadSessionBlob('outbox:pending'), isNull);
       state.wipe();
     },
@@ -225,7 +235,7 @@ void main() {
       final runner = MigrationRunner(chhayaMigrations());
       await runner.migrateUp(db);
       expect(await runner.currentVersion(db), runner.latestVersion);
-      expect(runner.latestVersion, 5);
+      expect(runner.latestVersion, 6);
       await db.close();
     });
 
@@ -367,6 +377,145 @@ void main() {
       expect(await db.getMessages('c1'), isEmpty);
       expect((await db.getMessages('c2')).length, 1);
     });
+
+    test(
+      'sync index scopes lookup, retry, expiry and latest message',
+      () async {
+        final opener = FakeDatabaseOpener();
+        final db = await makeDb(opener);
+        addTearDown(db.close);
+        final pending = makeMessage('pending', 'chat').copyWith(isSent: false);
+        final newer = makeMessage(
+          'newer',
+          'chat',
+        ).copyWith(timestamp: DateTime.now(), isDelivered: true);
+        final expired = makeMessage(
+          'expired',
+          'chat',
+        ).copyWith(ttl: const Duration(seconds: 1), isSent: false);
+        await db.addMessage(pending);
+        await db.addMessage(newer);
+        await db.addMessage(expired);
+        await db.addMessage(makeMessage('elsewhere', 'other'));
+        await db.saveSessionBlob('outbox:expired', 'synthetic ciphertext');
+        expect(await db.getKnownMessageIds('chat'), {'pending', 'newer'});
+        expect(
+          await db.getKnownMessageIds(
+            'chat',
+            messageIds: ['newer', 'elsewhere', "' OR 1=1 --"],
+          ),
+          {'newer'},
+        );
+        expect(await db.getKnownMessageIds('chat', messageIds: []), isEmpty);
+        await expectLater(
+          db.getKnownMessageIds('chat', messageIds: List.filled(201, 'newer')),
+          throwsArgumentError,
+        );
+        expect((await db.getPendingMessages('chat')).map((m) => m.id), [
+          'pending',
+        ]);
+        expect((await db.getLatestMessage('chat'))?.id, 'newer');
+        expect(await db.getMessage('other', 'newer'), isNull);
+        expect(await db.loadSessionBlob('outbox:expired'), isNull);
+        await db.commitMessageSent(pending.copyWith(isSent: true));
+        expect(await db.getPendingMessages('chat'), isEmpty);
+        await db.deleteMessage('newer');
+        expect((await db.getLatestMessage('chat'))?.id, 'pending');
+        await db.deleteConversation('chat');
+        expect(await db.getKnownMessageIds('chat'), isEmpty);
+        expect(await db.getKnownMessageIds('other'), {'elsewhere'});
+      },
+    );
+
+    test(
+      'legacy index backfill preserves content, pending status and corrupt rows',
+      () async {
+        final pending = makeMessage('legacy', 'chat').copyWith(isSent: false);
+        final opener = FakeDatabaseOpener(
+          beforeMigration: (handle, password) async {
+            await MigrationRunner(chhayaMigrations()).migrateTo(handle, 5);
+            final key = Uint8List.fromList(
+              List.generate(
+                32,
+                (index) => int.parse(
+                  password.substring(index * 2, index * 2 + 2),
+                  radix: 16,
+                ),
+              ),
+            );
+            await handle.insert(DbTables.messages, {
+              DbCols.id: pending.id,
+              DbCols.conversationId: pending.conversationId,
+              DbCols.senderId: pending.senderId,
+              DbCols.sentAt: pending.timestamp.millisecondsSinceEpoch,
+              DbCols.encryptedContent: DatabaseKey.encryptField(
+                jsonEncode(pending.toJson()),
+                key,
+              ),
+            });
+            Csprng.wipe(key);
+            await handle.insert(DbTables.messages, {
+              DbCols.id: 'corrupt',
+              DbCols.conversationId: 'chat',
+              DbCols.senderId: 'peer',
+              DbCols.sentAt: 1,
+              DbCols.encryptedContent: 'unreadable preserved ciphertext',
+            });
+          },
+        );
+        final db = await makeDb(opener);
+        addTearDown(db.close);
+        expect(await db.getKnownMessageIds('chat'), {'legacy'});
+        expect(
+          (await db.getPendingMessages('chat')).single.content,
+          pending.content,
+        );
+        expect((await db.getLatestMessage('chat'))?.id, 'legacy');
+        final corrupt = await DbQueries.find(
+          opener.opened!,
+          DbTables.messages,
+          equals: {DbCols.id: 'corrupt'},
+        );
+        expect(
+          corrupt.single[DbCols.encryptedContent],
+          'unreadable preserved ciphertext',
+        );
+        await MigrationRunner(chhayaMigrations()).migrateTo(opener.opened!, 5);
+        expect(
+          (await DbQueries.find(opener.opened!, DbTables.messages)).length,
+          2,
+        );
+      },
+    );
+
+    test(
+      'unreadable newest message does not loop or erase its ciphertext',
+      () async {
+        final opener = FakeDatabaseOpener();
+        final db = await makeDb(opener);
+        addTearDown(db.close);
+        await db.addMessage(makeMessage('older', 'chat'));
+        await db.addMessage(
+          makeMessage('newest', 'chat').copyWith(timestamp: DateTime.now()),
+        );
+        await opener.opened!.update(
+          DbTables.messages,
+          {DbCols.encryptedContent: 'preserved unreadable ciphertext'},
+          where: 'id = ?',
+          whereArgs: ['newest'],
+        );
+        expect((await db.getLatestMessage('chat'))?.id, 'older');
+        expect(await db.getKnownMessageIds('chat'), {'older'});
+        expect(
+          (await DbQueries.find(
+            opener.opened!,
+            DbTables.messages,
+            equals: {DbCols.id: 'newest'},
+          )).single[DbCols.encryptedContent],
+          'preserved unreadable ciphertext',
+        );
+      },
+    );
 
     test(
       'expired messages are purged from history, search, and retry outbox',

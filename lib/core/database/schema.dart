@@ -26,6 +26,9 @@ class DbTables {
   /// Messages with encrypted content envelope.
   static const String messages = 'messages';
 
+  /// Content-free synchronization metadata, protected by SQLCipher.
+  static const String messageIndex = 'message_sync_index';
+
   /// Linked devices (FCM tokens always encrypted).
   static const String devices = 'devices';
 

@@ -95,10 +95,9 @@ class MessagingService {
       throw StateError('Unblock this contact before sending messages');
     }
     final globalTtl = database.getGlobalDisappearingDuration();
-    final effectiveTtl =
-        disableTtl
-            ? null
-            : ttl ?? (globalTtl > 0 ? Duration(seconds: globalTtl) : null);
+    final effectiveTtl = disableTtl
+        ? null
+        : ttl ?? (globalTtl > 0 ? Duration(seconds: globalTtl) : null);
     final message = Message(
       id: const Uuid().v4(),
       conversationId: conversation.id,
@@ -117,9 +116,8 @@ class MessagingService {
       message.id,
       api.userId!,
       MessagePayload.encode(message),
-      commit:
-          (state, envelope) =>
-              database.commitOutgoingMessage(state, message, envelope),
+      commit: (state, envelope) =>
+          database.commitOutgoingMessage(state, message, envelope),
     );
     try {
       return await _deliver(message, envelope);
@@ -166,15 +164,14 @@ class MessagingService {
       content: text,
       timestamp: DateTime.now(),
       isSent: false,
-      ttl:
-          disableTtl
-              ? null
-              : ttl ??
-                  (database.getGlobalDisappearingDuration() > 0
-                      ? Duration(
+      ttl: disableTtl
+          ? null
+          : ttl ??
+                (database.getGlobalDisappearingDuration() > 0
+                    ? Duration(
                         seconds: database.getGlobalDisappearingDuration(),
                       )
-                      : null),
+                    : null),
       replyToId: replyToId,
       attachment: attachment,
       type: type,
@@ -258,10 +255,9 @@ class MessagingService {
 
   Future<void> retryPending(String conversationId) => _serial(() async {
     if (!api.isAuthenticated) return;
-    final conversation =
-        (await database.getAllConversations())
-            .where((c) => c.id == conversationId)
-            .firstOrNull;
+    final conversation = (await database.getAllConversations())
+        .where((c) => c.id == conversationId)
+        .firstOrNull;
     if (conversation == null ||
         (!conversation.isGroup && conversation.participants.length != 1)) {
       return;
@@ -279,7 +275,7 @@ class MessagingService {
         }
       }
       ApiException? staleMembership;
-      for (final message in await database.getMessages(conversationId)) {
+      for (final message in await database.getPendingMessages(conversationId)) {
         if (message.senderId != 'me' || message.isSent || message.isExpired) {
           continue;
         }
@@ -309,7 +305,7 @@ class MessagingService {
         database.getBlockedContacts().contains(peer.id)) {
       return;
     }
-    for (final message in await database.getMessages(conversationId)) {
+    for (final message in await database.getPendingMessages(conversationId)) {
       if (message.senderId != 'me' || message.isSent || message.isExpired) {
         continue;
       }
@@ -343,24 +339,23 @@ class MessagingService {
       final peers = <Contact>[];
       for (final peer in conversation.participants) {
         if (peer.id == api.userId) continue;
-        final old =
-            contacts
-                .where((c) => c.id == peer.id && c.chhayaId == peer.chhayaId)
-                .firstOrNull;
+        final old = contacts
+            .where((c) => c.id == peer.id && c.chhayaId == peer.chhayaId)
+            .firstOrNull;
         final contact = old ?? peer;
         await database.addContact(contact);
         peers.add(contact);
       }
-      final previous =
-          existing.where((c) => c.id == conversation.id).firstOrNull;
+      final previous = existing
+          .where((c) => c.id == conversation.id)
+          .firstOrNull;
       var updated = conversation.copyWith(
         participants: peers,
         isMuted: previous?.isMuted,
         isPinned: previous?.isPinned,
       );
       await database.addConversation(updated);
-      final local = await database.getMessages(conversation.id);
-      final known = local.map((m) => m.id).toSet();
+      final known = <String>{};
       if (conversation.isGroup &&
           peers.isNotEmpty &&
           peers.every((peer) => peer.isVerified)) {
@@ -372,6 +367,12 @@ class MessagingService {
             limit: 200,
             beforeId: beforeId,
           );
+          known.addAll(
+            await database.getKnownMessageIds(
+              conversation.id,
+              messageIds: batch.map((message) => message.id).toList(),
+            ),
+          );
           batches.insertAll(0, batch);
           if (batch.length < 200 || batch.any((m) => known.contains(m.id))) {
             break;
@@ -381,8 +382,13 @@ class MessagingService {
         final codec = await _codec();
         for (final message in batches) {
           if (message.senderId == api.userId) {
-            final saved = local.where((m) => m.id == message.id).firstOrNull;
-            if (saved != null) {
+            final saved = await database.getMessage(
+              conversation.id,
+              message.id,
+            );
+            if (saved != null &&
+                (saved.isRead != message.isRead ||
+                    saved.isDelivered != message.isDelivered)) {
               await database.addMessage(
                 saved.copyWith(
                   isRead: message.isRead,
@@ -481,6 +487,12 @@ class MessagingService {
             limit: 200,
             beforeId: beforeId,
           );
+          known.addAll(
+            await database.getKnownMessageIds(
+              conversation.id,
+              messageIds: batch.map((message) => message.id).toList(),
+            ),
+          );
           batches.insertAll(0, batch);
           if (batch.length < 200 || batch.any((m) => known.contains(m.id))) {
             break;
@@ -490,8 +502,13 @@ class MessagingService {
         final codec = await _codec();
         for (final message in batches) {
           if (message.senderId == api.userId) {
-            final saved = local.where((m) => m.id == message.id).firstOrNull;
-            if (saved != null) {
+            final saved = await database.getMessage(
+              conversation.id,
+              message.id,
+            );
+            if (saved != null &&
+                (saved.isRead != message.isRead ||
+                    saved.isDelivered != message.isDelivered)) {
               await database.addMessage(
                 saved.copyWith(
                   isRead: message.isRead,
@@ -521,12 +538,9 @@ class MessagingService {
           }
         }
       }
-      final messages =
-          (await database.getMessages(
-            conversation.id,
-          )).where((m) => !m.isExpired).toList();
-      if (messages.isNotEmpty) {
-        updated = updated.copyWith(lastMessage: messages.last);
+      final latest = await database.getLatestMessage(conversation.id);
+      if (latest != null) {
+        updated = updated.copyWith(lastMessage: latest);
       }
       await database.addConversation(updated);
       result.add(updated);

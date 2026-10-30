@@ -35,6 +35,7 @@ import 'migrations/v002_messages.dart' show MigrationV002Messages;
 import 'migrations/v003_devices.dart' show MigrationV003Devices;
 import 'migrations/v004_circuits.dart' show MigrationV004Circuits;
 import 'migrations/v005_payloads.dart' show MigrationV005Payloads;
+import 'migrations/v006_message_index.dart' show MigrationV006MessageIndex;
 import 'queries.dart';
 import 'schema.dart';
 
@@ -129,7 +130,7 @@ const List<String> kHardeningPragmas = [
   'PRAGMA journal_mode = DELETE',
 ];
 
-/// Production migration chain: v001 → v005 in order. Single place that
+/// Production migration chain: v001 → v006 in order. Single place that
 /// defines the full history; LocalDatabase and tests share it.
 List<Migration> chhayaMigrations() => [
   MigrationV001Initial(),
@@ -137,6 +138,7 @@ List<Migration> chhayaMigrations() => [
   MigrationV003Devices(),
   MigrationV004Circuits(),
   MigrationV005Payloads(),
+  MigrationV006MessageIndex(),
 ];
 
 class LocalDatabase {
@@ -165,7 +167,9 @@ class LocalDatabase {
     FlutterSecureStorage? secureStorage,
     String? dbPath,
   }) : _keyManager = keyManager ?? KeyManager(),
-       _opener = opener ?? (Platform.isWindows ? WindowsSqlCipherOpener() : SqlCipherOpener()),
+       _opener =
+           opener ??
+           (Platform.isWindows ? WindowsSqlCipherOpener() : SqlCipherOpener()),
        _dbPathOverride = dbPath,
        _secure = secureStorage ?? const FlutterSecureStorage();
 
@@ -241,6 +245,7 @@ class LocalDatabase {
         onOpen: (db) => runner.migrateTo(db, runner.latestVersion),
       );
       _dbKey = await DatabaseKey.derive(_keyManager, userId: _ownerId);
+      await _backfillMessageIndex();
       _initialized = true;
       await preloadSettings();
       return true;
@@ -304,6 +309,62 @@ class LocalDatabase {
   String? _dec(String? envelope) => DatabaseKey.decryptField(envelope, _dbKey!);
 
   // ---- Messages
+  Map<String, Object?> _messageIndexRow(Message message) => {
+    DbCols.id: message.id,
+    DbCols.conversationId: message.conversationId,
+    DbCols.sentAt: message.timestamp.millisecondsSinceEpoch,
+    'expires_at': message.ttl == null
+        ? null
+        : message.timestamp.add(message.ttl!).millisecondsSinceEpoch,
+    'is_sent': message.isSent ? 1 : 0,
+    'valid': 1,
+  };
+
+  Future<void> _backfillMessageIndex() async {
+    while (true) {
+      final rows = await DbQueries.messagesMissingIndex(_db!);
+      if (rows.isEmpty) return;
+      await _db!.transaction((transaction) async {
+        for (final row in rows) {
+          Map<String, Object?> index;
+          try {
+            final json = _dec(row[DbCols.encryptedContent] as String?);
+            if (json == null) throw const FormatException('Unreadable message');
+            final message = Message.fromJson(
+              jsonDecode(json) as Map<String, dynamic>,
+            );
+            if (message.id != row[DbCols.id] ||
+                message.conversationId != row[DbCols.conversationId]) {
+              throw const FormatException('Message index mismatch');
+            }
+            index = _messageIndexRow(message);
+          } catch (_) {
+            // Preserve unreadable legacy ciphertext for recovery; do not treat
+            // it as a successfully received message or retry it.
+            index = {
+              DbCols.id: row[DbCols.id],
+              DbCols.conversationId: row[DbCols.conversationId],
+              DbCols.sentAt: row[DbCols.sentAt],
+              'expires_at': null,
+              'is_sent': 1,
+              'valid': 0,
+            };
+          }
+          await DbQueries.upsert(transaction, DbTables.messageIndex, index);
+        }
+      });
+    }
+  }
+
+  Future<void> _writeMessage(DatabaseExecutor db, Message message) async {
+    await DbQueries.upsert(db, DbTables.messages, _messageRow(message));
+    await DbQueries.upsert(
+      db,
+      DbTables.messageIndex,
+      _messageIndexRow(message),
+    );
+  }
+
   Map<String, Object?> _messageRow(Message message) => {
     DbCols.id: message.id,
     DbCols.conversationId: message.conversationId,
@@ -314,15 +375,19 @@ class LocalDatabase {
     DbCols.mediaMetaEnc: null,
     DbCols.replyToId: message.replyToId,
     DbCols.sentAt: message.timestamp.millisecondsSinceEpoch,
-    DbCols.deliveredAt:
-        message.isDelivered ? message.timestamp.millisecondsSinceEpoch : null,
-    DbCols.readAt:
-        message.isRead ? message.timestamp.millisecondsSinceEpoch : null,
+    DbCols.deliveredAt: message.isDelivered
+        ? message.timestamp.millisecondsSinceEpoch
+        : null,
+    DbCols.readAt: message.isRead
+        ? message.timestamp.millisecondsSinceEpoch
+        : null,
   };
 
   Future<void> addMessage(Message message) async {
     _ensureInitialized();
-    await DbQueries.upsert(_db!, DbTables.messages, _messageRow(message));
+    await _db!.transaction(
+      (transaction) => _writeMessage(transaction, message),
+    );
   }
 
   /// Ratchet advancement and the plaintext's encrypted database row commit
@@ -333,11 +398,7 @@ class LocalDatabase {
   ) async {
     _ensureInitialized();
     await _db!.transaction((transaction) async {
-      await DbQueries.upsert(
-        transaction,
-        DbTables.messages,
-        _messageRow(message),
-      );
+      await _writeMessage(transaction, message);
       await DbQueries.upsert(transaction, DbTables.kv, {
         DbCols.key: '$_sessionKeyPrefix${state.peerId}',
         DbCols.value: _enc(jsonEncode(state.toJson())),
@@ -354,11 +415,7 @@ class LocalDatabase {
   ) async {
     _ensureInitialized();
     await _db!.transaction((transaction) async {
-      await DbQueries.upsert(
-        transaction,
-        DbTables.messages,
-        _messageRow(message),
-      );
+      await _writeMessage(transaction, message);
       await DbQueries.upsert(transaction, DbTables.kv, {
         DbCols.key: '$_sessionKeyPrefix${state.peerId}',
         DbCols.value: _enc(jsonEncode(state.toJson())),
@@ -380,11 +437,7 @@ class LocalDatabase {
     _ensureInitialized();
     if (states.isEmpty) throw ArgumentError('A group message needs recipients');
     await _db!.transaction((transaction) async {
-      await DbQueries.upsert(
-        transaction,
-        DbTables.messages,
-        _messageRow(message),
-      );
+      await _writeMessage(transaction, message);
       for (final state in states) {
         await DbQueries.upsert(transaction, DbTables.kv, {
           DbCols.key: '$_sessionKeyPrefix${state.peerId}',
@@ -401,15 +454,115 @@ class LocalDatabase {
   Future<void> commitMessageSent(Message message) async {
     _ensureInitialized();
     await _db!.transaction((transaction) async {
-      await DbQueries.upsert(
-        transaction,
-        DbTables.messages,
-        _messageRow(message),
-      );
+      await _writeMessage(transaction, message);
       await DbQueries.deleteWhere(transaction, DbTables.kv, {
         DbCols.key: '${_sessionKeyPrefix}outbox:${message.id}',
       });
     });
+  }
+
+  Future<void> _purgeExpiredIndexedMessages(String conversationId) async {
+    final rows = await DbQueries.expiredMessageIds(
+      _db!,
+      conversationId,
+      DateTime.now().millisecondsSinceEpoch,
+    );
+    await _purgeMessages(rows.map((row) => row[DbCols.id] as String).toList());
+  }
+
+  Future<Set<String>> getKnownMessageIds(
+    String conversationId, {
+    List<String>? messageIds,
+  }) async {
+    _ensureInitialized();
+    await _purgeExpiredIndexedMessages(conversationId);
+    final rows = messageIds != null
+        ? await DbQueries.knownMessageIds(_db!, conversationId, messageIds)
+        : await DbQueries.find(
+            _db!,
+            DbTables.messageIndex,
+            equals: {DbCols.conversationId: conversationId, 'valid': 1},
+            columns: [DbCols.id],
+          );
+    return rows.map((row) => row[DbCols.id] as String).toSet();
+  }
+
+  Future<Message?> getMessage(String conversationId, String messageId) async {
+    _ensureInitialized();
+    final rows = await DbQueries.find(
+      _db!,
+      DbTables.messages,
+      equals: {DbCols.conversationId: conversationId, DbCols.id: messageId},
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    Message? message;
+    try {
+      final json = _dec(rows.single[DbCols.encryptedContent] as String?);
+      if (json != null) {
+        message = Message.fromJson(jsonDecode(json) as Map<String, dynamic>);
+      }
+      if (message?.id != messageId ||
+          message?.conversationId != conversationId) {
+        message = null;
+      }
+    } catch (_) {
+      message = null;
+    }
+    if (message == null) {
+      await DbQueries.invalidateMessageIndex(_db!, messageId);
+      return null;
+    }
+    if (message.isExpired) {
+      await _purgeMessages([messageId]);
+      return null;
+    }
+    return message;
+  }
+
+  Future<Message?> getLatestMessage(String conversationId) async {
+    _ensureInitialized();
+    await _purgeExpiredIndexedMessages(conversationId);
+    while (true) {
+      final rows = await DbQueries.find(
+        _db!,
+        DbTables.messageIndex,
+        equals: {DbCols.conversationId: conversationId, 'valid': 1},
+        columns: [DbCols.id],
+        orderBy: const [
+          DbOrder(DbCols.sentAt, descending: true),
+          DbOrder(DbCols.id, descending: true),
+        ],
+        limit: 1,
+      );
+      if (rows.isEmpty) return null;
+      final id = rows.single[DbCols.id] as String;
+      final message = await getMessage(conversationId, id);
+      if (message != null) return message;
+      // An orphaned index must not trap sync in this loop.
+      await DbQueries.invalidateMessageIndex(_db!, id);
+    }
+  }
+
+  Future<List<Message>> getPendingMessages(String conversationId) async {
+    _ensureInitialized();
+    await _purgeExpiredIndexedMessages(conversationId);
+    final rows = await DbQueries.find(
+      _db!,
+      DbTables.messageIndex,
+      equals: {DbCols.conversationId: conversationId, 'valid': 1, 'is_sent': 0},
+      columns: [DbCols.id],
+      orderBy: const [DbOrder(DbCols.sentAt), DbOrder(DbCols.id)],
+    );
+    final pending = <Message>[];
+    for (final row in rows) {
+      final message = await getMessage(
+        conversationId,
+        row[DbCols.id] as String,
+      );
+      if (message != null && !message.isSent) pending.add(message);
+    }
+    return pending;
   }
 
   Future<List<Message>> getMessages(String conversationId) async {
@@ -449,6 +602,9 @@ class LocalDatabase {
     await _db!.transaction((transaction) async {
       for (final id in messageIds) {
         await DbQueries.deleteWhere(transaction, DbTables.messages, {
+          DbCols.id: id,
+        });
+        await DbQueries.deleteWhere(transaction, DbTables.messageIndex, {
           DbCols.id: id,
         });
         await DbQueries.deleteWhere(transaction, DbTables.kv, {
@@ -523,8 +679,9 @@ class LocalDatabase {
       DbCols.userId: _ownerId,
       DbCols.contactId: contact.id,
       DbCols.displayNameEnc: _enc(contact.displayName),
-      DbCols.avatarEnc:
-          contact.avatarUrl == null ? null : _enc(contact.avatarUrl!),
+      DbCols.avatarEnc: contact.avatarUrl == null
+          ? null
+          : _enc(contact.avatarUrl!),
       DbCols.verificationLevel: contact.verificationLevel,
       DbCols.isBlocked: contact.isBlocked ? 1 : 0,
       DbCols.addedAt:
@@ -690,6 +847,9 @@ class LocalDatabase {
     await DbQueries.deleteWhere(_db!, DbTables.messages, {
       DbCols.conversationId: id,
     });
+    await DbQueries.deleteWhere(_db!, DbTables.messageIndex, {
+      DbCols.conversationId: id,
+    });
     await DbQueries.deleteWhere(_db!, DbTables.participants, {
       DbCols.conversationId: id,
     });
@@ -761,6 +921,7 @@ class LocalDatabase {
     _ensureInitialized();
     await _db!.transaction((transaction) async {
       for (final table in [
+        DbTables.messageIndex,
         DbTables.messages,
         DbTables.participants,
         DbTables.conversations,
@@ -802,8 +963,9 @@ class LocalDatabase {
           DbCols.userId: _ownerId,
           DbCols.contactId: contact.id,
           DbCols.displayNameEnc: _enc(contact.displayName),
-          DbCols.avatarEnc:
-              contact.avatarUrl == null ? null : _enc(contact.avatarUrl!),
+          DbCols.avatarEnc: contact.avatarUrl == null
+              ? null
+              : _enc(contact.avatarUrl!),
           DbCols.verificationLevel: contact.verificationLevel,
           DbCols.isBlocked: contact.isBlocked ? 1 : 0,
           DbCols.addedAt:
@@ -821,10 +983,9 @@ class LocalDatabase {
         await DbQueries.upsert(transaction, DbTables.conversations, {
           DbCols.id: conversation.id,
           DbCols.type: conversation.isGroup ? 'group' : 'direct',
-          DbCols.nameEnc:
-              conversation.groupName == null
-                  ? null
-                  : _enc(conversation.groupName!),
+          DbCols.nameEnc: conversation.groupName == null
+              ? null
+              : _enc(conversation.groupName!),
           DbCols.avatarBlob: null,
           DbCols.createdBy: _ownerId,
           DbCols.createdAt: conversation.createdAt.millisecondsSinceEpoch,
@@ -844,11 +1005,7 @@ class LocalDatabase {
       }
 
       for (final message in messages) {
-        await DbQueries.upsert(
-          transaction,
-          DbTables.messages,
-          _messageRow(message),
-        );
+        await _writeMessage(transaction, message);
       }
     });
     _deviceCache = null;
@@ -1086,8 +1243,9 @@ class LocalDatabase {
       DbCols.userId: _ownerId,
       DbCols.deviceName: d['name'] as String? ?? 'Device',
       DbCols.platform: d['platform'] as String? ?? 'unknown',
-      DbCols.fcmTokenEncrypted:
-          d['fcmToken'] == null ? null : _enc(d['fcmToken'] as String),
+      DbCols.fcmTokenEncrypted: d['fcmToken'] == null
+          ? null
+          : _enc(d['fcmToken'] as String),
       DbCols.publicKey: d['publicKey'] as String? ?? '',
       DbCols.isLinked: 1,
       DbCols.lastActiveAt: DateTime.now().millisecondsSinceEpoch,
@@ -1170,6 +1328,7 @@ class LocalDatabase {
   Future<void> clearAll() async {
     _ensureInitialized();
     for (final table in [
+      DbTables.messageIndex,
       DbTables.messages,
       DbTables.contacts,
       DbTables.conversations,

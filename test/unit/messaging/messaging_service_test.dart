@@ -23,6 +23,7 @@ class OutboxDatabase extends LocalDatabase {
   late Contact peer;
   bool blocked = false;
   int globalTtlSeconds = 0;
+  int historyReads = 0;
   final messages = <String, Message>{};
   final blobs = <String, String>{};
   @override
@@ -36,8 +37,14 @@ class OutboxDatabase extends LocalDatabase {
   @override
   List<String> getBlockedContacts() => blocked ? [peer.id] : [];
   @override
-  Future<List<Message>> getMessages(String id) async =>
-      messages.values.toList();
+  Future<List<Message>> getMessages(String id) async {
+    historyReads++;
+    return messages.values.toList();
+  }
+
+  @override
+  Future<List<Message>> getPendingMessages(String id) async =>
+      messages.values.where((message) => !message.isSent).toList();
   @override
   Future<String?> loadSessionBlob(String id) async => blobs[id];
   @override
@@ -72,9 +79,29 @@ class GroupHistoryDatabase extends LocalDatabase {
   Future<List<Conversation>> getAllConversations() async => [conversation];
   @override
   Future<List<Message>> getMessages(String conversationId) async =>
-      messages.values
-          .where((message) => message.conversationId == conversationId)
-          .toList();
+      throw StateError('Sync must not load the entire message history');
+  @override
+  Future<Set<String>> getKnownMessageIds(
+    String conversationId, {
+    List<String>? messageIds,
+  }) async => messages.values
+      .where(
+        (message) =>
+            message.conversationId == conversationId &&
+            (messageIds == null || messageIds.contains(message.id)),
+      )
+      .map((message) => message.id)
+      .toSet();
+  @override
+  Future<Message?> getMessage(String conversationId, String messageId) async =>
+      messages[messageId]?.conversationId == conversationId
+      ? messages[messageId]
+      : null;
+  @override
+  Future<Message?> getLatestMessage(String conversationId) async => messages
+      .values
+      .where((message) => message.conversationId == conversationId)
+      .lastOrNull;
   @override
   Future<void> addContact(Contact contact) async {
     contacts[contact.id] = contact;
@@ -188,6 +215,11 @@ void main() {
       db.blocked = false;
       await service.retryPending(db.conversation.id);
       expect(requests.length, 2);
+      expect(
+        db.historyReads,
+        0,
+        reason: 'Text retries must not decrypt historical messages',
+      );
       expect(requests.last['content'], originalWire);
       expect(requests.last['messageId'], pending.id);
       expect(db.messages.values.single.isSent, true);
@@ -332,15 +364,14 @@ void main() {
         }),
         timestamp: now,
       );
-      final db =
-          GroupHistoryDatabase()
-            ..profile = UserProfile(
-              chhayaId: ChhayaId.fromPublicKey('05${self.publicKeyHex}'),
-              displayName: 'Self',
-              recoveryPhrase: const [],
-              createdAt: now,
-            )
-            ..conversation = conversation;
+      final db = GroupHistoryDatabase()
+        ..profile = UserProfile(
+          chhayaId: ChhayaId.fromPublicKey('05${self.publicKeyHex}'),
+          displayName: 'Self',
+          recoveryPhrase: const [],
+          createdAt: now,
+        )
+        ..conversation = conversation;
       final api = GroupHistoryApi(conversation, [remoteMessage]);
 
       await MessagingService(api: api, database: db, keys: keys).sync();
@@ -364,6 +395,61 @@ void main() {
         keys: keys,
       ).sync();
       expect(db.messages[messageId]?.content, contains('unavailable'));
+    },
+  );
+
+  test(
+    'receipt sync preserves message content without loading history',
+    () async {
+      final self = await ChhayaCryptoEngine.generateKeyPair();
+      final peerKeys = await ChhayaCryptoEngine.generateKeyPair();
+      final keys = KeyManager(secureBackend: SecureStorageMock());
+      await keys.storeKeyPair(self);
+      final peer = Contact(
+        id: 'peer',
+        chhayaId: ChhayaId.fromPublicKey('05${peerKeys.publicKeyHex}'),
+        displayName: 'Peer',
+        isVerified: true,
+      );
+      final conversation = Conversation(
+        id: 'chat',
+        participants: [peer],
+        createdAt: DateTime.now(),
+      );
+      final db = GroupHistoryDatabase()
+        ..profile = UserProfile(
+          chhayaId: ChhayaId.fromPublicKey('05${self.publicKeyHex}'),
+          displayName: 'Self',
+          recoveryPhrase: const [],
+          createdAt: DateTime.now(),
+        )
+        ..conversation = conversation;
+      final local = Message(
+        id: 'own-message',
+        conversationId: 'chat',
+        senderId: 'me',
+        content: 'preserve plaintext',
+        timestamp: DateTime.now(),
+        replyToId: 'original',
+      );
+      db.messages[local.id] = local;
+      final api = GroupHistoryApi(conversation, [
+        local.copyWith(
+          senderId: 'self',
+          content: 'encrypted wire envelope',
+          isRead: true,
+          isDelivered: true,
+        ),
+      ]);
+      final service = MessagingService(api: api, database: db, keys: keys);
+      await service.sync();
+      await service.sync();
+      final saved = db.messages[local.id]!;
+      expect(saved.isRead, isTrue);
+      expect(saved.isDelivered, isTrue);
+      expect(saved.content, local.content);
+      expect(saved.replyToId, local.replyToId);
+      expect(db.conversation.lastMessage?.id, local.id);
     },
   );
 
