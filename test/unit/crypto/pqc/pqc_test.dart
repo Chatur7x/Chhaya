@@ -164,7 +164,8 @@ void main() {
     test('PQXDH consented fallback establishes honestly-flagged secret',
         () async {
       final remote = (await X25519Kex.generateKeyPair()).publicKey;
-      final (secret: secret, ourPublicKey: ours) = await Pqxdh.establish(
+      final (secret: secret, ourPublicKey: ours, encapsulationCiphertext: ct) =
+          await Pqxdh.establish(
         remotePublicKey: remote,
         context: Uint8List.fromList([1]),
         allowClassicalFallback: true,
@@ -174,6 +175,7 @@ void main() {
       expect(secret.pqUsed, isFalse);
       expect(secret.consentedFallback, isTrue);
       expect(ours.length, 32);
+      expect(ct, isNull, reason: 'no KEM ran on the consented classical path');
     });
   });
 }

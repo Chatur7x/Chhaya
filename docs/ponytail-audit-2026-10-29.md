@@ -174,6 +174,25 @@ Own-profile editing previously saved the display name only in the local profile.
 
 After deployment, an unauthenticated request to the Render profile endpoint returned 401, showing that the endpoint is present and authentication is required; it did not test a live account edit. The debug verification APK containing this UI was installed with `adb install -r` and launched on the Pixel without clearing data. The profile edit was not performed on the user's account.
 
+## Hybrid PQXDH client helpers (WS2) — 8 November 2026
+
+Implemented the Dart-side client protocol helpers from `docs/spec-pq-hybrid-resync-v1.md` §5 WS2 (§3.0–§3.6), behind no feature flag yet — nothing is wired into the codec or messaging paths. Verified on this Windows dev machine; the native AWS-LC path was NOT verified (test skips with reason).
+
+- `lib/core/crypto/pqc/transcript.dart` (new): canonical LP transcript encoder `T` (spec §3.3, both peers compute identical bytes), `SHA256(T)` salt, `SK = HKDF-SHA256(0xFF*32 ‖ DH1‖DH2‖DH3[‖DH4]‖SS, salt=SHA256(T), info="Chhaya-PQXDH-v1"‖suite_string)`, and the domain-separated consented-classical fallback `"Chhaya-Classical-Fallback-v1"` (spec §3.4). `buildEstablishmentTranscript` binds the fixed v2 constants; it is the only T assembly in `lib/` (enforced by the static gate).
+- `lib/core/crypto/pqc/negotiation.dart` (new): suite registry (`chhaya-pqxdh-v1`, `chhaya-classical-consent-v1`), highest-common selection (spec §3.5 rule 2), full offer-echo verification (rule 3), state machine with terminal abort, AEAD-failure hard abort with SK wipe, classical selection refused unless PQ is unavailable AND consent is explicit, downgrade-retry assertion. Client protocol range is exactly v2.
+- `lib/core/crypto/pqc/prekey_bundle.dart` (new): fail-closed parser/verifier for WS1's bundle JSON (`GET /prekeys/:userId/bundle`): structure (missing/extra/type-confused fields reject), `lastResortUsed` invariant, Ed25519 signature verification of every present signature (SPK, PQSPK, one-time prekeys, reseed KEM key), 7-day/30-day validity window enforcement, expired/not-yet-valid rejection. Signature preimages follow SD-1 (LP encoding, u64be ms epochs) and are review-pending.
+- `lib/services/api/prekey_bundle_client.dart` (new): the only new network path, invoked explicitly; no automatic retries; 404/409/503/401 and malformed bodies all throw, never guess.
+- `lib/core/crypto/pqc/pqxdh.dart` (modified): `Pqxdh.establish` no longer discards the ML-KEM encapsulation ciphertext (returns it, nullable on the consented classical path). New `establishHybridV2` / `acceptHybridV2` (initiator/responder) derive the identical SK from public material plus own keys; not referenced by production messaging (WS3 wires it).
+- `scripts/check_transcript_binding.py` (new): static gate implementing spec §6 criterion 14 (canonical-builder singularity, v2-path HKDF salt/info binding, boundary-string confinement, production-messaging PQ import denylist). Exits 0; not yet wired into CI (WS5, lead edit).
+
+Test counts (`flutter test`): 78 new tests — `transcript_test` 16 (golden T/salt/SK vectors, both-peers SK equivalence, ≥1000-mutation T-tamper property test), `negotiation_test` 20, `pqxdh_v2_test` 9 (round-trip SK agreement, AEAD-under-SK with `header‖T` AD, wrong-echo abort, one-attempt-only retry assertion), `prekey_bundle_test` 19, `prekey_bundle_client_test` 14. `flutter test test/unit/crypto/` 172 passed (~1 skip-with-reason). `flutter test test/unit/` 383 passed. `flutter analyze lib test` — No issues found. `python scripts/check_transcript_binding.py` — exit 0.
+
+What this does NOT establish: independent cryptographic review; any PQ claim; WS3 integration (v2 helpers are unused by the codec — no user-facing messaging path changed); native AWS-LC ML-KEM round trip on this host; AEAD on a live session; bundle signature byte-encoding until SD-1/SD-3 review passes; reseed/ratchet redesign. The external-review gate (spec §7) is unchanged and still blocks default-on and any claim. CSV and delivery-checklist statuses untouched.
+
+NOT verified: Android arm64/iOS native AWS-LC paths (Windows host has no provider); real server bundle fetch against a live backend; Windows consent dialog (WS6); the negotiation flight over the wire (WS3); CI wiring of the static gate.
+
+Verification commands (exact): `flutter analyze lib test` — No issues found; `flutter test test/unit/crypto/` — 172 passed (~1 skip-with-reason); `flutter test test/unit/crypto/pqc/` — 85 passed (~1 skip-with-reason), incl. 78 new; `flutter test test/unit/` — 383 passed; `python scripts/check_transcript_binding.py` — exit 0.
+
 ## Slice A: adversarial delivery retry, replay, rollback and restore coverage - 8 November 2026
 
 Tests added (all pass):
