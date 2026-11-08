@@ -76,6 +76,16 @@ final authServiceProvider = Provider<AuthService>((ref) {
 
 
 
+/// Fail-closed read of the biometric lock flag: an unreadable or corrupt
+/// settings blob must lock the app, never unlock it.
+bool safeBiometricLockEnabled(LocalDatabase db) {
+  try {
+    return db.getBiometricLockEnabled();
+  } catch (_) {
+    return true;
+  }
+}
+
 final currentUserProvider = StateProvider<UserProfile?>((ref) => null);
 final appUnlockedProvider = StateProvider<bool>((ref) => false);
 
@@ -85,7 +95,7 @@ final appUnlockedProvider = StateProvider<bool>((ref) => false);
 final appLockedProvider = Provider<bool>((ref) {
   if (ref.watch(currentUserProvider) == null) return false;
   if (ref.watch(appUnlockedProvider)) return false;
-  return ref.watch(localDatabaseProvider).getBiometricLockEnabled();
+  return safeBiometricLockEnabled(ref.watch(localDatabaseProvider));
 });
 
 final conversationsProvider =

@@ -70,7 +70,7 @@ class _AppLifecycleGuardState extends ConsumerState<AppLifecycleGuard>
     if (backgrounded &&
         ref.read(appUnlockedProvider) &&
         ref.read(currentUserProvider) != null &&
-        ref.read(localDatabaseProvider).getBiometricLockEnabled()) {
+        safeBiometricLockEnabled(ref.read(localDatabaseProvider))) {
       ref.read(appUnlockedProvider.notifier).state = false;
     }
     final shouldLock = backgrounded && ref.read(appLockedProvider);

@@ -37,6 +37,19 @@ class LockDatabase extends LocalDatabase {
   String? getPanicPin() => '9999';
 }
 
+class ThrowingLockDatabase extends LocalDatabase {
+  @override
+  bool getBiometricLockEnabled() =>
+      throw const FormatException('corrupt biometric_lock setting');
+  @override
+  Future<bool> isBiometricAvailable() async => false;
+  @override
+  Future<bool> authenticateWithBiometrics({String reason = 'Unlock Chhaya'}) =>
+      Future.value(false);
+  @override
+  String? getAppPin() => '1234';
+}
+
 class FakeLogout extends AuthService {
   int calls = 0;
   @override
@@ -65,14 +78,12 @@ class CountingMessagingService extends MessagingService {
 
   @override
   Future<List<Conversation>> sync() async {
-    debugPrint('SYNC-DEBUG sync called');
     syncCalls++;
     return [];
   }
 
   @override
   Future<void> retryAllPending() async {
-    debugPrint('SYNC-DEBUG retry called');
     retryCalls++;
   }
 }
@@ -223,6 +234,50 @@ void main() {
       expect(controller.text, 'preserved draft');
     });
   }
+
+  test('appLockedProvider fails closed when the lock getter throws', () {
+    final container = ProviderContainer(
+      overrides: [
+        localDatabaseProvider.overrideWithValue(ThrowingLockDatabase()),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.read(currentUserProvider.notifier).state = fixtureProfile();
+    container.read(appUnlockedProvider.notifier).state = false;
+    expect(container.read(appLockedProvider), isTrue);
+  });
+
+  testWidgets('backgrounding with an unreadable lock store still arms the cover', (
+    tester,
+  ) async {
+    foreground(tester);
+    final container = ProviderContainer(
+      overrides: [
+        localDatabaseProvider.overrideWithValue(ThrowingLockDatabase()),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.read(currentUserProvider.notifier).state = fixtureProfile();
+    container.read(appUnlockedProvider.notifier).state = true;
+    final navigator = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          navigatorKey: navigator,
+          builder: (_, child) =>
+              AppLifecycleGuard(navigatorKey: navigator, child: child!),
+          home: const Scaffold(body: Text('Protected fixture')),
+        ),
+      ),
+    );
+    background(tester);
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Protected fixture'), findsNothing);
+    expect(container.read(appUnlockedProvider), isFalse);
+    expect(container.read(appLockedProvider), isTrue);
+  });
 
   testWidgets('startup without a lock unlocks after the first frame', (
     tester,
