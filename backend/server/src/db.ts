@@ -207,6 +207,40 @@ const runMigrations = async (p: Pool): Promise<void> => {
      CREATE INDEX IF NOT EXISTS idx_onion_nodes_region ON onion_nodes(region, is_active);
      CREATE INDEX IF NOT EXISTS idx_circuits_user ON circuits(user_id, status);`,
 
+    // WS1 prekey infrastructure (docs/spec-pq-hybrid-resync-v1.md §4.1). Public material only.
+    // prekey_account carries the account-level public material the bundle contract needs
+    // (ed25519 identity key + reseedKemKey); the spec's two-table sketch had no home for them.
+    `CREATE TABLE IF NOT EXISTS prekey_signed (
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL CHECK (kind IN ('ec','pq')),
+      key_id UUID NOT NULL,
+      public_key TEXT NOT NULL,
+      signature TEXT NOT NULL,
+      not_before TIMESTAMPTZ NOT NULL,
+      not_after TIMESTAMPTZ NOT NULL,
+      is_last_resort BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (user_id, kind, key_id)
+    );
+     CREATE TABLE IF NOT EXISTS prekey_one_time (
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL CHECK (kind IN ('ec','pq')),
+      key_id UUID NOT NULL,
+      public_key TEXT NOT NULL,
+      signature TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (user_id, kind, key_id)
+    );
+     CREATE TABLE IF NOT EXISTS prekey_account (
+      user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      ed25519_public_key TEXT NOT NULL,
+      reseed_kem_public_key TEXT NOT NULL,
+      reseed_kem_signature TEXT NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+     CREATE INDEX IF NOT EXISTS idx_prekey_one_time_pop
+       ON prekey_one_time (user_id, kind, created_at);`,
+
 
   ];
 

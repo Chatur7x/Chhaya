@@ -8,6 +8,8 @@ import { broadcastToUser } from './signaling';
 import { issueIdentityChallenge, consumeIdentityChallenge } from './identity-proof';
 import { authenticateToken, issueSession, hashCredential, verifyCredential } from './session';
 import { getPendingCallInvites } from './call-invites';
+import { consumeIpRateLimit } from './rate-limit';
+import { config } from './config';
 
 const router = Router();
 const safe = (handler: (req: Request,res: Response,next: NextFunction)=>Promise<unknown>) =>
@@ -684,6 +686,350 @@ router.get('/onion/path', safe(async (req: Request, res: Response) => {
   }
 
   res.json(picked);
+}));
+
+// ---------------------------------------------------------------------------
+// WS1 prekey infrastructure (docs/spec-pq-hybrid-resync-v1.md §4).
+// Public material only; private keys are never accepted, stored or logged.
+// shortcut: server-side Ed25519 signature verification (spec §3.2 "SHOULD") is omitted —
+// the canonical LP encoding is review-pending (SD-1/SD-3), so a wrong implementation
+// would reject valid bundles. Verification stays client-side where the encoding is normative.
+// ---------------------------------------------------------------------------
+
+const EC_PUBLIC_KEY_HEX = 64;
+const PQ_PUBLIC_KEY_HEX = 3136; // ML-KEM-1024 public key
+const SIGNATURE_HEX = 128; // Ed25519
+const EC_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+const PQ_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_ONETIME_BATCH = 100; // keeps request well under the 1 MB JSON cap (PQ keys are ~1.6 KB hex)
+const hex = (length: number) => z.string().regex(new RegExp(`^[0-9a-f]{${length}}$`));
+const msEpoch = z.number().int().positive();
+
+const signedPreKeySchema = z.object({
+  keyId: z.string().uuid(),
+  publicKey: hex(EC_PUBLIC_KEY_HEX),
+  signature: hex(SIGNATURE_HEX),
+  notBefore: msEpoch,
+  notAfter: msEpoch,
+});
+const pqSignedPreKeySchema = signedPreKeySchema.extend({ publicKey: hex(PQ_PUBLIC_KEY_HEX) });
+const oneTimePreKeySchema = z.object({
+  keyId: z.string().uuid(),
+  publicKey: hex(EC_PUBLIC_KEY_HEX),
+  signature: hex(SIGNATURE_HEX),
+});
+const pqOneTimePreKeySchema = oneTimePreKeySchema.extend({ publicKey: hex(PQ_PUBLIC_KEY_HEX) });
+const reseedKemKeySchema = z.object({ publicKey: hex(PQ_PUBLIC_KEY_HEX), signature: hex(SIGNATURE_HEX) });
+
+const prekeyBundleSchema = z.object({
+  v: z.literal(1),
+  identity: z.object({
+    x25519: z.string().regex(/^05[0-9a-f]{64}$/),
+    ed25519: hex(EC_PUBLIC_KEY_HEX),
+  }),
+  signedPreKey: signedPreKeySchema,
+  pqSignedPreKey: pqSignedPreKeySchema,
+  oneTimePreKeys: z.array(oneTimePreKeySchema).max(MAX_ONETIME_BATCH).default([]),
+  pqOneTimePreKeys: z.array(pqOneTimePreKeySchema).max(MAX_ONETIME_BATCH).default([]),
+  reseedKemKey: reseedKemKeySchema,
+}).strict();
+
+const rotatePrekeysSchema = z.object({
+  signedPreKey: signedPreKeySchema.optional(),
+  pqSignedPreKey: pqSignedPreKeySchema.optional(),
+  reseedKemKey: reseedKemKeySchema.optional(),
+}).strict().refine((o) => o.signedPreKey || o.pqSignedPreKey || o.reseedKemKey, {
+  message: 'At least one rotation target is required',
+});
+
+// Exact (case-insensitive) forbidden field names — substring matching would false-positive
+// on the legitimate public field reseedKemKey.
+const FORBIDDEN_KEYS = new Set([
+  'privatekey', 'private_key', 'privkey', 'private', 'secret', 'secretkey', 'secret_key',
+  'seed', 'seedkey', 'seed_key', 'decapsulationkey', 'decapsulation_key', 'privatescalar',
+]);
+const findPrivateField = (value: unknown, path: string): string | null => {
+  if (!value || typeof value !== 'object') return null;
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (FORBIDDEN_KEYS.has(key.toLowerCase())) return `${path}.${key}`;
+    const found = findPrivateField(child, `${path}.${key}`);
+    if (found) return found;
+  }
+  return null;
+};
+
+const prekeyGate = (res: Response): boolean => {
+  if (!config.PREKEYS_ENABLED) {
+    res.status(503).json({ error: 'feature_disabled' });
+    return false;
+  }
+  return true;
+};
+
+const prekeyRateLimit = async (res: Response, identity: string, limit: number, windowSeconds: number): Promise<boolean> => {
+  const decision = await consumeIpRateLimit(identity, limit, windowSeconds);
+  if (decision.allowed) return true;
+  res.set('Retry-After', String(decision.retryAfterSeconds));
+  res.status(429).json({ error: 'Too many requests' });
+  return false;
+};
+
+const windowError = (name: string, key: { notBefore: number; notAfter: number }, maxWindowMs: number): string | null => {
+  if (key.notAfter <= key.notBefore) return `${name} window is empty`;
+  if (key.notAfter - key.notBefore > maxWindowMs) return `${name} window exceeds the allowed maximum`;
+  return null;
+};
+
+type SignedPreKeyInput = z.infer<typeof signedPreKeySchema>;
+type TxClient = { query: (sql: string, params?: any[]) => Promise<any> };
+const upsertSignedPreKey = async (
+  client: TxClient,
+  userId: string,
+  kind: 'ec' | 'pq',
+  key: SignedPreKeyInput,
+): Promise<void> => {
+  await client.query(
+    `INSERT INTO prekey_signed (user_id, kind, key_id, public_key, signature, not_before, not_after, is_last_resort)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     ON CONFLICT (user_id, kind, key_id) DO UPDATE SET
+       public_key = EXCLUDED.public_key,
+       signature = EXCLUDED.signature,
+       not_before = EXCLUDED.not_before,
+       not_after = EXCLUDED.not_after,
+       is_last_resort = EXCLUDED.is_last_resort,
+       created_at = NOW()`,
+    [userId, kind, key.keyId, key.publicKey, key.signature,
+     new Date(key.notBefore), new Date(key.notAfter), kind === 'pq'],
+  );
+};
+
+const currentSignedPreKey = async (
+  client: TxClient,
+  userId: string,
+  kind: 'ec' | 'pq',
+) => {
+  const result = await client.query(
+    `SELECT key_id, public_key, signature, not_before, not_after FROM prekey_signed
+     WHERE user_id = $1 AND kind = $2 AND not_before <= NOW() AND not_after > NOW()
+     ORDER BY not_before DESC, created_at DESC LIMIT 1`,
+    [userId, kind],
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  return {
+    keyId: row.key_id,
+    publicKey: row.public_key,
+    signature: row.signature,
+    notBefore: new Date(row.not_before).getTime(),
+    notAfter: new Date(row.not_after).getTime(),
+  };
+};
+
+// §4.3 normative pop: single statement, SKIP LOCKED; caller runs it inside withTransaction.
+const popOneTimePreKey = async (
+  client: TxClient,
+  userId: string,
+  kind: 'ec' | 'pq',
+) => {
+  const result = await client.query(
+    `WITH picked AS (
+       SELECT key_id FROM prekey_one_time
+       WHERE user_id = $1 AND kind = $2
+       ORDER BY created_at
+       LIMIT 1
+       FOR UPDATE SKIP LOCKED
+     )
+     DELETE FROM prekey_one_time po USING picked
+     WHERE po.key_id = picked.key_id AND po.user_id = $1 AND po.kind = $2
+     RETURNING po.key_id, po.public_key, po.signature`,
+    [userId, kind],
+  );
+  const row = result.rows[0];
+  return row ? { keyId: row.key_id, publicKey: row.public_key, signature: row.signature } : null;
+};
+
+// POST /api/v1/prekeys — upload bundle + one-time batches (§4.2). Idempotent:
+// signed prekeys rotate in place by key_id; one-time batches insert-or-skip by key_id.
+router.post('/prekeys', authMiddleware, safe(async (req: Request, res: Response) => {
+  if (!prekeyGate(res)) return;
+  const userId = (req as any).userId;
+  if (!(await prekeyRateLimit(res, `prekey:upload:${userId}`, 30, 3600))) return;
+  const privateField = findPrivateField(req.body, 'body');
+  if (privateField) return res.status(422).json({ error: 'private_material_rejected' });
+  const data = prekeyBundleSchema.parse(req.body);
+  const wErr = windowError('signedPreKey', data.signedPreKey, EC_WINDOW_MS)
+    ?? windowError('pqSignedPreKey', data.pqSignedPreKey, PQ_WINDOW_MS);
+  if (wErr) return res.status(400).json({ error: wErr });
+  // Bundles are bound to the uploader's identity; x25519 must match the account.
+  const caller = await query('SELECT public_key FROM users WHERE id = $1', [userId]);
+  if (!caller.rows.length || data.identity.x25519 !== `05${caller.rows[0].public_key}`) {
+    return res.status(400).json({ error: 'identity_mismatch' });
+  }
+
+  const inserted = await withTransaction(async (client) => {
+    await upsertSignedPreKey(client, userId, 'ec', data.signedPreKey);
+    await upsertSignedPreKey(client, userId, 'pq', data.pqSignedPreKey);
+    await client.query(
+      `INSERT INTO prekey_account (user_id, ed25519_public_key, reseed_kem_public_key, reseed_kem_signature)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (user_id) DO UPDATE SET
+         ed25519_public_key = EXCLUDED.ed25519_public_key,
+         reseed_kem_public_key = EXCLUDED.reseed_kem_public_key,
+         reseed_kem_signature = EXCLUDED.reseed_kem_signature,
+         updated_at = NOW()`,
+      [userId, data.identity.ed25519, data.reseedKemKey.publicKey, data.reseedKemKey.signature],
+    );
+    let ec = 0;
+    let pq = 0;
+    for (const key of data.oneTimePreKeys) {
+      const r = await client.query(
+        `INSERT INTO prekey_one_time (user_id, kind, key_id, public_key, signature)
+         VALUES ($1, 'ec', $2, $3, $4) ON CONFLICT DO NOTHING RETURNING key_id`,
+        [userId, key.keyId, key.publicKey, key.signature],
+      );
+      ec += r.rowCount ?? 0;
+    }
+    for (const key of data.pqOneTimePreKeys) {
+      const r = await client.query(
+        `INSERT INTO prekey_one_time (user_id, kind, key_id, public_key, signature)
+         VALUES ($1, 'pq', $2, $3, $4) ON CONFLICT DO NOTHING RETURNING key_id`,
+        [userId, key.keyId, key.publicKey, key.signature],
+      );
+      pq += r.rowCount ?? 0;
+    }
+    // §3.2: unconsumed one-time prekeys older than 30 days are purged (lazy, on upload).
+    await client.query("DELETE FROM prekey_one_time WHERE created_at < NOW() - INTERVAL '30 days'");
+    return { ec, pq };
+  });
+
+  res.status(200).json({
+    oneTimeInserted: { ec: inserted.ec, pq: inserted.pq },
+    signedPreKeyNotAfter: data.signedPreKey.notAfter,
+    pqSignedPreKeyNotAfter: data.pqSignedPreKey.notAfter,
+  });
+}));
+
+// GET /api/v1/prekeys/:userId/bundle — authenticated atomic pop (§4.3)
+router.get('/prekeys/:userId/bundle', authMiddleware, safe(async (req: Request, res: Response) => {
+  if (!prekeyGate(res)) return;
+  const callerId = (req as any).userId;
+  const targetId = req.params.userId;
+  if (!(await prekeyRateLimit(res, `prekey:bundle:ip:${req.ip ?? 'unknown'}`, 60, 60))) return;
+  if (!(await prekeyRateLimit(res, `prekey:bundle:target:${targetId}`, 120, 3600))) return;
+  // Same body for unknown and empty targets: no existence oracle beyond what's required.
+  if (!z.string().uuid().safeParse(targetId).success) {
+    return res.status(404).json({ error: 'prekey_bundle_unavailable' });
+  }
+
+  const result = await withTransaction(async (client) => {
+    const user = await client.query('SELECT public_key FROM users WHERE id = $1', [targetId]);
+    if (!user.rows.length) return { status: 404 as const };
+    const account = await client.query(
+      'SELECT ed25519_public_key, reseed_kem_public_key, reseed_kem_signature FROM prekey_account WHERE user_id = $1',
+      [targetId],
+    );
+    const ec = await currentSignedPreKey(client, targetId, 'ec');
+    const pq = await currentSignedPreKey(client, targetId, 'pq');
+    // A registered user without an uploaded bundle, or with only stale signed keys,
+    // is indistinguishable from an absent target to the caller.
+    if (!account.rows.length) return { status: 404 as const };
+    if (!ec) return { status: 409 as const, error: 'signed_prekey_expired' };
+    if (!pq) return { status: 409 as const, error: 'pq_last_resort_expired' };
+    const pqOneTime = await popOneTimePreKey(client, targetId, 'pq');
+    const ecOneTime = await popOneTimePreKey(client, targetId, 'ec');
+    return { status: 200 as const, userPublicKey: user.rows[0].public_key as string,
+             account: account.rows[0], ec, pq, ecOneTime, pqOneTime };
+  });
+
+  if (result.status === 404) return res.status(404).json({ error: 'prekey_bundle_unavailable' });
+  if (result.status === 409) return res.status(409).json({ error: result.error });
+  const acct = result.account;
+  res.json({
+    v: 1,
+    identity: { x25519: `05${result.userPublicKey}`, ed25519: acct.ed25519_public_key },
+    signedPreKey: result.ec,
+    pqSignedPreKey: result.pq,
+    oneTimePreKey: result.ecOneTime,
+    pqOneTimePreKey: result.pqOneTime,
+    // §4.3: no PQOPK available → in-window last-resort PQSPK is served, flagged here.
+    lastResortUsed: result.pqOneTime === null,
+    reseedKemKey: { publicKey: acct.reseed_kem_public_key, signature: acct.reseed_kem_signature },
+  });
+}));
+
+// POST /api/v1/prekeys/rotate — rotate signed prekeys / reseed key (§4.2). Old rows are
+// retained (7-day grace, §3.2) and never served to new bundle fetches (newest wins).
+router.post('/prekeys/rotate', authMiddleware, safe(async (req: Request, res: Response) => {
+  if (!prekeyGate(res)) return;
+  const userId = (req as any).userId;
+  if (!(await prekeyRateLimit(res, `prekey:rotate:${userId}`, 10, 3600))) return;
+  const privateField = findPrivateField(req.body, 'body');
+  if (privateField) return res.status(422).json({ error: 'private_material_rejected' });
+  const data = rotatePrekeysSchema.parse(req.body);
+  if (data.signedPreKey) {
+    const wErr = windowError('signedPreKey', data.signedPreKey, EC_WINDOW_MS);
+    if (wErr) return res.status(400).json({ error: wErr });
+  }
+  if (data.pqSignedPreKey) {
+    const wErr = windowError('pqSignedPreKey', data.pqSignedPreKey, PQ_WINDOW_MS);
+    if (wErr) return res.status(400).json({ error: wErr });
+  }
+
+  const result = await withTransaction(async (client) => {
+    if (data.signedPreKey) await upsertSignedPreKey(client, userId, 'ec', data.signedPreKey);
+    if (data.pqSignedPreKey) await upsertSignedPreKey(client, userId, 'pq', data.pqSignedPreKey);
+    let reseedKemKeyRotated = false;
+    if (data.reseedKemKey) {
+      const updated = await client.query(
+        `UPDATE prekey_account SET reseed_kem_public_key = $2, reseed_kem_signature = $3, updated_at = NOW()
+         WHERE user_id = $1 RETURNING user_id`,
+        [userId, data.reseedKemKey.publicKey, data.reseedKemKey.signature],
+      );
+      if (updated.rowCount === 0) return { status: 409 as const, error: 'bundle_not_uploaded' };
+      reseedKemKeyRotated = true;
+    }
+    return { status: 200 as const, reseedKemKeyRotated };
+  });
+
+  if (result.status === 409) return res.status(409).json({ error: result.error });
+  res.json({
+    signedPreKey: data.signedPreKey ? { keyId: data.signedPreKey.keyId, notAfter: data.signedPreKey.notAfter } : null,
+    pqSignedPreKey: data.pqSignedPreKey ? { keyId: data.pqSignedPreKey.keyId, notAfter: data.pqSignedPreKey.notAfter } : null,
+    reseedKemKeyRotated: result.reseedKemKeyRotated,
+  });
+}));
+
+// GET /api/v1/prekeys/mine/count — own counts only; no other user's data (§4.2)
+router.get('/prekeys/mine/count', authMiddleware, safe(async (req: Request, res: Response) => {
+  if (!prekeyGate(res)) return;
+  const userId = (req as any).userId;
+  if (!(await prekeyRateLimit(res, `prekey:count:${userId}`, 120, 60))) return;
+
+  const counts = await query(
+    `SELECT kind, COUNT(*)::int AS n FROM prekey_one_time WHERE user_id = $1 GROUP BY kind`,
+    [userId],
+  );
+  const byKind = new Map<string, number>(counts.rows.map((r: any) => [r.kind, r.n]));
+  const signed = await query(
+    `SELECT DISTINCT ON (kind) kind, not_before, not_after FROM prekey_signed
+     WHERE user_id = $1 ORDER BY kind, not_before DESC`,
+    [userId],
+  );
+  const now = Date.now();
+  const signedRow = new Map<string, any>(signed.rows.map((r: any) => [r.kind, r]));
+  const pqRow = signedRow.get('pq');
+  const ageDays = (row: any): number | null =>
+    row ? Math.max(0, Math.floor((now - new Date(row.not_before).getTime()) / 86400000)) : null;
+
+  res.json({
+    ecOneTime: byKind.get('ec') ?? 0,
+    pqOneTime: byKind.get('pq') ?? 0,
+    pqLastResort: {
+      present: !!pqRow && new Date(pqRow.not_after).getTime() > now && new Date(pqRow.not_before).getTime() <= now,
+      notAfter: pqRow ? new Date(pqRow.not_after).getTime() : null,
+    },
+    signedAgeDays: { ec: ageDays(signedRow.get('ec')), pq: ageDays(pqRow) },
+  });
 }));
 
 export { router as apiRouter };

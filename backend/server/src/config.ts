@@ -33,6 +33,9 @@ const envSchema = z.object({
   // Monitoring
   METRICS_PORT: z.coerce.number().default(9090),
   HEALTH_CHECK_INTERVAL: z.coerce.number().default(30000),
+
+  // WS1 prekey endpoints (docs/spec-pq-hybrid-resync-v1.md). Default off: 503 feature_disabled.
+  PREKEYS_ENABLED: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
 });
 
 export const config = envSchema.parse(process.env);
