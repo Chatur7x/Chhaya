@@ -626,9 +626,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               Navigator.pop(context);
               await ref.read(authServiceProvider).logout();
               ref.read(currentUserProvider.notifier).state = null;
+              ref.read(appUnlockedProvider.notifier).state = false;
               ref.read(conversationsProvider.notifier).setConversations([]);
               ref.read(contactsProvider.notifier).setContacts([]);
-              if (mounted) Navigator.of(context, rootNavigator: true).pushReplacementNamed(ChhayaRouter.onboarding);
+              if (mounted) Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(ChhayaRouter.onboarding, (_) => false);
             },
           ),
         ],

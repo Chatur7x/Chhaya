@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:chaaya/core/models/message_attachment.dart';
 import 'dart:async';
 import 'package:chaaya/main.dart';
+import 'package:chaaya/ui/widgets/app_lock_gate.dart';
 import 'package:chaaya/ui/screens/call/call_screen.dart';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';

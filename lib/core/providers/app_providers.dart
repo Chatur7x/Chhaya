@@ -77,6 +77,16 @@ final authServiceProvider = Provider<AuthService>((ref) {
 
 
 final currentUserProvider = StateProvider<UserProfile?>((ref) => null);
+final appUnlockedProvider = StateProvider<bool>((ref) => false);
+
+/// Single source of truth for "a signed-in session is blocked by the app lock".
+/// Locking only applies when a user is signed in, unlock has not happened yet,
+/// and biometric lock is enabled in settings.
+final appLockedProvider = Provider<bool>((ref) {
+  if (ref.watch(currentUserProvider) == null) return false;
+  if (ref.watch(appUnlockedProvider)) return false;
+  return ref.watch(localDatabaseProvider).getBiometricLockEnabled();
+});
 
 final conversationsProvider =
     StateNotifierProvider<ConversationsNotifier, List<Conversation>>((ref) {

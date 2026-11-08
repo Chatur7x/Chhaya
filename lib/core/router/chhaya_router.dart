@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/app_providers.dart';
 import 'package:chaaya/ui/screens/onboarding/onboarding_screen.dart';
 import 'package:chaaya/ui/screens/chat/chat_screen.dart';
 import 'package:chaaya/ui/screens/call/call_screen.dart';
@@ -86,9 +88,12 @@ class ChhayaRouter {
     bool fullscreenDialog = false,
   }) {
     final entering = settings.name == home || settings.name == onboarding;
-    Widget buildPage(BuildContext context) => entering
-      ? ColoredBox(color: ChhayaPalette.of(context).primaryBackground,
-          child: MessageEntrance(animate: true, child: page)) : page;
+    Widget buildPage(BuildContext context) => Consumer(builder: (context, ref, _) {
+      final locked = ref.watch(appLockedProvider);
+      return PopScope(canPop: !locked, child: entering
+        ? ColoredBox(color: ChhayaPalette.of(context).primaryBackground,
+            child: MessageEntrance(animate: true, child: page)) : page);
+    });
     if (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.macOS) {
       return ChhayaCupertinoRoute<T>(builder: buildPage, settings: settings, fullscreenDialog: fullscreenDialog);
     }

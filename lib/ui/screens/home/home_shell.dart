@@ -37,7 +37,7 @@ class _HomeShellState extends ConsumerState<HomeShell> with WidgetsBindingObserv
     unawaited(_sync().whenComplete(_scheduleNextSync));
   }
   void _scheduleNextSync() {
-    if(!mounted||!_foreground) { return; }
+    if(!mounted || !_foreground || ref.read(appLockedProvider)) { return; }
     final authenticated=ref.read(apiServiceProvider).isAuthenticated;
     // Local-only accounts need no remote poll. Back off on network failures.
     final delay=!authenticated
@@ -52,6 +52,9 @@ class _HomeShellState extends ConsumerState<HomeShell> with WidgetsBindingObserv
     if(_syncing) { return; }
     _syncing=true;
     try {
+      if (ref.read(appLockedProvider)) {
+        return;
+      }
       if(!ref.read(apiServiceProvider).isAuthenticated) {
         _syncFailures=0;
         if(mounted&&_syncError!=null) setState(()=>_syncError=null);
@@ -115,7 +118,11 @@ class _HomeShellState extends ConsumerState<HomeShell> with WidgetsBindingObserv
   }
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(builder:(context,constraints) {
+  Widget build(BuildContext context) {
+    ref.listen<bool>(appLockedProvider, (previous, locked) {
+      if (!locked && mounted && _foreground) _startSync();
+    });
+    return LayoutBuilder(builder:(context,constraints) {
     final wide=constraints.maxWidth>=720;
     const icons=[Icons.chat_bubble_outline_rounded,Icons.call_outlined,
       Icons.people_outline_rounded,Icons.settings_outlined];
@@ -148,5 +155,6 @@ class _HomeShellState extends ConsumerState<HomeShell> with WidgetsBindingObserv
           icon:Icon(icons[i]),selectedIcon:Icon(selectedIcons[i]),label:labels[i])],
       )),
     );
-  });
+    });
+  }
 }

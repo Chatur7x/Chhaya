@@ -107,6 +107,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
     final convos = await db.getAllConversations();
     final contacts = await db.getAllContacts();
     ref.read(currentUserProvider.notifier).state = profile;
+    ref.read(appUnlockedProvider.notifier).state = true;
     ref.read(conversationsProvider.notifier).setConversations(convos);
     ref.read(contactsProvider.notifier).setContacts(contacts);
     if (mounted) Navigator.of(context).pushReplacementNamed(ChhayaRouter.home);
@@ -140,6 +141,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> with Ticker
       if (success) {
         final profile = auth.currentUser;
         ref.read(currentUserProvider.notifier).state = profile;
+        ref.read(appUnlockedProvider.notifier).state = true;
         final db = ref.read(localDatabaseProvider);
         final convos = await db.getAllConversations();
         final contacts = await db.getAllContacts();

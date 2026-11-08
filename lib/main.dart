@@ -7,8 +7,9 @@ import 'core/router/chhaya_router.dart';
 import 'ui/theme/chhaya_theme.dart';
 import 'core/providers/app_providers.dart';
 import 'core/log.dart';
-import 'ui/widgets/chhaya_brand_mark.dart';
 import 'services/messaging/voice_temporary_files.dart';
+import 'ui/widgets/app_lock_gate.dart';
+import 'ui/widgets/app_lifecycle_guard.dart';
 
 /// Identifies which local startup stage failed without exposing exception
 /// messages that could contain paths or other device-specific details.
@@ -120,7 +121,6 @@ final appInitializationProvider = FutureProvider<bool>((ref) async {
   }
 });
 
-final appUnlockedProvider = StateProvider<bool>((ref) => false);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -152,15 +152,23 @@ void main() async {
   runApp(const ProviderScope(child: ChhayaApp()));
 }
 
-class ChhayaApp extends ConsumerWidget {
+class ChhayaApp extends ConsumerStatefulWidget {
   const ChhayaApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ChhayaApp> createState() => _ChhayaAppState();
+}
+
+class _ChhayaAppState extends ConsumerState<ChhayaApp> {
+  final _navigatorKey = GlobalKey<NavigatorState>();
+
+  @override
+  Widget build(BuildContext context) {
     final initAsync = ref.watch(appInitializationProvider);
 
     return MaterialApp(
       title: 'Chhaya',
+      navigatorKey: _navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: ChhayaTheme.materialLight,
       darkTheme: ChhayaTheme.materialDark,
@@ -174,7 +182,8 @@ class ChhayaApp extends ConsumerWidget {
           statusBarBrightness: Theme.of(context).brightness,
           systemNavigationBarColor: Theme.of(context).colorScheme.surface,
           systemNavigationBarIconBrightness: Theme.of(context).brightness == Brightness.dark ? Brightness.light : Brightness.dark),
-        child: HeroMode(enabled: !ChhayaMotion.reduced(context), child: child!)),
+        child: AppLifecycleGuard(navigatorKey: _navigatorKey,
+          child: HeroMode(enabled: !ChhayaMotion.reduced(context), child: child!))),
       home: initAsync.when(
         data: (isLoggedIn) {
           if (isLoggedIn) {
@@ -183,8 +192,8 @@ class ChhayaApp extends ConsumerWidget {
             return const _RouteLoader(route: ChhayaRouter.onboarding);
           }
         },
-        loading: () => const _SplashScreen(),
-        error: (e, stack) => _SplashScreen(
+        loading: () => const ChhayaSplashScreen(),
+        error: (e, stack) => ChhayaSplashScreen(
           errorMessage: 'Could not open your account. Try again.',
           errorDetails: e is AppInitializationFailure
               ? 'Setup step: ${e.stage} (${e.causeType})\n${e.safeSummary}'
@@ -195,37 +204,6 @@ class ChhayaApp extends ConsumerWidget {
       onGenerateRoute: ChhayaRouter.generateRoute,
     );
   }
-}
-
-class _SplashScreen extends StatelessWidget {
-  final String? errorMessage;
-  final String? errorDetails;
-  final VoidCallback? onRetry;
-  const _SplashScreen({this.errorMessage,this.errorDetails,this.onRetry});
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    body:SafeArea(child:Center(child:SingleChildScrollView(
-      padding:const EdgeInsets.all(32),child:Column(mainAxisSize:MainAxisSize.min,children:[
-        const ChhayaBrandMark(size: 64),
-        const SizedBox(height:24),
-        Text('Chhaya',style:ChhayaType.of(context).displayLarge),
-        const SizedBox(height:24),
-        if(errorMessage!=null) ...[
-          Text(errorMessage!,textAlign:TextAlign.center,style:ChhayaType.of(context).bodyLarge),
-          if(errorDetails!=null) Padding(padding:const EdgeInsets.only(top:12),
-            child:Text(errorDetails!,textAlign:TextAlign.center,
-              style:ChhayaType.of(context).labelSmall.copyWith(color:ChhayaPalette.of(context).inkMuted))),
-          if(onRetry!=null) Padding(padding:const EdgeInsets.only(top:16),
-            child:FilledButton(onPressed:onRetry,child:const Text('Try again'))),
-        ] else ...[
-          const SizedBox(width:24,height:24,child:CircularProgressIndicator(strokeWidth:2)),
-          const SizedBox(height:16),
-          Text('Opening your account…',style:ChhayaType.of(context).body),
-        ],
-      ]),
-    ))),
-  );
 }
 
 class _RouteLoader extends StatefulWidget {
@@ -246,169 +224,6 @@ class _RouteLoaderState extends State<_RouteLoader> {
   }
 
   @override
-  Widget build(BuildContext context) => const _SplashScreen();
+  Widget build(BuildContext context) => const ChhayaSplashScreen();
 }
 
-class AppStartupGate extends ConsumerStatefulWidget {
-  const AppStartupGate({super.key});
-
-  @override
-  ConsumerState<AppStartupGate> createState() => _AppStartupGateState();
-}
-
-class _AppStartupGateState extends ConsumerState<AppStartupGate> {
-  bool _showPinPad = false;
-  String _enteredPin = '';
-  bool _shakeError = false;
-  bool _authenticating = false;
-  bool _validatingPin = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkAuth();
-  }
-
-  Future<void> _checkAuth() async {
-    if (_authenticating || _validatingPin || !mounted) return;
-    _authenticating = true;
-    try {
-    final db = ref.read(localDatabaseProvider);
-    final biometricEnabled = db.getBiometricLockEnabled();
-
-    if (!biometricEnabled) {
-      _unlock();
-      return;
-    }
-
-    final isBioAvailable = await db.isBiometricAvailable();
-    if (isBioAvailable) {
-      final success = await db.authenticateWithBiometrics(
-        reason: 'Unlock Chhaya',
-      );
-      if (success) {
-        _unlock();
-        return;
-      }
-    }
-
-    if (mounted) setState(() => _showPinPad = true);
-    } finally {
-      _authenticating = false;
-    }
-  }
-
-  void _unlock() {
-    if (mounted) {
-      ref.read(appUnlockedProvider.notifier).state = true;
-      Navigator.of(context).pushReplacementNamed(ChhayaRouter.home);
-    }
-  }
-
-  void _onPinDigit(String digit) {
-    if (_authenticating || _validatingPin || _enteredPin.length >= 4) return;
-    setState(() => _enteredPin += digit);
-
-    if (_enteredPin.length == 4) {
-      _validatePin();
-    }
-  }
-
-  void _onPinDelete() {
-    if (_authenticating || _validatingPin || _enteredPin.isEmpty) return;
-    setState(() => _enteredPin = _enteredPin.substring(0, _enteredPin.length - 1));
-  }
-
-  Future<void> _validatePin() async {
-    if (_validatingPin || !mounted) return;
-    _validatingPin = true;
-    try {
-    final db = ref.read(localDatabaseProvider);
-    final panicPin = db.getPanicPin();
-    final appPin = db.getAppPin();
-
-    if (panicPin != null && _enteredPin == panicPin) {
-      ChhayaHaptics.error();
-      final authService = ref.read(authServiceProvider);
-      await authService.logout();
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            backgroundColor: ChhayaPalette.of(context).cardSurface,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ChhayaRadius.xl)),
-            title: const Text('Data Erased'),
-            content: const Text('Local account data and keys have been removed. Remote copies and backups are not erased.'),
-            actions: [
-              TextButton(
-                child: const Text('OK'),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  Navigator.of(context).pushReplacementNamed(ChhayaRouter.onboarding);
-                },
-              ),
-            ],
-          ),
-        );
-      }
-      return;
-    }
-
-    if (appPin != null && _enteredPin == appPin) {
-      ChhayaHaptics.success();
-      _unlock();
-      return;
-    }
-
-    if (!mounted) return;
-    ChhayaHaptics.error();
-    setState(() {
-      _shakeError = true;
-      _enteredPin = '';
-    });
-    // Throttle repeated attempts. An unset PIN never grants access.
-    await Future.delayed(const Duration(seconds: 2));
-    if (mounted) setState(() => _shakeError = false);
-    } finally {
-      _validatingPin = false;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if(!_showPinPad) return const _SplashScreen();
-    final hasPin=ref.read(localDatabaseProvider).getAppPin()!=null;
-    return Scaffold(body:SafeArea(child:ListView(
-      padding:const EdgeInsets.symmetric(horizontal:24,vertical:32),children:[
-        Icon(Icons.lock_outline,size:48,color:ChhayaPalette.of(context).accent),
-        const SizedBox(height:24),
-        Text('Unlock Chhaya',textAlign:TextAlign.center,style:ChhayaType.of(context).headline),
-        const SizedBox(height:12),
-        Text(hasPin?'Use your app PIN or device authentication':'Use device authentication to unlock',
-          textAlign:TextAlign.center,style:ChhayaType.of(context).bodyLarge.copyWith(color:ChhayaPalette.of(context).inkMuted)),
-        const SizedBox(height:24),
-        Semantics(label:'${_enteredPin.length} of 4 passcode digits entered',excludeSemantics:true,
-          child:Row(mainAxisAlignment:MainAxisAlignment.center,children:List.generate(4,(i)=>Container(
-            margin:const EdgeInsets.symmetric(horizontal:8),width:14,height:14,
-            decoration:BoxDecoration(shape:BoxShape.circle,
-              color:_shakeError?ChhayaPalette.of(context).error:i<_enteredPin.length?ChhayaPalette.of(context).accent:ChhayaPalette.of(context).borderMed),
-          )))),
-        const SizedBox(height:24),
-        for(final row in [['1','2','3'],['4','5','6'],['7','8','9'],['','0','delete']])
-          Padding(padding:const EdgeInsets.only(bottom:12),child:Row(
-            mainAxisAlignment:MainAxisAlignment.spaceEvenly,
-            children:[for(final digit in row) SizedBox(width:64,height:64,
-              child:digit.isEmpty?null:digit=='delete'?IconButton(
-                tooltip:'Delete passcode digit',onPressed:_onPinDelete,icon:const Icon(Icons.backspace_outlined)):
-                OutlinedButton(onPressed:()=>_onPinDigit(digit),
-                  style:OutlinedButton.styleFrom(padding:EdgeInsets.zero,shape:const CircleBorder()),
-                  child:Text(digit,style:ChhayaType.of(context).title)),
-            )],
-          )),
-        const SizedBox(height:12),
-        TextButton.icon(onPressed:_checkAuth,icon:const Icon(Icons.fingerprint),
-          label:const Text('Use Device Authentication')),
-      ],
-    )));
-  }
-}
