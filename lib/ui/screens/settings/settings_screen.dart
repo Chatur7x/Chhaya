@@ -35,7 +35,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void initState() {
     super.initState();
     final db = ref.read(localDatabaseProvider);
-    _biometricLock = db.getBiometricLockEnabled();
+    _biometricLock = safeBiometricLockEnabled(db);
     _readReceipts = db.getReadReceiptsEnabled();
     _typingIndicators = db.getTypingIndicatorsEnabled();
     _disappearingMessages = db.getGlobalDisappearingDuration() > 0;
