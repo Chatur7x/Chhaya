@@ -63,7 +63,14 @@ MESSAGING_DENYLIST = (
     "ml_dsa",
     "pqc_provider",
 )
-MESSAGING_ALLOWLIST: tuple = ()
+# WS3 allowlist (spec-sanctioned mechanism): the v2 establishment runs in the
+# codec, which is where T enters AEAD additional data. Without this, no v2
+# path exists in production. Reviewed alongside this commit; recorded in
+# docs/ponytail-audit-2026-11-08.md WS3 entry.
+MESSAGING_ALLOWLIST: tuple = (
+    "ratchet_message_codec.dart",
+    "pq_hybrid_v1.dart",
+)
 
 IMPORT_RE = re.compile(r"^import\s+'([^']+)'", re.MULTILINE)
 

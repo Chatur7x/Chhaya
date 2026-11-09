@@ -9,27 +9,34 @@ import 'package:chaaya/core/models/message.dart';
 import 'package:chaaya/core/models/message_attachment.dart';
 import 'package:chaaya/services/messaging/attachment_service.dart';
 import 'package:chaaya/services/messaging/message_payload.dart';
+import 'package:chaaya/services/messaging/pq_hybrid_v1.dart';
 import 'package:chaaya/services/messaging/ratchet_message_codec.dart';
 
+import '../../support/fake_prekey_server.dart';
+
 void main() {
-  Message message() => Message(id: 'attachment', conversationId: 'chat', senderId: 'alice',
+  Message message() => Message(id: 'attachment', conversationId: '323e4567-e89b-42d3-a456-426655440002', senderId: 'alice',
     content: 'A private caption', type: MessageType.file, replyToId: 'original',
     timestamp: DateTime.now(), attachment: MessageAttachment.fromBytes(
       name: 'private-document.txt', mimeType: 'text/plain', bytes: Uint8List.fromList(utf8.encode('private file contents'))));
 
   test('two peers decrypt attachment bytes and reply metadata without exposing them to transport', () async {
+    final fakePrekeys = FakePrekeyServer()..wireInto();
+    addTearDown(PqHybridV1.resetForTest);
     final a = await ChhayaCryptoEngine.generateKeyPair(), b = await ChhayaCryptoEngine.generateKeyPair();
     final aid = '05${a.publicKeyHex}', bid = '05${b.publicKeyHex}';
-    final alice = RatchetMessageCodec(sessions: InMemorySessionStorage(), identity: a, ownId: aid);
-    final bob = RatchetMessageCodec(sessions: InMemorySessionStorage(), identity: b, ownId: bid);
+    final accountA = await fakePrekeys.enroll('alice', Uint8List.fromList(a.publicKey));
+    final accountB = await fakePrekeys.enroll('bob', Uint8List.fromList(b.publicKey));
+    final alice = RatchetMessageCodec(sessions: InMemorySessionStorage(), identity: a, ownId: aid, ed25519PublicKey: () async => accountA.identityEd25519Public);
+    final bob = RatchetMessageCodec(sessions: InMemorySessionStorage(), identity: b, ownId: bid, ed25519PublicKey: () async => accountB.identityEd25519Public);
     final ap = Contact(id: 'alice', chhayaId: ChhayaId.fromPublicKey(aid), displayName: 'Alice', isVerified: true);
     final bp = Contact(id: 'bob', chhayaId: ChhayaId.fromPublicKey(bid), displayName: 'Bob', isVerified: true);
     final source = message();
-    final wire = await alice.encrypt(bp, 'chat', source.id, 'alice', MessagePayload.encode(source));
+    final wire = await alice.encrypt(bp, '323e4567-e89b-42d3-a456-426655440002', source.id, 'alice', MessagePayload.encode(source));
     for (final secret in ['private-document', 'private file contents', 'original', 'private caption']) {
       expect(wire, isNot(contains(secret)));
     }
-    final decoded = MessagePayload.decode(source, await bob.decrypt(ap, 'chat', source.id, 'alice', wire));
+    final decoded = MessagePayload.decode(source, await bob.decrypt(ap, '323e4567-e89b-42d3-a456-426655440002', source.id, 'alice', wire));
     expect(decoded.attachment!.bytes, source.attachment!.bytes);
     expect(decoded.replyToId, 'original');
     final stored = Message.fromJson(jsonDecode(jsonEncode(decoded.toJson())) as Map<String, dynamic>);

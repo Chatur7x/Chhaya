@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:chaaya/core/crypto/chhaya_crypto_engine.dart';
 import 'package:chaaya/core/crypto/ratchet/session_store.dart';
@@ -7,7 +8,10 @@ import 'package:chaaya/core/models/contact.dart';
 import 'package:chaaya/core/models/message.dart';
 import 'package:chaaya/services/messaging/message_payload.dart';
 import 'package:chaaya/services/messaging/poll_payload.dart';
+import 'package:chaaya/services/messaging/pq_hybrid_v1.dart';
 import 'package:chaaya/services/messaging/ratchet_message_codec.dart';
+
+import '../../support/fake_prekey_server.dart';
 
 void main() {
   test('poll definitions and votes validate all choices and limits', () {
@@ -84,18 +88,24 @@ void main() {
   test(
     'poll and vote content stay inside an authenticated ratchet envelope',
     () async {
+      final fakePrekeys = FakePrekeyServer()..wireInto();
+      addTearDown(PqHybridV1.resetForTest);
       final a = await ChhayaCryptoEngine.generateKeyPair(),
           b = await ChhayaCryptoEngine.generateKeyPair();
       final aid = '05${a.publicKeyHex}', bid = '05${b.publicKeyHex}';
+      final accountA = await fakePrekeys.enroll('alice', Uint8List.fromList(a.publicKey));
+      final accountB = await fakePrekeys.enroll('bob', Uint8List.fromList(b.publicKey));
       final alice = RatchetMessageCodec(
         sessions: InMemorySessionStorage(),
         identity: a,
         ownId: aid,
+        ed25519PublicKey: () async => accountA.identityEd25519Public,
       );
       final bob = RatchetMessageCodec(
         sessions: InMemorySessionStorage(),
         identity: b,
         ownId: bid,
+        ed25519PublicKey: () async => accountB.identityEd25519Public,
       );
       final ap = Contact(
         id: 'alice',
@@ -116,7 +126,7 @@ void main() {
       );
       final source = Message(
         id: 'poll',
-        conversationId: 'chat',
+        conversationId: '423e4567-e89b-42d3-a456-426655440003',
         senderId: 'alice',
         content: poll.encode(),
         type: MessageType.poll,
@@ -124,17 +134,17 @@ void main() {
       );
       final wire = await alice.encrypt(
         bp,
-        'chat',
+        '423e4567-e89b-42d3-a456-426655440003',
         source.id,
         'alice',
         MessagePayload.encode(source),
       );
       expect(wire, isNot(contains('Private question')));
-      final clear = await bob.decrypt(ap, 'chat', source.id, 'alice', wire);
+      final clear = await bob.decrypt(ap, '423e4567-e89b-42d3-a456-426655440003', source.id, 'alice', wire);
       expect(MessagePayload.decode(source, clear).content, poll.encode());
       final vote = Message(
         id: 'vote',
-        conversationId: 'chat',
+        conversationId: '423e4567-e89b-42d3-a456-426655440003',
         senderId: 'alice',
         content:
             PollVote(

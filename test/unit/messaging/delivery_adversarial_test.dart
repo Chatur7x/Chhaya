@@ -16,7 +16,10 @@ import 'package:chaaya/core/models/message.dart';
 import 'package:chaaya/core/models/user_profile.dart';
 import 'package:chaaya/services/api/api_service.dart';
 import 'package:chaaya/services/messaging/messaging_service.dart';
+import 'package:chaaya/services/messaging/pq_hybrid_v1.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../support/fake_prekey_server.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -49,7 +52,7 @@ class CrashOnceDatabase extends LocalDatabase {
       isVerified: true,
     );
     conversation = Conversation(
-      id: 'conversation',
+      id: '723e4567-e89b-42d3-a456-426655440006',
       participants: [peer],
       createdAt: DateTime.now(),
     );
@@ -174,6 +177,12 @@ makeDedupApi({required String userId, Duration delay = Duration.zero}) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  late FakePrekeyServer fakePrekeys;
+  setUp(() {
+    fakePrekeys = FakePrekeyServer();
+    fakePrekeys.wireInto();
+  });
+  tearDown(() => PqHybridV1.resetForTest());
 
   test(
     'server accepts but local commit crashes; retry re-sends the byte-identical '
@@ -181,6 +190,7 @@ void main() {
     () async {
       final a = await ChhayaCryptoEngine.generateKeyPair();
       final b = await ChhayaCryptoEngine.generateKeyPair();
+      await fakePrekeys.enroll('bob', Uint8List.fromList(b.publicKey));
       final db = CrashOnceDatabase().withAccount(
         ownName: 'Alice',
         like: a,
@@ -225,6 +235,7 @@ void main() {
     () async {
       final a = await ChhayaCryptoEngine.generateKeyPair();
       final b = await ChhayaCryptoEngine.generateKeyPair();
+      await fakePrekeys.enroll('bob', Uint8List.fromList(b.publicKey));
       final db = CrashOnceDatabase().withAccount(
         ownName: 'Alice',
         like: a,
@@ -293,9 +304,10 @@ void main() {
   );
 
   test(
-    'a pending message whose outbox envelope is missing is never re-sent '
-    '(pinned: currently skipped without surfacing)',
+    'a pending message whose outbox envelope is missing fails closed while '
+    'the v2 path is disabled (flag off: never re-sent)',
     () async {
+      PqHybridV1.testEnabled = false;
       final a = await ChhayaCryptoEngine.generateKeyPair();
       final b = await ChhayaCryptoEngine.generateKeyPair();
       final db = CrashOnceDatabase().withAccount(
@@ -310,7 +322,7 @@ void main() {
       api.setBaseUrl('https://chat.example.com');
       db.messages['orphan'] = Message(
         id: 'orphan',
-        conversationId: 'conversation',
+        conversationId: '723e4567-e89b-42d3-a456-426655440006',
         senderId: 'me',
         content: 'will never arrive',
         timestamp: DateTime.now(),
@@ -321,6 +333,42 @@ void main() {
       await service.retryPending(db.conversation.id);
       expect(requests, isEmpty);
       expect(db.messages['orphan']!.isSent, false);
+    },
+  );
+
+  test(
+    'a pending message whose outbox envelope is missing is re-created with a '
+    'fresh messageId and re-sent after fresh establishment (spec §3.7.5)',
+    () async {
+      final a = await ChhayaCryptoEngine.generateKeyPair();
+      final b = await ChhayaCryptoEngine.generateKeyPair();
+      await fakePrekeys.enroll('bob', Uint8List.fromList(b.publicKey));
+      final db = CrashOnceDatabase().withAccount(
+        ownName: 'Alice',
+        like: a,
+        peerKey: b,
+      );
+      final keys = KeyManager(secureBackend: SecureStorageMock());
+      await keys.storeKeyPair(a);
+      final (:api, :requests, accepted: _) = makeDedupApi(userId: 'alice');
+      await api.init();
+      api.setBaseUrl('https://chat.example.com');
+      db.messages['orphan'] = Message(
+        id: 'orphan',
+        conversationId: '723e4567-e89b-42d3-a456-426655440006',
+        senderId: 'me',
+        content: 'restored from backup content',
+        timestamp: DateTime.now(),
+        isSent: false,
+      );
+      // No outbox:orphan blob is stored and no session exists.
+      final service = MessagingService(api: api, database: db, keys: keys);
+      await service.retryPending(db.conversation.id);
+      expect(requests, hasLength(1));
+      expect(requests.single['messageId'], isNot('orphan'));
+      // The original stays superseded; the re-created message is sent.
+      expect(db.messages['orphan']!.isSent, false);
+      expect(db.blobs['outbox:orphan'], isNull);
     },
   );
 
@@ -346,7 +394,7 @@ void main() {
         )
         ..peer = peer
         ..conversation = Conversation(
-          id: 'conversation',
+          id: '723e4567-e89b-42d3-a456-426655440006',
           participants: [peer],
           createdAt: DateTime.now(),
         );
@@ -354,7 +402,7 @@ void main() {
       await keys.storeKeyPair(self);
       final garbage = Message(
         id: 'garbage-1',
-        conversationId: 'conversation',
+        conversationId: '723e4567-e89b-42d3-a456-426655440006',
         senderId: 'bob',
         content: 'this is not an encrypted envelope',
         timestamp: DateTime.now(),

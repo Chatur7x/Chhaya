@@ -389,6 +389,24 @@ class KeyManager with WidgetsBindingObserver {
     }
   }
 
+  /// Returns the Ed25519 identity public key (32 bytes), deriving it from
+  /// the master seed when no explicit seed is stored. Read-only; the seed
+  /// copy is wiped before returning.
+  Future<Uint8List> getIdentityEd25519PublicKeyBytes() async {
+    final stored = await _backend.read(key: _identityEd25519Key);
+    final seed = stored != null
+        ? base64Decode(stored)
+        : await derivePathKey(pathIdentityEd25519);
+    try {
+      final algorithm = Ed25519();
+      final keyPair = await algorithm.newKeyPairFromSeed(seed);
+      final pub = await keyPair.extractPublicKey();
+      return Uint8List.fromList(pub.bytes);
+    } finally {
+      Csprng.wipe(seed);
+    }
+  }
+
   /// Returns the current identity epoch (0 when never rotated).
   Future<int> identityEpoch() async {
     final stored = await _backend.read(key: _identityEpochKey);

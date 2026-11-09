@@ -11,14 +11,18 @@
 //   * A gap of exactly DoubleRatchet.maxSkip (1000) is served; a gap of
 //     1001 throws TooManySkippedException and leaves the session intact.
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:chaaya/core/crypto/chhaya_crypto_engine.dart';
 import 'package:chaaya/core/crypto/ratchet/double_ratchet.dart';
 import 'package:chaaya/core/crypto/ratchet/session_store.dart';
 import 'package:chaaya/core/models/chhaya_id.dart';
 import 'package:chaaya/core/models/contact.dart';
+import 'package:chaaya/services/messaging/pq_hybrid_v1.dart';
 import 'package:chaaya/services/messaging/ratchet_message_codec.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../../support/fake_prekey_server.dart';
 
 class _Pair {
   _Pair(this.codecA, this.codecB, this.storageB, this.contactA, this.contactB,
@@ -46,6 +50,9 @@ Future<_Pair> _pair() async {
     displayName: 'B',
     isVerified: true,
   );
+  final fakePrekeys = FakePrekeyServer()..wireInto();
+  final accountA = await fakePrekeys.enroll('a', Uint8List.fromList(idA.publicKey));
+  final accountB = await fakePrekeys.enroll('b', Uint8List.fromList(idB.publicKey));
   final storageA = InMemorySessionStorage();
   final storageB = InMemorySessionStorage();
   return _Pair(
@@ -53,11 +60,13 @@ Future<_Pair> _pair() async {
       sessions: storageA,
       identity: idA,
       ownId: contactA.chhayaId.publicKey,
+      ed25519PublicKey: () async => accountA.identityEd25519Public,
     ),
     RatchetMessageCodec(
       sessions: storageB,
       identity: idB,
       ownId: contactB.chhayaId.publicKey,
+      ed25519PublicKey: () async => accountB.identityEd25519Public,
     ),
     storageB,
     contactA,
@@ -76,7 +85,9 @@ Future<String?> sessionBlob(SessionStorage storage, String key) async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  const conversation = 'conv-1';
+  const conversation = '123e4567-e89b-42d3-a456-426655440000';
+  setUp(() => PqHybridV1.resetForTest());
+  tearDown(() => PqHybridV1.resetForTest());
 
   test('replayed envelope is rejected and persisted session is unchanged',
       () async {

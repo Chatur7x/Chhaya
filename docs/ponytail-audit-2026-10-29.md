@@ -216,3 +216,38 @@ CSV: docs/feature-verification-127.csv - evidence-column notes appended for IDs 
 NOT verified: physical device / two-phone acceptance; Android or iOS runtime behaviour; the Windows-SQLCipher restart tests are Windows-only (not run elsewhere); restore-to-resumed-conversation acceptance (pinned as defect - explicitly NOT claimed); backend/live tests in this environment; PQ protocol flows (out of scope); independent security review; 30-second retry scheduling.
 
 Verification commands (exact): `flutter analyze lib test` - No issues found; `flutter test test/unit/messaging/ test/unit/database/` - 59 passed; `flutter test test/unit/crypto/` - 94 passed (incl. the 1M-message fuzz); `flutter test test/unit/` - 303 passed.
+
+## WS3 — Hybrid session establishment & post-restore resync — 8 November 2026
+
+Implemented the client half of `docs/spec-pq-hybrid-resync-v1.md` (WS3 block). The v2 path is compiled, wired and unit-tested but **not enabled** anywhere: `chhaya_pq_hybrid_v1` defaults off, no UI flips, no claims shipped. The deterministic identity-ECDH `_state` path is deleted (spec §3.11); without the flag a fresh conversation fails closed rather than reusing old material.
+
+What changed (high level):
+
+- `ratchet_message_codec.dart` — `_state` deleted. v2 establishment runs behind lazy `chhaya_pq_hybrid_v1` flag. AEAD additional data for v2 sessions is `msgAad‖header‖T` (transcript bound, spec SD-4). v2 envelopes carry `establish` (PQXDH flight) and `echo` (offer echo); v1 envelopes and retrace-only fallback preserved for legacy.
+- `messaging_service.dart` — initiator: on restore, sends `chhaya-resync-v1` as a first-class ratchet message before any user content; holds outbound messages until a valid v2 inbound (the peer's ack). Responder: adopts the resync, drops the stale session, sends DH-first ACK. Stuck pending messages are re-created from DB content with **fresh messageIds** after the ack (`§3.7.5`). `_deliver` paths reused; no transport semantics changed.
+- `local_database.dart` — `replaceAccountSnapshot` now writes per-conversation `session_resync_pending` kv with a fresh `restore_generation` (uuid). `session_generation` monotonic u64 dual-stored SQLCipher kv + keystore (keystore first, then kv) with fail-closed rollback detection → forced resync marker + stale session wipe. additive kv/plainkeys only; no data rewritten.
+- `session_state.dart` — additive `sessionVersion`, `transcript`, `nonPQ`, `consented` fields (backwards compatible).
+- `negotiation.dart` — added optional `Negotiation.responder(...)` factory used by the responder half of the handshake.
+- `key_manager.dart` — additive read-only `getIdentityEd25519PublicKeyBytes()` (the v2 transcript binds the Ed25519 identity pubkey).
+- `pq_hybrid_v1.dart` (new) — the `chhaya_pq_hybrid_v1` flag (default OFF, lazy read) and its test-only seams (`testEnabled/testKem/testBundleFetcher/testPrekeyProvider/testEd25519PublicKey`). Production leaves all nil. `productionBundleFetcher` wiring moved out of messaging_service into pq_hybrid_v1.dart.
+- `check_transcript_binding.py` — WS3 allowlist mechanism: the static gate exits 0 with the two WS3 source files allowlisted under the spec-sanctioned allowlist mechanism (spec §6 criterion 14); recorded here.
+- Test rewrite (criterion 1): `restore_resume_test.dart` now asserts byte-*inequality* of the post-restore session (rootKey, chains, SPQR seed, transcript). `ratchet_message_codec_test.dart` rewritten to v2 expectations. New `session_generation_test.dart` covers dual-store rollback. Existing skip-soak tests (fuzz, replay) stay green.
+
+What was verified in this environment (8 Nov 2026): `flutter analyze lib test` — No issues found. `flutter test test/unit/` — **389 passed**. `flutter test test/integration/` — 4 passed + 2 skipped with reason. `python scripts/check_transcript_binding.py` — exits 0. Backend `npm test` — not run (prekey endpoints are WS1; flag turn-off unchanged).
+
+What is **not** verified (explicit list):
+
+- Live loopback backend round trip (criteria 2 and 3) — docker daemon unavailable on this host (`dockerDesktopLinuxEngine` not registered; `docker` binary not present), PostgreSQL not reachable. The env-gated test file `test/integration/resync_restore_test.dart` skips unless `CHHAYA_TEST_API_PORT` is set; criteria 2 and 3 are NOT RUN on this host. The pending re-send-with-new-id mechanism is covered at the DB/kv layer via unit fixtures and via the in-memory codec fixtures (resync ack → fresh messageId same content).
+- Android device / two-phone drill — never attempted this slice.
+- iOS runtime — never attempted this slice.
+- Windows PQ — does not exist (no chhaya_pqc Windows plugin). Everything on Windows runs through the classical-consent path, which was not exercised end-to-end here.
+- External cryptographic review — unverified; review gate still blocks default-on and any "post-quantum"/"secure restore" claim.
+- Live prekey bundle fetch against a real server; bundle bytes vs SD-1 preimage (review pending).
+- Group path per-member resync — wired through the shared codec (no separate group design), but criterion 9 is NOT exercised end-to-end; the outgoing group store path unchanged and covered by existing green suites.
+
+Known limits / honest caveats:
+
+- The v2 path is inert without `chhaya_pq_hybrid_v1` (default off). The pinned tests are rewritten, not deleted — they now assert safety properties rather than a dangerous behaviour.
+- WS3 does not claim PQXDH is the right call without review — it is the spec's call. The external review gate remains binding (§7.2).
+
+Commit SHA and `git status` recorded in the PR description. CSV rows (21, 80, 81) and delivery checklist rows are intentionally NOT flipped.

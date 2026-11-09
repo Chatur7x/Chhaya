@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -19,6 +20,9 @@ import 'package:chaaya/services/messaging/messaging_service.dart';
 import 'package:chaaya/services/messaging/poll_payload.dart';
 import 'package:chaaya/services/messaging/ratchet_message_codec.dart';
 import 'package:chaaya/services/messaging/message_payload.dart';
+import 'package:chaaya/services/messaging/pq_hybrid_v1.dart';
+
+import '../../support/fake_prekey_server.dart';
 
 class OutboxDatabase extends LocalDatabase {
   late UserProfile profile;
@@ -168,6 +172,12 @@ class GroupHistoryApi extends ApiService {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  late FakePrekeyServer fakePrekeys;
+  setUp(() {
+    fakePrekeys = FakePrekeyServer();
+    fakePrekeys.wireInto();
+  });
+  tearDown(() => PqHybridV1.resetForTest());
   test(
     'a network failure preserves one message; retry reuses its exact envelope and ID',
     () async {
@@ -197,6 +207,7 @@ void main() {
       api.setBaseUrl('https://chat.example.com');
       final a = await ChhayaCryptoEngine.generateKeyPair(),
           b = await ChhayaCryptoEngine.generateKeyPair();
+      await fakePrekeys.enroll('bob', Uint8List.fromList(b.publicKey));
       final keys = KeyManager(secureBackend: SecureStorageMock());
       await keys.storeKeyPair(a);
       final db = OutboxDatabase();
@@ -213,7 +224,7 @@ void main() {
         isVerified: true,
       );
       db.conversation = Conversation(
-        id: 'conversation',
+        id: '523e4567-e89b-42d3-a456-426655440004',
         participants: [db.peer],
         createdAt: DateTime.now(),
       );
@@ -279,6 +290,7 @@ void main() {
       api.setBaseUrl('https://chat.example.com');
       final a = await ChhayaCryptoEngine.generateKeyPair(),
           b = await ChhayaCryptoEngine.generateKeyPair();
+      await fakePrekeys.enroll('bob', Uint8List.fromList(b.publicKey));
       final keys = KeyManager(secureBackend: SecureStorageMock());
       await keys.storeKeyPair(a);
       final db = OutboxDatabase();
@@ -295,7 +307,7 @@ void main() {
         isVerified: true,
       );
       db.conversation = Conversation(
-        id: 'conversation',
+        id: '523e4567-e89b-42d3-a456-426655440004',
         participants: [db.peer],
         createdAt: DateTime.now(),
       );
@@ -502,7 +514,7 @@ void main() {
     final keys = KeyManager(secureBackend: SecureStorageMock());
     await keys.storeKeyPair(self);
     final conversation = Conversation(
-      id: 'chat',
+      id: '623e4567-e89b-42d3-a456-426655440005',
       participants: [peer],
       createdAt: DateTime.now(),
     );
@@ -515,14 +527,18 @@ void main() {
       )
       ..conversation = conversation;
     db.contacts[peer.id] = peer;
+    await fakePrekeys.enroll('self', Uint8List.fromList(self.publicKey));
+    final accountPeer =
+        await fakePrekeys.enroll('peer', Uint8List.fromList(remote.publicKey));
     final sender = RatchetMessageCodec(
       sessions: InMemorySessionStorage(),
       identity: remote,
       ownId: peer.chhayaId.publicKey,
+      ed25519PublicKey: () async => accountPeer.identityEd25519Public,
     );
     final older = Message(
       id: 'older',
-      conversationId: 'chat',
+      conversationId: '623e4567-e89b-42d3-a456-426655440005',
       senderId: 'peer',
       content: 'older offline message',
       timestamp: DateTime(2026),
@@ -534,14 +550,14 @@ void main() {
     );
     final olderWire = await sender.encrypt(
       selfContact,
-      'chat',
+      '623e4567-e89b-42d3-a456-426655440005',
       older.id,
       'peer',
       MessagePayload.encode(older),
     );
     final recentWire = await sender.encrypt(
       selfContact,
-      'chat',
+      '623e4567-e89b-42d3-a456-426655440005',
       recent.id,
       'peer',
       MessagePayload.encode(recent),
@@ -592,7 +608,7 @@ void main() {
         isVerified: true,
       );
       final conversation = Conversation(
-        id: 'chat',
+        id: '623e4567-e89b-42d3-a456-426655440005',
         participants: [peer],
         createdAt: DateTime.now(),
       );
@@ -606,7 +622,7 @@ void main() {
         ..conversation = conversation;
       final local = Message(
         id: 'own-message',
-        conversationId: 'chat',
+        conversationId: '623e4567-e89b-42d3-a456-426655440005',
         senderId: 'me',
         content: 'preserve plaintext',
         timestamp: DateTime.now(),
@@ -657,6 +673,7 @@ void main() {
       api.setBaseUrl('https://chat.example.com');
       final a = await ChhayaCryptoEngine.generateKeyPair();
       final b = await ChhayaCryptoEngine.generateKeyPair();
+      await fakePrekeys.enroll('bob', Uint8List.fromList(b.publicKey));
       final keys = KeyManager(secureBackend: SecureStorageMock());
       await keys.storeKeyPair(a);
       final db = OutboxDatabase();
@@ -673,7 +690,7 @@ void main() {
         isVerified: true,
       );
       db.conversation = Conversation(
-        id: 'conversation',
+        id: '523e4567-e89b-42d3-a456-426655440004',
         participants: [db.peer],
         createdAt: DateTime.now(),
       );

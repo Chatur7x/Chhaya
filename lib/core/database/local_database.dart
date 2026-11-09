@@ -15,12 +15,12 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart' as ffi;
 import 'package:sqflite_sqlcipher/sqflite.dart';
+import 'package:uuid/uuid.dart';
 import '../crypto/key_manager.dart';
 import '../crypto/ratchet/session_state.dart';
 import '../crypto/primitives/rng.dart';
@@ -30,6 +30,7 @@ import '../models/conversation.dart';
 import '../models/user_profile.dart';
 import 'database_key.dart';
 import 'migrations/migration_runner.dart';
+import '../crypto/storage/secure_storage.dart';
 import 'migrations/v001_initial.dart' show MigrationV001Initial;
 import 'migrations/v002_messages.dart' show MigrationV002Messages;
 import 'migrations/v003_devices.dart' show MigrationV003Devices;
@@ -151,7 +152,7 @@ class LocalDatabase {
   bool _initialized = false;
   bool _biometricUnlocked = false;
   final LocalAuthentication _localAuth = LocalAuthentication();
-  final FlutterSecureStorage _secure;
+  final SecureStorage _secure;
   final KeyManager _keyManager;
   final DatabaseOpener _opener;
   final String? _dbPathOverride;
@@ -164,14 +165,14 @@ class LocalDatabase {
   LocalDatabase({
     KeyManager? keyManager,
     DatabaseOpener? opener,
-    FlutterSecureStorage? secureStorage,
+    SecureStorage? secureStorage,
     String? dbPath,
   }) : _keyManager = keyManager ?? KeyManager(),
        _opener =
            opener ??
            (Platform.isWindows ? WindowsSqlCipherOpener() : SqlCipherOpener()),
        _dbPathOverride = dbPath,
-       _secure = secureStorage ?? const FlutterSecureStorage();
+       _secure = secureStorage ?? SecureStorages.platformDefault();
 
   Future<String> _resolveDatabasePath({bool createParent = false}) async {
     if (_dbPathOverride != null) return _dbPathOverride;
@@ -423,6 +424,18 @@ class LocalDatabase {
       await DbQueries.upsert(transaction, DbTables.kv, {
         DbCols.key: '${_sessionKeyPrefix}outbox:${message.id}',
         DbCols.value: _enc(envelope),
+      });
+    });
+  }
+
+  /// Ratchet-only commit for resync envelopes: advances and stores the
+  /// session without writing a message row (invisible to users).
+  Future<void> commitRatchetOnly(SessionState state) async {
+    _ensureInitialized();
+    await _db!.transaction((transaction) async {
+      await DbQueries.upsert(transaction, DbTables.kv, {
+        DbCols.key: '$_sessionKeyPrefix${state.peerId}',
+        DbCols.value: _enc(jsonEncode(state.toJson())),
       });
     });
   }
@@ -741,6 +754,168 @@ class LocalDatabase {
     });
   }
 
+  // ---- Plain (unencrypted) kv metadata and the session_generation dual-store
+  //
+  // Non-secret protocol metadata for the v2 resync flow (spec §3.7–§3.8).
+  // Ratchet blobs remain AES-GCM enveloped under `_sessionKeyPrefix`.
+  // `session_generation` is dual-stored: keystore first, then SQLCipher;
+  // any mismatch fails closed to a forced resync (spec §3.8).
+
+  static String resyncPendingKey(String conversationId) =>
+      'session_resync_pending/$conversationId';
+  static String restoreGenerationKey(String conversationId) =>
+      'restore_generation/$conversationId';
+  static String sessionGenerationKey(String conversationId) =>
+      'session_generation/$conversationId';
+  static String peerRestoredKey(String conversationId) =>
+      'peer_restored/$conversationId';
+  static String postRestoreUnverifiedKey(String conversationId) =>
+      'post_restore_unverified/$conversationId';
+  static String resyncResumeKey(String conversationId) =>
+      'resync_resume/$conversationId';
+  static String resyncAckedKey(String conversationId, String restoreGeneration) =>
+      'resync_acked/$conversationId/$restoreGeneration';
+  static String resyncSupersededKey(String messageId) =>
+      'resync_superseded/$messageId';
+  static String resyncSentKey(String conversationId) =>
+      'resync_sent/$conversationId';
+
+  static final RegExp _uuidRe = RegExp(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+  );
+
+  /// Adopts `max(current, incoming)` as the conversation's recorded
+  /// `restore_generation` (spec §3.7: the UUID compared as 16 raw bytes —
+  /// equivalently lexicographic order of the lowercase canonical string).
+  /// Equal or smaller incoming generations are a no-op. Returns adopted.
+  Future<String?> adoptRestoreGeneration(
+    String conversationId,
+    String? incoming,
+  ) async {
+    _ensureInitialized();
+    final current = await readPlainKv(restoreGenerationKey(conversationId));
+    if (incoming == null || !_uuidRe.hasMatch(incoming)) {
+      return current;
+    }
+    if (current == null || incoming.compareTo(current) > 0) {
+      await writePlainKv(restoreGenerationKey(conversationId), incoming);
+      return incoming;
+    }
+    return current;
+  }
+  static String _secureGenerationKey(String conversationId) =>
+      'session_generation.$conversationId';
+
+  Future<String?> readPlainKv(String key) async {
+    _ensureInitialized();
+    final rows = await DbQueries.find(_db!, DbTables.kv, equals: {DbCols.key: key}, limit: 1);
+    if (rows.isEmpty) return null;
+    return rows.first[DbCols.value] as String?;
+  }
+
+  Future<void> writePlainKv(String key, String value) async {
+    _ensureInitialized();
+    await DbQueries.upsert(_db!, DbTables.kv, {DbCols.key: key, DbCols.value: value});
+  }
+
+  Future<void> deletePlainKv(String key) async {
+    _ensureInitialized();
+    await DbQueries.deleteWhere(_db!, DbTables.kv, {DbCols.key: key});
+  }
+
+  /// Reads the dual-stored `session_generation` counter for [conversationId].
+  /// Each side may be null (never written) or a decimal uint64 string.
+  Future<({int? db, int? keystore})> readSessionGenerationPair(
+    String conversationId,
+  ) async {
+    _ensureInitialized();
+    final dbRaw = await readPlainKv(sessionGenerationKey(conversationId));
+    String? keystoreRaw;
+    try {
+      keystoreRaw = await _secure.read(key: _secureGenerationKey(conversationId));
+    } catch (_) {
+      keystoreRaw = null;
+    }
+    int? parse(String? raw) {
+      if (raw == null) return null;
+      final value = int.tryParse(raw.trim());
+      return value != null && value >= 0 ? value : null;
+    }
+    return (db: parse(dbRaw), keystore: parse(keystoreRaw));
+  }
+
+  /// Writes both stores, keystore first (spec §3.8 write order). A crash
+  /// between the two writes resurfaces as a mismatch and forces resync.
+  Future<void> writeSessionGeneration(String conversationId, int value) async {
+    _ensureInitialized();
+    if (value < 0) {
+      throw ArgumentError.value(value, 'value', 'session_generation must be >= 0');
+    }
+    await _secure.write(
+      key: _secureGenerationKey(conversationId),
+      value: value.toString(),
+    );
+    await writePlainKv(sessionGenerationKey(conversationId), value.toString());
+  }
+
+  /// Rollback/consistency classification (spec §3.8):
+  /// - `fresh`: never written on either side (or both read 0).
+  /// - `ok`: both stores present and equal.
+  /// - `rollback`: any mismatch or one-sided presence — never adopt silently.
+  Future<String> sessionGenerationState(String conversationId) async {
+    final pair = await readSessionGenerationPair(conversationId);
+    final db = pair.db ?? 0;
+    final keystore = pair.keystore ?? 0;
+    final dbPresent = pair.db != null;
+    final ksPresent = pair.keystore != null;
+    if (!dbPresent && !ksPresent) return 'fresh';
+    if (dbPresent != ksPresent) return 'rollback';
+    if (db != keystore) return 'rollback';
+    return 'ok';
+  }
+
+  /// Records a forced resync for [conversationId] (spec §3.6/§3.8): marks
+  /// `session_resync_pending` with the given reason. Does NOT touch the
+  /// dual-store counters or any other data (data preservation, spec §9.1).
+  Future<void> markResyncPending(
+    String conversationId, {
+    required String reason,
+    String? restoreGeneration,
+  }) async {
+    _ensureInitialized();
+    final existing = await readPlainKv(restoreGenerationKey(conversationId));
+    final generation = restoreGeneration ?? existing ?? const Uuid().v4();
+    await writePlainKv(restoreGenerationKey(conversationId), generation);
+    await writePlainKv(
+      resyncPendingKey(conversationId),
+      jsonEncode({
+        'restoreGeneration': generation,
+        'reason': reason,
+        'createdAt': DateTime.now().millisecondsSinceEpoch,
+      }),
+    );
+  }
+
+  Future<({String restoreGeneration, String reason})?> readResyncPending(
+    String conversationId,
+  ) async {
+    _ensureInitialized();
+    final raw = await readPlainKv(resyncPendingKey(conversationId));
+    if (raw == null) return null;
+    try {
+      final json = jsonDecode(raw) as Map<String, dynamic>;
+      final generation = json['restoreGeneration'];
+      final reason = json['reason'];
+      if (generation is! String || reason is! String) {
+        // Corrupt marker: fail closed into a fresh establishment.
+        return (restoreGeneration: const Uuid().v4(), reason: 'restore');
+      }
+      return (restoreGeneration: generation, reason: reason);
+    } catch (_) {
+      return (restoreGeneration: const Uuid().v4(), reason: 'restore');
+    }
+  }
+
   Future<Contact?> getContact(String contactId) async {
     _ensureInitialized();
     final rows = await DbQueries.find(
@@ -936,11 +1111,36 @@ class LocalDatabase {
       final keyRows = await DbQueries.find(transaction, DbTables.kv);
       for (final row in keyRows) {
         final key = row[DbCols.key] as String?;
-        if (key != null && key.startsWith(_sessionKeyPrefix)) {
+        if (key != null &&
+            (key.startsWith(_sessionKeyPrefix) ||
+                key.startsWith('session_resync_pending/') ||
+                key.startsWith('resync_resume/') ||
+                key.startsWith('resync_acked/'))) {
           await DbQueries.deleteWhere(transaction, DbTables.kv, {
             DbCols.key: key,
           });
         }
+      }
+
+      // Spec §3.7/§2.1: per conversation, one fresh restore_generation per
+      // restore. Pending messages keep their DB content (re-sent with new
+      // messageIds after re-establishment); only ratchet/outbox rows and
+      // stale resync markers are cleared.
+      final restoreNowMs = DateTime.now().millisecondsSinceEpoch;
+      for (final conversation in conversations) {
+        final generation = const Uuid().v4();
+        await DbQueries.upsert(transaction, DbTables.kv, {
+          DbCols.key: restoreGenerationKey(conversation.id),
+          DbCols.value: generation,
+        });
+        await DbQueries.upsert(transaction, DbTables.kv, {
+          DbCols.key: resyncPendingKey(conversation.id),
+          DbCols.value: jsonEncode({
+            'restoreGeneration': generation,
+            'reason': 'restore',
+            'createdAt': restoreNowMs,
+          }),
+        });
       }
 
       final profileId = profile.chhayaId.publicKey;

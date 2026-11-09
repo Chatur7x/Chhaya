@@ -214,6 +214,49 @@ class Negotiation {
     _stage = NegotiationStage.established;
   }
 
+  /// Responder half of suite selection (spec §3.5). The initiator's offer
+  /// list arrived in the establishment flight; both sides compute the same
+  /// highest-common suite from the two lists, so the presented suite is
+  /// verified against the locally computed one. Ends at [stage]
+  /// suiteSelected, ready for `Pqxdh.acceptHybridV2`.
+  ///
+  /// Throws [NoCommonSuiteException] (a [NegotiationAborted]) when the
+  /// lists do not overlap; aborts on any presented-suite mismatch or
+  /// classical/PQ rule violation (spec §3.5 rule 5).
+  factory Negotiation.responder({
+    required List<Suite> offered,
+    required List<Suite> ownOffers,
+    required bool pqAvailable,
+    required bool userConsented,
+    required Suite presented,
+  }) {
+    final n = Negotiation(ownOffers: ownOffers, pqAvailable: pqAvailable);
+    if (offered.isEmpty) {
+      n.abort('peer offer list is empty');
+    }
+    // No common suite propagates as NoCommonSuiteException (terminal).
+    final selected = highestCommonSuite(offered, ownOffers);
+    if (selected != presented) {
+      n.abort('presented suite is not the highest-common selection');
+    }
+    if (selected == Suite.classicalConsentV1) {
+      if (pqAvailable) {
+        n.abort('classical suite selected with PQ provider present');
+      }
+      if (!userConsented) {
+        n.abort('classical fallback requires explicit user consent');
+      }
+      ChhayaLog.w(
+        'Classical-only session selected with explicit user consent; '
+        'session must be flagged nonPQ',
+        name: 'Negotiation',
+      );
+    }
+    n._selected = selected;
+    n._stage = NegotiationStage.suiteSelected;
+    return n;
+  }
+
   /// AEAD failure under the selected suite: hard abort (spec §3.6).
   /// Any SK material held by the caller is wiped here.
   void recordAeadFailure({Uint8List? sk}) {

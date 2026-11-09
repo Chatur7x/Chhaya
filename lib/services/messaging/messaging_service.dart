@@ -16,6 +16,7 @@ import 'message_payload.dart';
 import 'poll_payload.dart';
 import '../api/api_service.dart';
 import 'ratchet_message_codec.dart';
+import 'pq_hybrid_v1.dart';
 
 /// The message has committed locally; retry its existing ID instead of composing again.
 class MessageQueuedException implements Exception {
@@ -46,17 +47,401 @@ class MessagingService {
     return next;
   }
 
+  /// Session/resync bookkeeping must never break delivery for databases
+  /// without kv (in-memory test doubles): failures degrade to no-ops.
+  Future<T?> _softDb<T>(Future<T> Function(LocalDatabase db) fn) async {
+    try {
+      return await fn(database);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Handles the post-restore hold (spec §3.7): when this device restored
+  /// and the conversation awaits a peer ack, user content is NOT sent; the
+  /// resync envelope goes out instead. Returns true when the message must
+  /// be held (caller persists it and throws MessageQueuedException).
+  Future<bool> _holdForResync(
+    Conversation conversation,
+    Message message,
+    List<Contact> peers,
+  ) async {
+    if (!await PqHybridV1.enabled()) return false;
+    if (await _softDb((db) => db.sessionGenerationState(conversation.id)) == 'rollback') {
+      // Rollback is a forced resync (spec §3.8); mark it explicitly unless
+      // a marker is already pending.
+      if (await _softDb((db) => db.readResyncPending(conversation.id)) == null) {
+        await _softDb((db) =>
+            db.markResyncPending(conversation.id, reason: 'rollback'));
+      }
+    }
+    final pending = await _softDb((db) => db.readResyncPending(conversation.id));
+    if (pending == null) return false;
+    if (conversation.isGroup) {
+      await _sendGroupResyncIfNeeded(conversation, peers);
+    } else if (peers.length == 1) {
+      await _sendResyncIfNeeded(peers.single, conversation, pending);
+    }
+    await database.addMessage(message);
+    return true;
+  }
+
   Future<RatchetMessageCodec> _codec() async {
     final identity = await keys.getKeyPair();
     final profile = await database.getUserProfile();
     if (identity == null || profile == null) {
       throw StateError('Account is locked');
     }
+    // Loopback/unit tests explicitly install a fake bundle server via the
+    // PqHybridV1 seam; it wins over the production client in tests only.
+    final bundleFetcher = PqHybridV1.testBundleFetcher ??
+        PqHybridV1.productionBundleFetcher(
+          apiAuthenticated: api.isAuthenticated,
+          authToken: api.authToken,
+          baseUrl: api.baseUrl,
+        );
     return RatchetMessageCodec(
       sessions: LocalDatabaseSessionStorage(database),
       identity: identity,
       ownId: profile.chhayaId.publicKey,
+      database: database,
+      bundleFetcher: bundleFetcher,
+      ed25519PublicKey: () async =>
+          PqHybridV1.testEd25519PublicKey?.call(identity.publicKey) ??
+          keys.getIdentityEd25519PublicKeyBytes(),
     );
+  }
+
+  /// 30 s throttle for outbound resync envelopes per conversation.
+  static const Duration _resyncThrottle = Duration(seconds: 30);
+
+  /// Sends the resync envelope for [pending] (spec §3.7 initiator side).
+  /// Establishes the v2 session first when absent; user content is never
+  /// included. No message row is written — sync/retry delivers the queue
+  /// after the ack arrives.
+  Future<void> _sendResyncIfNeeded(
+    Contact peer,
+    Conversation conversation,
+    ({String restoreGeneration, String reason}) pending,
+  ) async {
+    if (!api.isAuthenticated) return;
+    final conversationId = conversation.id;
+    final sessionKey = '$conversationId:${peer.chhayaId.publicKey}';
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final sessionExists =
+        await database.loadSessionBlob(sessionKey) != null;
+    final lastRaw = await _softDb((db) => db.readPlainKv(
+      LocalDatabase.resyncSentKey(conversationId),
+    ));
+    final last = lastRaw == null ? null : int.tryParse(lastRaw);
+    if (sessionExists &&
+        last != null &&
+        nowMs - last < _resyncThrottle.inMilliseconds) {
+      return; // recently sent and the session exists; the queue holds.
+    }
+    final codec = await _codec();
+    final resyncMessageId = const Uuid().v4();
+    final payload = <String, dynamic>{
+      'type': resyncPayloadType,
+      'restore_generation': pending.restoreGeneration,
+      'session_generation': await codec.generationMax(conversationId),
+      'reason': pending.reason,
+      'v': 1,
+    };
+    final envelope = await codec.encrypt(
+      peer,
+      conversationId,
+      resyncMessageId,
+      api.userId!,
+      payload,
+    );
+    await api.sendMessage(
+      conversationId: conversationId,
+      content: envelope,
+      messageId: resyncMessageId,
+    );
+    await _softDb((db) => db.writePlainKv(
+      LocalDatabase.resyncSentKey(conversationId),
+      nowMs.toString(),
+    ));
+    await _softDb((db) => db.writePlainKv(
+      LocalDatabase.postRestoreUnverifiedKey(conversationId),
+      '1',
+    ));
+  }
+
+  /// Re-creates stuck pending messages from DB content with fresh ids and
+  /// re-encrypts under the current session (spec §3.7.5). Marks originals
+  /// superseded (kv tombstone) — they stay in the DB for forensics.
+  Future<void> _recreateStuckPendingDirect(
+    Conversation conversation,
+    Contact peer,
+  ) async {
+    final conversationId = conversation.id;
+    if (await _softDb((db) => db.readResyncPending(conversationId)) != null) {
+      return; // await the ack first
+    }
+    final codec = await _codec();
+    for (final message in await database.getPendingMessages(conversationId)) {
+      if (message.senderId != 'me' || message.isSent || message.isExpired) {
+        continue;
+      }
+      if (await database.loadSessionBlob('outbox:${message.id}') != null) {
+        continue; // normal pending; retryPending delivers the exact envelope
+      }
+      if ((await _softDb((db) => db.readPlainKv(
+            LocalDatabase.resyncSupersededKey(message.id),
+          ))) !=
+          null) {
+        continue;
+      }
+      final newId = const Uuid().v4();
+      final newMessage = message.copyWith(id: newId);
+      final String envelope;
+      try {
+        envelope = await codec.encrypt(
+          peer,
+          conversationId,
+          newId,
+          api.userId!,
+          MessagePayload.encode(newMessage),
+          commit: (state, envelope) =>
+              database.commitOutgoingMessage(state, newMessage, envelope),
+        );
+      } catch (_) {
+        // Cannot establish right now (flag off, rollback, unavailable peer):
+        // leave the original pending for a later retry.
+        continue;
+      }
+      await _softDb((db) => db.writePlainKv(
+        LocalDatabase.resyncSupersededKey(message.id),
+        '1',
+      ));
+      try {
+        await _deliver(newMessage, envelope);
+      } catch (_) {
+        // Outbox committed; retryPending will re-deliver the exact envelope.
+      }
+    }
+  }
+
+  /// Group analog of the stuck-pending re-creation (spec §3.7.5): re-issues
+  /// each me-pending, unsent group message from DB content with a fresh id.
+  Future<void> _resumePendingGroupResync(Conversation conversation) async {
+    if (!api.isAuthenticated) return;
+    if (await _softDb((db) => db.readResyncPending(conversation.id)) != null) {
+      return; // await the ack first
+    }
+    for (final message in await database.getPendingMessages(conversation.id)) {
+      if (message.senderId != 'me' || message.isSent || message.isExpired) {
+        continue;
+      }
+      if (message.type == MessageType.poll) {
+        // Poll re-validation is not safe to replay blindly; leave pending.
+        continue;
+      }
+      if (await database.loadSessionBlob('outbox:${message.id}') != null) {
+        continue; // normal pending; retryPending delivers the exact envelope
+      }
+      if ((await _softDb((db) => db.readPlainKv(
+            LocalDatabase.resyncSupersededKey(message.id),
+          ))) !=
+          null) {
+        continue;
+      }
+      try {
+        await _sendGroup(
+          conversation,
+          message.content,
+          ttl: message.ttl,
+          replyToId: message.replyToId,
+          attachment: message.attachment,
+          type: message.type,
+        );
+        await _softDb((db) => db.writePlainKv(
+          LocalDatabase.resyncSupersededKey(message.id),
+          '1',
+        ));
+      } on MessageQueuedException {
+        // Committed with a fresh id; the ack path/retry delivers it.
+        await _softDb((db) => db.writePlainKv(
+          LocalDatabase.resyncSupersededKey(message.id),
+          '1',
+        ));
+      } catch (_) {
+        // Pre-commit failure; leave the original pending for a later resume.
+        continue;
+      }
+    }
+  }
+
+  /// Responder-side resync handling after a valid inbound resync payload
+  /// (spec §3.7): adopt max restore_generation, mark, and emit the ack
+  /// (idempotent re-ack on replay, no re-increment — spec §3.7 rule).
+  Future<void> _sendResyncAck(
+    Contact peer,
+    String conversationId,
+    Map<String, dynamic> payload,
+  ) async {
+    if (!api.isAuthenticated) return;
+    final theirsRaw = payload['restore_generation'];
+    final theirsGen = theirsRaw is String &&
+            RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+                .hasMatch(theirsRaw)
+        ? theirsRaw
+        : null;
+    final adopted = await _softDb((db) =>
+        db.adoptRestoreGeneration(conversationId, theirsGen));
+    await _softDb((db) => db.writePlainKv(
+      LocalDatabase.peerRestoredKey(conversationId),
+      '1',
+    ));
+    final codec = await _codec();
+    final ackedKey = LocalDatabase.resyncAckedKey(
+      conversationId,
+      adopted ?? 'unknown',
+    );
+    if ((await _softDb((db) => db.readPlainKv(ackedKey))) != '1') {
+      await _softDb((db) => db.writePlainKv(ackedKey, '1'));
+      await codec.incrementGeneration(conversationId);
+    }
+    final ack = <String, dynamic>{
+      'type': resyncAckPayloadType,
+      if (adopted != null) 'restore_generation': adopted,
+      'session_generation': await codec.generationMax(conversationId),
+      'v': 1,
+    };
+    final ackMessageId = const Uuid().v4();
+    final echo = await codec.ownOfferEcho();
+    final envelope = await codec.encrypt(
+      peer,
+      conversationId,
+      ackMessageId,
+      api.userId!,
+      ack,
+      echo: echo,
+    );
+    await api.sendMessage(
+      conversationId: conversationId,
+      content: envelope,
+      messageId: ackMessageId,
+    );
+  }
+
+  /// Group-member resync receipt (spec §3.7, per-member path): adopt max
+  /// generation, mark, and increment once per restore_generation. The
+  /// member's next outbound (any AEAD-valid v2 message) is its ack; there
+  /// is deliberately no proactive group ack envelope (see WS3 report).
+  Future<void> _processGroupResync(
+    String conversationId,
+    Map<String, dynamic> payload,
+  ) async {
+    final theirsRaw = payload['restore_generation'];
+    final theirsGen = theirsRaw is String &&
+            RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+                .hasMatch(theirsRaw)
+        ? theirsRaw
+        : null;
+    final adopted = await _softDb((db) =>
+        db.adoptRestoreGeneration(conversationId, theirsGen));
+    await _softDb((db) => db.writePlainKv(
+      LocalDatabase.peerRestoredKey(conversationId),
+      '1',
+    ));
+    final codec = await _codec();
+    final ackedKey = LocalDatabase.resyncAckedKey(
+      conversationId,
+      adopted ?? 'unknown',
+    );
+    if ((await _softDb((db) => db.readPlainKv(ackedKey))) != '1') {
+      await _softDb((db) => db.writePlainKv(ackedKey, '1'));
+      await codec.incrementGeneration(conversationId);
+    }
+  }
+
+  /// Sends the resync-only group envelope (all wrappers carry
+  /// `chhaya-resync-v1`) — used when this device restored and must
+  /// re-establish before any content flows (spec §3.7).
+  Future<bool> _sendGroupResyncIfNeeded(
+    Conversation conversation,
+    List<Contact> peers,
+  ) async {
+    if (!api.isAuthenticated || api.userId == null) return false;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final lastRaw = await _softDb((db) => db.readPlainKv(
+      LocalDatabase.resyncSentKey(conversation.id),
+    ));
+    final last = lastRaw == null ? null : int.tryParse(lastRaw);
+    if (last != null && nowMs - last < _resyncThrottle.inMilliseconds) {
+      return false;
+    }
+    final pending = await _softDb((db) => db.readResyncPending(conversation.id));
+    if (pending == null) return false;
+    final codec = await _codec();
+    final groupMessageId = const Uuid().v4();
+    final payload = <String, dynamic>{
+      'type': resyncPayloadType,
+      'restore_generation': pending.restoreGeneration,
+      'session_generation': await codec.generationMax(conversation.id),
+      'reason': pending.reason,
+      'v': 1,
+    };
+    final states = <SessionState>[];
+    try {
+      final wrappers = <String, String>{};
+      for (final peer in peers) {
+        final prepared = await codec.prepareEncrypt(
+          peer,
+          conversation.id,
+          groupMessageId,
+          api.userId!,
+          payload,
+        );
+        states.add(prepared.state);
+        wrappers[peer.id] = prepared.envelope;
+      }
+      // The body is opaque filler: after a restore every member wrapper
+      // carries chhaya-resync-v1, so no member decrypts it.
+      final contentKey = Csprng.instance.bytes(32);
+      final body = AesGcm.encryptBytes(
+        contentKey,
+        Uint8List.fromList(utf8.encode(jsonEncode(payload))),
+        aad: _groupBodyAad(conversation.id, groupMessageId, api.userId!),
+      );
+      Csprng.wipe(contentKey);
+      final envelope = jsonEncode({
+        'v': 1,
+        'kind': 'chhaya-group-v1',
+        'conversationId': conversation.id,
+        'messageId': groupMessageId,
+        'senderId': api.userId!,
+        'keys': wrappers,
+        'body': base64Encode(body),
+      });
+      // Ratchet-only commits: no message row, no outbox — the resync-only
+      // envelope exists to re-establish pairwise sessions.
+      for (final state in states) {
+        await database.commitRatchetOnly(state);
+      }
+      await api.sendMessage(
+        conversationId: conversation.id,
+        content: envelope,
+        messageId: groupMessageId,
+      );
+      await _softDb((db) => db.writePlainKv(
+        LocalDatabase.resyncSentKey(conversation.id),
+        nowMs.toString(),
+      ));
+      await _softDb((db) => db.writePlainKv(
+        LocalDatabase.postRestoreUnverifiedKey(conversation.id),
+        '1',
+      ));
+      return true;
+    } finally {
+      for (final state in states) {
+        state.wipe();
+      }
+    }
   }
 
   Future<Message> send(
@@ -110,6 +495,9 @@ class MessagingService {
       attachment: attachment,
       type: type,
     );
+    if (await _holdForResync(conversation, message, [peer])) {
+      throw MessageQueuedException(message);
+    }
     final envelope = await (await _codec()).encrypt(
       peer,
       conversation.id,
@@ -176,6 +564,9 @@ class MessagingService {
       attachment: attachment,
       type: type,
     );
+    if (await _holdForResync(conversation, message, peers)) {
+      throw MessageQueuedException(message);
+    }
     final contentKey = Csprng.instance.bytes(32);
     final bodyAad = _groupBodyAad(conversation.id, message.id, api.userId!);
     final body = AesGcm.encryptBytes(
@@ -312,7 +703,13 @@ class MessagingService {
       final envelope = await database.loadSessionBlob('outbox:${message.id}');
       if (envelope != null) {
         await _deliver(message, envelope);
+        continue;
       }
+      // Restore-stuck pending message: re-create from DB content with a
+      // fresh messageId under the current session (spec §3.7.5). The
+      // helper iterates every stuck row for this conversation.
+      await _recreateStuckPendingDirect(conversation, peer);
+      break;
     }
   });
 
@@ -331,6 +728,8 @@ class MessagingService {
     if (!api.isAuthenticated) {
       return database.getAllConversations();
     }
+    final resyncsToAck =
+        <({Contact peer, String conversationId, Map<String, dynamic> payload})>[];
     final contacts = await database.getAllContacts();
     final remote = await api.getConversations();
     final existing = await database.getAllConversations();
@@ -442,6 +841,13 @@ class MessagingService {
               message.senderId,
               recipientEnvelope,
               commit: (state, wrapped) async {
+                if (wrapped['type'] == resyncPayloadType) {
+                  // Restoring member's resync rides its pairwise session;
+                  // commit the ratchet, no message row (spec §3.7).
+                  await database.commitRatchetOnly(state);
+                  await _processGroupResync(conversation.id, wrapped);
+                  return;
+                }
                 if (wrapped['kind'] != 'chhaya-group-key-v1' ||
                     wrapped['conversationId'] != conversation.id ||
                     wrapped['messageId'] != message.id ||
@@ -529,12 +935,70 @@ class MessagingService {
               message.senderId,
               message.content,
               commit: (state, payload) async {
+                if (payload['type'] == resyncPayloadType) {
+                  // Restoring peer's resync: commit the ratchet, no message
+                  // row; the ack flushes after the batch loop.
+                  await database.commitRatchetOnly(state);
+                  resyncsToAck.add((
+                    peer: peers.single,
+                    conversationId: conversation.id,
+                    payload: payload,
+                  ));
+                  return;
+                }
                 final received = await _decodePayload(message, payload);
                 await database.commitReceivedMessage(state, received);
               },
             );
           } catch (_) {
             // A malformed row must not prevent later authenticated messages syncing.
+          }
+        }
+      }
+      // v2 resync post-processing (flag-gated no-op otherwise): resume the
+      // local queue after an ack, flush acks for inbound resyncs, and
+      // (re)fire our own resync while a restore is unacknowledged.
+      if (await PqHybridV1.enabled()) {
+        final resume = await _softDb(
+          (db) => db.readPlainKv(LocalDatabase.resyncResumeKey(conversation.id)),
+        );
+        if (resume == '1') {
+          await _softDb(
+            (db) => db.deletePlainKv(LocalDatabase.resyncResumeKey(conversation.id)),
+          );
+          if (conversation.isGroup) {
+            await _resumePendingGroupResync(conversation);
+          } else if (peers.length == 1 &&
+              peers.single.isVerified &&
+              !peers.single.isBlocked &&
+              !database.getBlockedContacts().contains(peers.single.id)) {
+            await _recreateStuckPendingDirect(conversation, peers.single);
+          }
+        }
+        for (final item in resyncsToAck) {
+          if (item.conversationId == conversation.id) {
+            try {
+              await _sendResyncAck(item.peer, item.conversationId, item.payload);
+            } catch (_) {
+              // Ack delivery failed; the next inbound resync triggers a
+              // re-ack (replayed resync ⇒ idempotent re-ack).
+            }
+          }
+        }
+        final pending = await _softDb((db) => db.readResyncPending(conversation.id));
+        if (pending != null) {
+          final verified = peers
+              .where((p) =>
+                  p.isVerified &&
+                  !p.isBlocked &&
+                  !database.getBlockedContacts().contains(p.id))
+              .toList();
+          if (conversation.isGroup) {
+            if (verified.isNotEmpty) {
+              await _sendGroupResyncIfNeeded(conversation, verified);
+            }
+          } else if (verified.length == 1) {
+            await _sendResyncIfNeeded(verified.single, conversation, pending);
           }
         }
       }
