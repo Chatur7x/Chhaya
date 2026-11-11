@@ -788,7 +788,20 @@ class RatchetMessageCodec {
       }
       final result = jsonDecode(utf8.decode(plain)) as Map<String, dynamic>;
       if (commit != null) {
-        await commit(activeState, result);
+        if (legacyRetained) {
+          // Callers persist the state under `ratchet_session/${state.peerId}`;
+          // hand them a twin keyed to the legacy slot so the primary v2
+          // session is never overwritten with advanced legacy state. The JSON
+          // round-trip deep-copies every key byte.
+          final twin = SessionState.fromJson({
+            ...jsonDecode(jsonEncode(activeState.toJson()))
+                as Map<String, dynamic>,
+            'peerId': legacyKey(key),
+          });
+          await commit(twin, result);
+        } else {
+          await commit(activeState, result);
+        }
       } else if (legacyRetained) {
         await _soft(
           (db) => db.saveSessionBlob(legacyKey(key), jsonEncode(activeState.toJson())),

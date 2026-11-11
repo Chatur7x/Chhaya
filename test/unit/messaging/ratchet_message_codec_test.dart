@@ -2,14 +2,61 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:chaaya/core/crypto/chhaya_crypto_engine.dart';
+import 'package:chaaya/core/crypto/key_manager.dart';
+import 'package:chaaya/core/crypto/primitives/rng.dart';
+import 'package:chaaya/core/crypto/primitives/x25519.dart';
+import 'package:chaaya/core/crypto/ratchet/session_state.dart';
 import 'package:chaaya/core/crypto/ratchet/session_store.dart';
+import 'package:chaaya/core/crypto/ratchet/triple_ratchet.dart';
+import 'package:chaaya/core/crypto/storage/secure_storage_mock.dart';
+import 'package:chaaya/core/database/local_database.dart';
 import 'package:chaaya/core/models/contact.dart';
 import 'package:chaaya/core/models/chhaya_id.dart';
 import 'package:chaaya/services/messaging/pq_hybrid_v1.dart';
 import 'package:chaaya/services/messaging/ratchet_message_codec.dart';
 
 import '../../support/fake_prekey_server.dart';
+
+/// In-memory opener for the LocalDatabase round-trip (mirrors the
+/// Part 3 unit-test fake).
+class _DbOpener implements DatabaseOpener {
+  @override
+  Future<Database> open({
+    required String path,
+    required int version,
+    required String passwordHex,
+    required Future<void> Function(Database db) onOpen,
+  }) async {
+    if (passwordHex.isEmpty) {
+      throw StateError('password required');
+    }
+    return databaseFactoryFfi.openDatabase(
+      inMemoryDatabasePath,
+      options: OpenDatabaseOptions(
+        version: version,
+        singleInstance: false,
+        onCreate: (db, _) => onOpen(db),
+        onUpgrade: (db, _, __) => onOpen(db),
+      ),
+    );
+  }
+}
+
+Future<LocalDatabase> _makeDb() async {
+  sqfliteFfiInit();
+  final keyManager = KeyManager(secureBackend: SecureStorageMock());
+  await keyManager.storeChhayaId('codec-test-user');
+  final db = LocalDatabase(
+    keyManager: keyManager,
+    opener: _DbOpener(),
+    dbPath: inMemoryDatabasePath,
+    secureStorage: SecureStorageMock(),
+  );
+  expect(await db.init(requireBiometric: false), isTrue);
+  return db;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -108,6 +155,86 @@ void main() {
       codec.encrypt(peer, '123e4567-e89b-42d3-a456-426655440000', 'id', 'alice', {'content': 'hello'}),
       throwsStateError,
     );
+  });
+
+  test('v1 decrypt under a legacy-retained session commits the advanced legacy state to the legacy slot, never the primary v2 slot', () async {
+    final a = await ChhayaCryptoEngine.generateKeyPair();
+    final b = await ChhayaCryptoEngine.generateKeyPair();
+    final aid = '05${a.publicKeyHex}', bid = '05${b.publicKeyHex}';
+    final accountA =
+        await fakePrekeys.enroll('alice', Uint8List.fromList(a.publicKey));
+    final accountB =
+        await fakePrekeys.enroll('bob', Uint8List.fromList(b.publicKey));
+    final db = await _makeDb();
+    final ap = contactFor(a, 'alice');
+    final bp = contactFor(b, 'bob');
+    const conversation = '123e4567-e89b-42d3-a456-426655440099';
+    // Each side stores the ratchet under the peer's chhayaId.
+    final keyA = '$conversation:$bid'; // alice side
+    final keyB = '$conversation:$aid'; // bob side
+    final aliceStore = InMemorySessionStorage();
+    final alice = RatchetMessageCodec(
+      sessions: aliceStore,
+      identity: a,
+      ownId: aid,
+      ed25519PublicKey: () async => accountA.identityEd25519Public,
+    );
+    final bob = RatchetMessageCodec(
+      sessions: LocalDatabaseSessionStorage(db),
+      identity: b,
+      ownId: bid,
+      database: db,
+      ed25519PublicKey: () async => accountB.identityEd25519Public,
+    );
+    // Establish a v2 session; bob's primary slot then holds the v2 state.
+    final v2Envelope = await alice.encrypt(
+        bp, conversation, 'v2-1', 'alice', {'content': 'ping'});
+    await bob.decrypt(ap, conversation, 'v2-1', 'alice', v2Envelope);
+    final primaryBefore = await db.loadSessionBlob(keyB);
+    expect(primaryBefore, isNotNull);
+    // Seed a shared v1 session: alice keeps hers in memory, bob's is
+    // retained under the legacy key (spec §3.11).
+    final shared = Csprng.instance.bytes(32);
+    final aKeys = await X25519Kex.generateKeyPair();
+    final bKeys = await X25519Kex.generateKeyPair();
+    final aliceV1 = await TripleRatchet.startSession(
+      peer: bp.copyWith(id: keyA),
+      remoteDhPublicKey: bKeys.publicKey,
+      sharedSecret: shared,
+      initiator: true,
+      ourPrivateKey: aKeys.privateKey,
+    );
+    final bobV1 = await TripleRatchet.startSession(
+      peer: ap.copyWith(id: keyB),
+      remoteDhPublicKey: aKeys.publicKey,
+      sharedSecret: shared,
+      initiator: false,
+      ourPrivateKey: bKeys.privateKey,
+    );
+    Csprng.wipe(shared);
+    await aliceStore.saveSession(aliceV1);
+    await db.saveSessionBlob(
+        RatchetMessageCodec.legacyKey(keyB), jsonEncode(bobV1.toJson()));
+    final v1Envelope = await alice.encrypt(
+        bp, conversation, 'legacy-1', 'alice', {'content': 'hello legacy'});
+    // Production-shaped commit: persists the ratchet under state.peerId.
+    final decrypted = await bob.decrypt(
+      ap,
+      conversation,
+      'legacy-1',
+      'alice',
+      v1Envelope,
+      commit: (state, payload) => db.commitRatchetOnly(state),
+    );
+    expect(decrypted['content'], 'hello legacy');
+    // The primary v2 slot is byte-identical; only the legacy slot advanced.
+    expect(await db.loadSessionBlob(keyB), primaryBefore);
+    final legacyRaw = await db.loadSessionBlob(RatchetMessageCodec.legacyKey(keyB));
+    expect(legacyRaw, isNotNull);
+    final legacy = SessionState.fromJson(
+        jsonDecode(legacyRaw!) as Map<String, dynamic>);
+    expect(legacy.recvCounter, greaterThan(0));
+    await db.close();
   });
 
   test('prepared group wrappers advance only when the caller commits them', () async {
