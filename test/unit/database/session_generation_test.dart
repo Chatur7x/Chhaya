@@ -55,7 +55,7 @@ class FakeDatabaseOpener implements DatabaseOpener {
   }
 }
 
-Future<LocalDatabase> makeDb() async {
+Future<LocalDatabase> makeDb({SecureStorageMock? secureStorage}) async {
   sqfliteFfiInit();
   final keyManager = KeyManager(secureBackend: SecureStorageMock());
   await keyManager.storeChhayaId('rollback-user');
@@ -63,7 +63,7 @@ Future<LocalDatabase> makeDb() async {
     keyManager: keyManager,
     opener: FakeDatabaseOpener(),
     dbPath: inMemoryDatabasePath,
-    secureStorage: SecureStorageMock(),
+    secureStorage: secureStorage ?? SecureStorageMock(),
   );
   expect(await db.init(requireBiometric: false), isTrue);
   return db;
@@ -170,6 +170,37 @@ void main() {
       // the keystore copy.
       await db.writePlainKv(LocalDatabase.sessionGenerationKey('a23e4567-e89b-42d3-a456-426655440009'), '2');
       expect(await db.sessionGenerationState('a23e4567-e89b-42d3-a456-426655440009'), 'rollback');
+    },
+  );
+
+  test(
+    'a stale keystore copy with an advanced SQLCipher value forces resync '
+    '(keystore rolled back behind the database)',
+    () async {
+      final db = await setupDbWithProfile('Alice');
+      addTearDown(db.close);
+      await db.writeSessionGeneration('a23e4567-e89b-42d3-a456-426655440009', 2);
+      // Both stores present and unequal, keystore u64 < SQLCipher kv u64.
+      await db.writePlainKv(LocalDatabase.sessionGenerationKey('a23e4567-e89b-42d3-a456-426655440009'), '8');
+      expect(await db.sessionGenerationState('a23e4567-e89b-42d3-a456-426655440009'), 'rollback');
+    },
+  );
+
+  test(
+    'a missing keystore value with a present SQLCipher value forces resync',
+    () async {
+      final secure = SecureStorageMock();
+      final db = await makeDb(secureStorage: secure);
+      addTearDown(db.close);
+      const conversationId = 'a23e4567-e89b-42d3-a456-426655440009';
+      await db.writeSessionGeneration(conversationId, 4);
+      // Keystore side lost (e.g. keystore wipe); SQLCipher kv remains.
+      // Mirrors LocalDatabase._secureGenerationKey.
+      await secure.delete(key: 'session_generation.$conversationId');
+      final pair = await db.readSessionGenerationPair(conversationId);
+      expect(pair.keystore, isNull);
+      expect(pair.db, 4);
+      expect(await db.sessionGenerationState(conversationId), 'rollback');
     },
   );
 
