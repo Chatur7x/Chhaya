@@ -237,6 +237,79 @@ void main() {
     await db.close();
   });
 
+  test(
+      'v2 decrypt hard-rejects a replayed establishment flight and writes no kv entries',
+      () async {
+    final a = await ChhayaCryptoEngine.generateKeyPair();
+    final b = await ChhayaCryptoEngine.generateKeyPair();
+    final aid = '05${a.publicKeyHex}', bid = '05${b.publicKeyHex}';
+    final accountA =
+        await fakePrekeys.enroll('alice', Uint8List.fromList(a.publicKey));
+    final accountB =
+        await fakePrekeys.enroll('bob', Uint8List.fromList(b.publicKey));
+    final aliceDb = await _makeDb();
+    final bobDb = await _makeDb();
+    final ap = contactFor(a, 'alice');
+    final bp = contactFor(b, 'bob');
+    const conversation = '123e4567-e89b-42d3-a456-4266554400aa';
+    final keyB = '$conversation:$aid'; // bob's kv slot for the session
+    const genLow = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const genHigh = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    // Alice's pending restore carries the LOW generation, so her next v2
+    // flight advertises it.
+    await aliceDb.writePlainKv(
+      LocalDatabase.resyncPendingKey(conversation),
+      jsonEncode({
+        'restoreGeneration': genLow,
+        'reason': 'restore',
+        'createdAt': DateTime.now().millisecondsSinceEpoch,
+      }),
+    );
+    // Bob's per-conversation marker already records a HIGHER generation and
+    // his kv slot holds no session blob (state == null).
+    await bobDb.writePlainKv(
+      LocalDatabase.restoreGenerationKey(conversation),
+      genHigh,
+    );
+    final alice = RatchetMessageCodec(
+      sessions: InMemorySessionStorage(),
+      identity: a,
+      ownId: aid,
+      database: aliceDb,
+      ed25519PublicKey: () async => accountA.identityEd25519Public,
+    );
+    final bob = RatchetMessageCodec(
+      sessions: LocalDatabaseSessionStorage(bobDb),
+      identity: b,
+      ownId: bid,
+      database: bobDb,
+      ed25519PublicKey: () async => accountB.identityEd25519Public,
+    );
+    final envelope = await alice.encrypt(
+        bp, conversation, 'stale-1', 'alice', {'content': 'replay'});
+    await expectLater(
+      bob.decrypt(ap, conversation, 'stale-1', 'alice', envelope),
+      throwsA(isA<FormatException>()),
+    );
+    // Zero kv writes: marker untouched, no restore bookkeeping, no session.
+    expect(
+      await bobDb.readPlainKv(LocalDatabase.restoreGenerationKey(conversation)),
+      genHigh,
+    );
+    expect(await bobDb.readPlainKv(LocalDatabase.peerRestoredKey(conversation)),
+        isNull);
+    expect(await bobDb.readPlainKv(LocalDatabase.resyncPendingKey(conversation)),
+        isNull);
+    expect(await bobDb.readPlainKv(LocalDatabase.resyncResumeKey(conversation)),
+        isNull);
+    expect(
+        await bobDb.readPlainKv(LocalDatabase.sessionGenerationKey(conversation)),
+        isNull);
+    expect(await bobDb.loadSessionBlob(keyB), isNull);
+    await aliceDb.close();
+    await bobDb.close();
+  });
+
   test('prepared group wrappers advance only when the caller commits them', () async {
     final a = await ChhayaCryptoEngine.generateKeyPair();
     final b = await ChhayaCryptoEngine.generateKeyPair();

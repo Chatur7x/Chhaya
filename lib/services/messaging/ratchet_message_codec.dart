@@ -382,6 +382,54 @@ class RatchetMessageCodec {
   }
 
   // ---- v2 acceptance (responder for one bootstrap flight) ----
+  /// Adoption-decision predicate (WS3 F2), used by `_adoptFlightIfNewer`: a
+  /// flight may proceed to acceptance when it carries no `restoreGeneration`
+  /// (fresh/migration flight), none is recorded in the per-conversation
+  /// marker yet, or it strictly advances the recorded generation. Declining
+  /// silently is the adoption contract — the decrypt fallback applies the
+  /// stricter `_isAdoptionCandidate` before calling `_acceptV2`.
+  Future<bool> _flightAdvancesRecordedGeneration(
+    String conversation,
+    Map<String, dynamic> flight,
+  ) async {
+    final theirsRaw = flight['restoreGeneration'];
+    if (theirsRaw is! String || !_uuidRe.hasMatch(theirsRaw)) {
+      return true;
+    }
+    final recorded = await _soft(
+      (db) => db.readPlainKv(LocalDatabase.restoreGenerationKey(conversation)),
+    );
+    return recorded == null || theirsRaw.compareTo(recorded) > 0;
+  }
+
+  /// Acceptance-gate predicate (WS3 F2), stricter than the adoption
+  /// predicate: the decrypt fallback may call `_acceptV2` only when the
+  /// flight is the adoption candidate — it strictly advances the recorded
+  /// generation, or nothing is recorded in the per-conversation marker AND
+  /// no resync is pending. A replayed/stale flight (theirs <= recorded, or
+  /// nothing recorded with a resync pending) is rejected before any kv
+  /// write; a stale flight must never re-create a session. Fresh/migration
+  /// flights carry no `restoreGeneration` and are always acceptable —
+  /// nothing to be stale about (this is what lets a peer that never
+  /// restored establish with a device that has a pending resync marker).
+  Future<bool> _isAdoptionCandidate(
+    String conversation,
+    Map<String, dynamic> flight,
+  ) async {
+    final theirsRaw = flight['restoreGeneration'];
+    if (theirsRaw is! String || !_uuidRe.hasMatch(theirsRaw)) {
+      return true; // fresh/migration flight
+    }
+    final recorded = await _soft(
+      (db) => db.readPlainKv(LocalDatabase.restoreGenerationKey(conversation)),
+    );
+    if (recorded != null) {
+      return theirsRaw.compareTo(recorded) > 0;
+    }
+    final pending = await _soft((db) => db.readResyncPending(conversation));
+    return pending == null;
+  }
+
   /// Builds the responder-side session from the flight, or throws. Never
   /// persists; caller persists through the normal decrypt commit (or the
   /// establishment is discarded in the crossed-restore tie-break).
@@ -508,10 +556,7 @@ class RatchetMessageCodec {
     if (theirsRaw is! String || !_uuidRe.hasMatch(theirsRaw)) {
       return null; // fresh/migration flight: keep current session
     }
-    final recorded = await _soft(
-      (db) => db.readPlainKv(LocalDatabase.restoreGenerationKey(conversation)),
-    );
-    if (recorded != null && theirsRaw.compareTo(recorded) <= 0) {
+    if (!await _flightAdvancesRecordedGeneration(conversation, flight)) {
       return null; // replayed or stale flight
     }
     return _acceptV2(peer, conversation, flight);
@@ -758,7 +803,20 @@ class RatchetMessageCodec {
         if (establishment is! Map) {
           throw const FormatException('v2 envelope without an establishment flight');
         }
-        state = await _acceptV2(peer, conversation, Map<String, dynamic>.from(establishment));
+        final flight = Map<String, dynamic>.from(establishment);
+        // WS3 F2: a replayed/stale flight must never re-create a session.
+        // The adoption attempt already declined it; reject before any kv
+        // write instead of letting it into _acceptV2.
+        if (!await _isAdoptionCandidate(conversation, flight)) {
+          ChhayaLog.w(
+            'stale establishment flight rejected',
+            name: 'RatchetMessageCodec',
+          );
+          throw const FormatException(
+            'stale establishment flight: recorded restore generation is not older',
+          );
+        }
+        state = await _acceptV2(peer, conversation, flight);
       }
     }
     final activeState = state; // promoted non-null by the branches above
