@@ -803,6 +803,30 @@ class LocalDatabase {
     }
     return current;
   }
+  /// Inclusive upper bound for `session_generation`: int64 range
+  /// [0, 2^63-1] (spec §3.8 stores a monotonic uint64; Dart ints are int64).
+  static const int maxSessionGeneration = 0x7fffffffffffffff;
+
+  static final RegExp _generationRe = RegExp(r'^[0-9]+$');
+
+  // Tri-state parse of a raw dual-store value: absent (null raw), a valid
+  // integer in [0, maxSessionGeneration], or corrupt (present but unparsable
+  // or out of range). Any non-null raw that is not a plain decimal integer in
+  // range is corrupt and MUST fail closed (spec §3.8); int.tryParse alone
+  // would misclassify uint64 overflow strings as absent on some platforms.
+  static ({int? value, bool corrupt}) _parseSessionGeneration(String? raw) {
+    if (raw == null) return (value: null, corrupt: false);
+    final trimmed = raw.trim();
+    if (!_generationRe.hasMatch(trimmed)) {
+      return (value: null, corrupt: true);
+    }
+    final value = int.tryParse(trimmed);
+    if (value == null || value > maxSessionGeneration) {
+      return (value: null, corrupt: true);
+    }
+    return (value: value, corrupt: false);
+  }
+
   static String _secureGenerationKey(String conversationId) =>
       'session_generation.$conversationId';
 
@@ -824,8 +848,12 @@ class LocalDatabase {
   }
 
   /// Reads the dual-stored `session_generation` counter for [conversationId].
-  /// Each side may be null (never written) or a decimal uint64 string.
-  Future<({int? db, int? keystore})> readSessionGenerationPair(
+  /// Each side is either absent (never written / evicted), a valid integer in
+  /// [0, maxSessionGeneration], or corrupt (present but unparsable/out of
+  /// range); corrupt sides surface via `dbCorrupt`/`keystoreCorrupt` and MUST
+  /// be treated as rollback (spec §3.8), never as absent.
+  Future<({int? db, int? keystore, bool dbCorrupt, bool keystoreCorrupt})>
+      readSessionGenerationPair(
     String conversationId,
   ) async {
     _ensureInitialized();
@@ -836,20 +864,27 @@ class LocalDatabase {
     } catch (_) {
       keystoreRaw = null;
     }
-    int? parse(String? raw) {
-      if (raw == null) return null;
-      final value = int.tryParse(raw.trim());
-      return value != null && value >= 0 ? value : null;
-    }
-    return (db: parse(dbRaw), keystore: parse(keystoreRaw));
+    final db = _parseSessionGeneration(dbRaw);
+    final keystore = _parseSessionGeneration(keystoreRaw);
+    return (
+      db: db.value,
+      keystore: keystore.value,
+      dbCorrupt: db.corrupt,
+      keystoreCorrupt: keystore.corrupt,
+    );
   }
 
   /// Writes both stores, keystore first (spec §3.8 write order). A crash
   /// between the two writes resurfaces as a mismatch and forces resync.
+  /// [value] must be in int64 range [0, maxSessionGeneration].
   Future<void> writeSessionGeneration(String conversationId, int value) async {
     _ensureInitialized();
-    if (value < 0) {
-      throw ArgumentError.value(value, 'value', 'session_generation must be >= 0');
+    if (value < 0 || value > maxSessionGeneration) {
+      throw ArgumentError.value(
+        value,
+        'value',
+        'session_generation must be in [0, 2^63-1]',
+      );
     }
     await _secure.write(
       key: _secureGenerationKey(conversationId),
@@ -861,9 +896,11 @@ class LocalDatabase {
   /// Rollback/consistency classification (spec §3.8):
   /// - `fresh`: never written on either side (or both read 0).
   /// - `ok`: both stores present and equal.
-  /// - `rollback`: any mismatch or one-sided presence — never adopt silently.
+  /// - `rollback`: any mismatch, one-sided presence, or corrupt (unparsable /
+  ///   out-of-range) value — never adopt silently.
   Future<String> sessionGenerationState(String conversationId) async {
     final pair = await readSessionGenerationPair(conversationId);
+    if (pair.dbCorrupt || pair.keystoreCorrupt) return 'rollback';
     final db = pair.db ?? 0;
     final keystore = pair.keystore ?? 0;
     final dbPresent = pair.db != null;

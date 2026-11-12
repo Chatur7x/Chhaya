@@ -234,7 +234,9 @@ class RatchetMessageCodec {
   /// Writes max(db, keystore) + 1 to both stores, keystore first (spec §3.8).
   /// Adopting the higher value is the only non-decreasing choice.
   Future<void> incrementGeneration(String conversation) async {
-    final next = (await generationMax(conversation)) + 1;
+    final maxValue = await generationMax(conversation);
+    const cap = LocalDatabase.maxSessionGeneration;
+    final next = maxValue >= cap ? cap : maxValue + 1;
     await _soft((db) => db.writeSessionGeneration(conversation, next));
   }
 
