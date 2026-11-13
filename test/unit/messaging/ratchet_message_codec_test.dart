@@ -132,10 +132,16 @@ void main() {
         'reply');
     final next =
         await alice.encrypt(bp, '123e4567-e89b-42d3-a456-426655440000', 'three', 'alice', {'content': 'bound metadata'});
-    await expectLater(bob.decrypt(ap, '123e4567-e89b-42d3-a456-426655440000', 'wrong-id', 'alice', next),
-        throwsA(anything));
     expect((await bob.decrypt(ap, '123e4567-e89b-42d3-a456-426655440000', 'three', 'alice', next))['content'],
         'bound metadata');
+    await expectLater(bob.decrypt(ap, '123e4567-e89b-42d3-a456-426655440000', 'wrong-id', 'alice', next),
+        throwsA(anything));
+    // Replay after the message was consumed: refused by the duplicate-header
+    // guard. An AEAD tag failure under an established v2 session hard-aborts
+    // the session (spec §3.6) — see the dedicated hard-abort test below.
+    await expectLater(
+        bob.decrypt(ap, '123e4567-e89b-42d3-a456-426655440000', 'duplicate', 'alice', next),
+        throwsA(anything));
   });
 
   test('unverified contacts cannot start an encrypted session', () async {
@@ -307,6 +313,58 @@ void main() {
         isNull);
     expect(await bobDb.loadSessionBlob(keyB), isNull);
     await aliceDb.close();
+    await bobDb.close();
+  });
+
+  test(
+      'v2 AEAD tag failure hard-aborts: blob deleted, resync-pending reason aead',
+      () async {
+    final a = await ChhayaCryptoEngine.generateKeyPair();
+    final b = await ChhayaCryptoEngine.generateKeyPair();
+    final aid = '05${a.publicKeyHex}', bid = '05${b.publicKeyHex}';
+    final accountA =
+        await fakePrekeys.enroll('alice', Uint8List.fromList(a.publicKey));
+    final accountB =
+        await fakePrekeys.enroll('bob', Uint8List.fromList(b.publicKey));
+    final bobDb = await _makeDb();
+    final ap = contactFor(a, 'alice');
+    final bp = contactFor(b, 'bob');
+    const conversation = '123e4567-e89b-42d3-a456-4266554400bb';
+    final keyB = '$conversation:$aid'; // bob's kv slot for the session
+    final alice = RatchetMessageCodec(
+      sessions: InMemorySessionStorage(),
+      identity: a,
+      ownId: aid,
+      ed25519PublicKey: () async => accountA.identityEd25519Public,
+    );
+    final bob = RatchetMessageCodec(
+      sessions: LocalDatabaseSessionStorage(bobDb),
+      identity: b,
+      ownId: bid,
+      database: bobDb,
+      ed25519PublicKey: () async => accountB.identityEd25519Public,
+    );
+    // Establish a v2 session; bob's kv slot holds the persisted blob.
+    final first = await alice.encrypt(
+        bp, conversation, 'aead-1', 'alice', {'content': 'ping'});
+    await bob.decrypt(ap, conversation, 'aead-1', 'alice', first);
+    expect(await bobDb.loadSessionBlob(keyB), isNotNull);
+    // Tamper with the body (flips the GCM tag) and decrypt.
+    final second = await alice.encrypt(
+        bp, conversation, 'aead-2', 'alice', {'content': 'forged'});
+    final damaged = jsonDecode(second) as Map<String, dynamic>;
+    final bytes = base64Decode(damaged['body'] as String);
+    bytes[bytes.length - 1] ^= 1;
+    damaged['body'] = base64Encode(bytes);
+    await expectLater(
+      bob.decrypt(ap, conversation, 'aead-2', 'alice', jsonEncode(damaged)),
+      throwsA(anything),
+    );
+    // Persisted session blob is gone, marker records reason 'aead'.
+    expect(await bobDb.loadSessionBlob(keyB), isNull);
+    final pending = await bobDb.readResyncPending(conversation);
+    expect(pending, isNotNull);
+    expect(pending!.reason, 'aead');
     await bobDb.close();
   });
 

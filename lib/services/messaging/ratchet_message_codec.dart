@@ -204,6 +204,24 @@ class RatchetMessageCodec {
         db.markResyncPending(conversation, reason: 'rollback'));
   }
 
+  /// For the decrypt path: AEAD tag failure on a v2 envelope ⇒ hard abort
+  /// (spec §3.6). Wipes the persisted SK/chain material (the in-memory
+  /// session is wiped in the caller's `finally`), records a per-conversation
+  /// resync-pending marker with reason 'aead', and lets the caller rethrow.
+  Future<void> _abortV2OnAeadFailure(String conversation, String key) async {
+    ChhayaLog.w(
+      'AEAD authentication failure; hard-aborting v2 session',
+      name: 'RatchetMessageCodec',
+    );
+    await _soft((db) =>
+        db.markResyncPending(conversation, reason: 'aead'));
+    try {
+      await sessions.deleteSession(key);
+    } catch (_) {
+      // Best effort; fail-closed refusal stands.
+    }
+  }
+
   /// For the decrypt path: rollback ⇒ never decrypt under stale state.
   Future<void> _refuseStaleGeneration(String conversation, String key) async {
     final state = await _soft((db) => db.sessionGenerationState(conversation));
@@ -232,7 +250,8 @@ class RatchetMessageCodec {
       0;
 
   /// Writes max(db, keystore) + 1 to both stores, keystore first (spec §3.8).
-  /// Adopting the higher value is the only non-decreasing choice.
+  /// Adopting the higher value is the only non-decreasing choice. The result
+  /// is clamped to int64 range [0, 2^63-1].
   Future<void> incrementGeneration(String conversation) async {
     final maxValue = await generationMax(conversation);
     const cap = LocalDatabase.maxSessionGeneration;
@@ -835,11 +854,12 @@ class RatchetMessageCodec {
           aad: aad,
         );
       } catch (_) {
-        // An unauthenticated packet is not proof the session is broken:
-        // keep the session so later valid messages under it still flow.
-        // (The strictest reading of spec §3.6 — wipe on any tag failure —
-        // is recorded in the WS3 report as deviating from the pinned
-        // codec tests; it needs a spec decision, not an ad-hoc choice.)
+        // Spec §3.6: AEAD tag failure ⇒ hard abort the session — wipe
+        // persisted SK/chain material, mark resync-pending with reason
+        // 'aead', never weaken or retry.
+        if (v == 2) {
+          await _abortV2OnAeadFailure(conversation, key);
+        }
         ChhayaLog.w(
           'AEAD authentication failure; message rejected',
           name: 'RatchetMessageCodec',
