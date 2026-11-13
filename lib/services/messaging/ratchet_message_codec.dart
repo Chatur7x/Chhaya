@@ -402,6 +402,29 @@ class RatchetMessageCodec {
     }
   }
 
+  /// Extracts a valid `restore_generation` from an establishment flight, or
+  /// null for fresh/migration flights. Only the post-AEAD call sites act
+  /// on the result.
+  String? _flightRestoreGeneration(Map<String, dynamic> flight) {
+    final raw = flight['restoreGeneration'];
+    return raw is String && _uuidRe.hasMatch(raw) ? raw : null;
+  }
+
+  /// Performs the durable adoption of the flight's `restore_generation`.
+  /// MUST be called only after the flight's body AEAD has verified (spec
+  /// §3.7, WS3 F5): a forged/replayed flight must never bump the recorded
+  /// generation.
+  Future<void> _adoptVerifiedFlight(
+    String conversation,
+    Map<String, dynamic> flight,
+  ) async {
+    final theirsGen = _flightRestoreGeneration(flight);
+    if (theirsGen == null) return;
+    await _soft((db) => db.adoptRestoreGeneration(conversation, theirsGen));
+    await _soft((db) =>
+        db.writePlainKv(LocalDatabase.peerRestoredKey(conversation), '1'));
+  }
+
   // ---- v2 acceptance (responder for one bootstrap flight) ----
   /// Adoption-decision predicate (WS3 F2), used by `_adoptFlightIfNewer`: a
   /// flight may proceed to acceptance when it carries no `restoreGeneration`
@@ -461,8 +484,7 @@ class RatchetMessageCodec {
   ) async {
     final key = _key(conversation, peer);
     final pending = await _soft((db) => db.readResyncPending(conversation));
-    final theirsRaw = flight['restoreGeneration'];
-    final theirsGen = theirsRaw is String && _uuidRe.hasMatch(theirsRaw) ? theirsRaw : null;
+    final theirsGen = _flightRestoreGeneration(flight);
     if (pending != null &&
         theirsGen != null &&
         pending.restoreGeneration.compareTo(theirsGen) > 0) {
@@ -550,11 +572,8 @@ class RatchetMessageCodec {
         establishFlight: Map<String, dynamic>.from(flight),
       );
       negotiation.markEstablished();
-      if (theirsGen != null) {
-        await _soft((db) => db.adoptRestoreGeneration(conversation, theirsGen));
-        await _soft((db) => db
-            .writePlainKv(LocalDatabase.peerRestoredKey(conversation), '1'));
-      }
+      // WS3 F5: adoption writes (adoptRestoreGeneration / peer_restored)
+      // are deferred to decrypt(), after the flight's AEAD tag verifies.
       return state;
     } finally {
       Csprng.wipe(accept.secret.secret);
@@ -785,6 +804,7 @@ class RatchetMessageCodec {
     final header = base64Decode(wire['header'] as String);
     final key = _key(conversation, peer);
     var state = await sessions.loadSession(key);
+    Map<String, dynamic>? acceptedFlight;
     var legacyRetained = false;
     if (v == 1) {
       if (state == null) {
@@ -806,14 +826,16 @@ class RatchetMessageCodec {
       final establishment = wire['establish'];
       var adopted = false;
       if (establishment is Map) {
+        final flight = Map<String, dynamic>.from(establishment);
         final newState = await _adoptFlightIfNewer(
           peer,
           conversation,
-          Map<String, dynamic>.from(establishment),
+          flight,
         );
         if (newState != null) {
           state = newState;
           adopted = true;
+          acceptedFlight = flight;
         }
       }
       if (!adopted) {
@@ -838,6 +860,7 @@ class RatchetMessageCodec {
           );
         }
         state = await _acceptV2(peer, conversation, flight);
+        acceptedFlight = flight;
       }
     }
     final activeState = state; // promoted non-null by the branches above
@@ -867,6 +890,12 @@ class RatchetMessageCodec {
         rethrow;
       }
       final result = jsonDecode(utf8.decode(plain)) as Map<String, dynamic>;
+      // WS3 F5: adoption writes happen only now — after the flight's body
+      // AEAD tag verified — never before.
+      final flightToAdopt = acceptedFlight;
+      if (v == 2 && flightToAdopt != null) {
+        await _adoptVerifiedFlight(conversation, flightToAdopt);
+      }
       if (commit != null) {
         if (legacyRetained) {
           // Callers persist the state under `ratchet_session/${state.peerId}`;

@@ -368,6 +368,87 @@ void main() {
     await bobDb.close();
   });
 
+  test(
+      'v2 replayed establishment flight with flipped body tag adopts nothing',
+      () async {
+    final a = await ChhayaCryptoEngine.generateKeyPair();
+    final b = await ChhayaCryptoEngine.generateKeyPair();
+    final aid = '05${a.publicKeyHex}', bid = '05${b.publicKeyHex}';
+    final accountA =
+        await fakePrekeys.enroll('alice', Uint8List.fromList(a.publicKey));
+    final accountB =
+        await fakePrekeys.enroll('bob', Uint8List.fromList(b.publicKey));
+    final aliceDb = await _makeDb();
+    final bobDb = await _makeDb();
+    final ap = contactFor(a, 'alice');
+    final bp = contactFor(b, 'bob');
+    const conversation = '123e4567-e89b-42d3-a456-4266554400cc';
+    final keyB = '$conversation:$aid'; // bob's kv slot for the session
+    const genLow = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const genHigh = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    // Alice's pending restore carries the HIGH generation, so her next v2
+    // flight advertises it.
+    await aliceDb.writePlainKv(
+      LocalDatabase.resyncPendingKey(conversation),
+      jsonEncode({
+        'restoreGeneration': genHigh,
+        'reason': 'restore',
+        'createdAt': DateTime.now().millisecondsSinceEpoch,
+      }),
+    );
+    // Bob already recorded the LOW generation (an earlier legitimate,
+    // AEAD-valid flight he adopted) and holds no session blob.
+    await bobDb.writePlainKv(
+      LocalDatabase.restoreGenerationKey(conversation),
+      genLow,
+    );
+    final alice = RatchetMessageCodec(
+      sessions: InMemorySessionStorage(),
+      identity: a,
+      ownId: aid,
+      database: aliceDb,
+      ed25519PublicKey: () async => accountA.identityEd25519Public,
+    );
+    final bob = RatchetMessageCodec(
+      sessions: LocalDatabaseSessionStorage(bobDb),
+      identity: b,
+      ownId: bid,
+      database: bobDb,
+      ed25519PublicKey: () async => accountB.identityEd25519Public,
+    );
+    final envelope = await alice.encrypt(
+        bp, conversation, 'fips-1', 'alice', {'content': 'replayed'});
+    // Flip one body byte: the flight is byte-identical, but the GCM tag
+    // no longer verifies.
+    final damaged = jsonDecode(envelope) as Map<String, dynamic>;
+    expect((damaged['establish'] as Map)['restoreGeneration'], genHigh);
+    final bytes = base64Decode(damaged['body'] as String);
+    bytes[bytes.length - 1] ^= 1;
+    damaged['body'] = base64Encode(bytes);
+    await expectLater(
+      bob.decrypt(ap, conversation, 'fips-1', 'alice', jsonEncode(damaged)),
+      throwsA(anything),
+    );
+    // No adoption happened: the recorded generation stays the LOW one; no
+    // peer_restored marker. F3's AEAD hard abort is what writes the pending
+    // marker (reason 'aead', reusing the recorded generation) — adoption
+    // wrote nothing.
+    expect(
+      await bobDb.readPlainKv(LocalDatabase.restoreGenerationKey(conversation)),
+      genLow,
+    );
+    expect(
+        await bobDb.readPlainKv(LocalDatabase.peerRestoredKey(conversation)),
+        isNull);
+    final pending = await bobDb.readResyncPending(conversation);
+    expect(pending, isNotNull);
+    expect(pending!.reason, 'aead');
+    expect(pending.restoreGeneration, genLow);
+    expect(await bobDb.loadSessionBlob(keyB), isNull);
+    await aliceDb.close();
+    await bobDb.close();
+  });
+
   test('prepared group wrappers advance only when the caller commits them', () async {
     final a = await ChhayaCryptoEngine.generateKeyPair();
     final b = await ChhayaCryptoEngine.generateKeyPair();
