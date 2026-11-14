@@ -39,6 +39,14 @@ abstract class PqKem {
     Uint8List privateKey,
     Uint8List ciphertext,
   );
+
+  /// Generates a fresh keypair. The default fails closed: providers
+  /// that cannot produce one throw, and callers treat that as
+  /// "reseed unavailable" (spec §3.9 delayed reseed).
+  Future<({Uint8List publicKey, Uint8List privateKey})> generateKeyPair() =>
+      Future<({Uint8List publicKey, Uint8List privateKey})>.error(
+        UnsupportedError('$name does not support keypair generation'),
+      );
 }
 
 /// Post-quantum signature interface.

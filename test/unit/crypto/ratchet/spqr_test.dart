@@ -1,4 +1,4 @@
-// SPQR unit tests (V14 Part 4).
+// Delayed-reseed chain unit tests (V14 Part 4, spec §3.9).
 import 'dart:typed_data';
 
 import 'package:chaaya/core/crypto/primitives/rng.dart';

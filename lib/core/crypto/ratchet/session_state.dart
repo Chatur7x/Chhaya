@@ -86,6 +86,11 @@ class SessionState {
   /// next send and return the ciphertext in the trailing reseed section.
   Uint8List? peerReseedPublicKey;
 
+  /// The offer we last answered (its public key), persisted so a
+  /// retransmitted offer is never encapsulated to twice (a second answer
+  /// would fork the chain). Cleared when a reseed transition lands.
+  Uint8List? answeredReseedOffer;
+
   /// 1 = legacy classical session, 2 = v2 hybrid PQXDH session.
   /// Absent in JSON ⇒ legacy (backwards compatible).
   final int sessionVersion;
@@ -125,6 +130,7 @@ class SessionState {
     Uint8List? pendingReseedPublicKey,
     Uint8List? pendingReseedPrivateKey,
     Uint8List? peerReseedPublicKey,
+    Uint8List? answeredReseedOffer,
     this.sessionVersion = 1,
     Uint8List? transcript,
     this.nonPQ = false,
@@ -153,6 +159,9 @@ class SessionState {
         peerReseedPublicKey = peerReseedPublicKey == null
             ? null
             : Uint8List.fromList(peerReseedPublicKey),
+        answeredReseedOffer = answeredReseedOffer == null
+            ? null
+            : Uint8List.fromList(answeredReseedOffer),
         spqrEpochKeys = spqrEpochKeys == null
             ? {}
             : Map<String, Uint8List>.fromEntries(
@@ -192,6 +201,8 @@ class SessionState {
           'pendingReseedPrivateKey': base64Encode(pendingReseedPrivateKey!),
         if (peerReseedPublicKey != null)
           'peerReseedPublicKey': base64Encode(peerReseedPublicKey!),
+        if (answeredReseedOffer != null)
+          'answeredReseedOffer': base64Encode(answeredReseedOffer!),
         'skipped': skipped.map(
           (k, v) => MapEntry(k, {
             'key': base64Encode(v.messageKey),
@@ -270,6 +281,7 @@ class SessionState {
       pendingReseedPublicKey: readBytes('pendingReseedPublicKey'),
       pendingReseedPrivateKey: readBytes('pendingReseedPrivateKey'),
       peerReseedPublicKey: readBytes('peerReseedPublicKey'),
+      answeredReseedOffer: readBytes('answeredReseedOffer'),
       spqrEpochKeys: spqrEpochKeys,
       skipped: skipped,
       sessionVersion: json['sessionVersion'] as int? ?? 1,
@@ -314,6 +326,7 @@ class SessionState {
         pendingReseedPublicKey: pendingReseedPublicKey,
         pendingReseedPrivateKey: pendingReseedPrivateKey,
         peerReseedPublicKey: peerReseedPublicKey,
+        answeredReseedOffer: answeredReseedOffer,
         spqrEpochKeys: Map<String, Uint8List>.from(spqrEpochKeys),
         sessionVersion: sessionVersion ?? this.sessionVersion,
         transcript: transcript ?? this.transcript,
@@ -349,6 +362,9 @@ class SessionState {
     }
     if (peerReseedPublicKey != null) {
       Csprng.wipe(peerReseedPublicKey!);
+    }
+    if (answeredReseedOffer != null) {
+      Csprng.wipe(answeredReseedOffer!);
     }
     for (final v in spqrEpochKeys.values) {
       Csprng.wipe(v);

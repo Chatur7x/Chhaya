@@ -258,6 +258,10 @@ class SpqrChain {
     state.spqrGeneration += 1;
     state.reseedSendCounter = 0;
     state.reseedLastAtMs = DateTime.now().millisecondsSinceEpoch;
+    if (state.answeredReseedOffer != null) {
+      Csprng.wipe(state.answeredReseedOffer!);
+      state.answeredReseedOffer = null;
+    }
   }
 
   /// Reseeds with fresh PQ output (delayed reseed, spec §3.9).

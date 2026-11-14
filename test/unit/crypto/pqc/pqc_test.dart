@@ -48,6 +48,17 @@ class FakeKem implements PqKem {
   ) async {
     return Uint8List.fromList(ciphertext);
   }
+
+  @override
+  Future<({Uint8List publicKey, Uint8List privateKey})> generateKeyPair() async {
+    final pub = Uint8List(32);
+    final priv = Uint8List(32);
+    for (var i = 0; i < 32; i++) {
+      pub[i] = (tag[i % tag.length] + i * 7 + 11) & 0xFF;
+      priv[i] = (tag[i % tag.length] + i * 13 + 29) & 0xFF;
+    }
+    return (publicKey: pub, privateKey: priv);
+  }
 }
 
 bool eq(Uint8List a, Uint8List b) {

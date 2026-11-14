@@ -9,7 +9,7 @@
 //
 // Pinned here (criterion 1):
 //   * a post-restore session differs byte-wise from the pre-restore session
-//     in every derived field (root key, chains, SPQR seed, transcript, EKA);
+//     in every derived field (root key, chains, reseed chain seed, transcript, EKA);
 //   * two sessions established from one restore (two conversations) differ
 //     from each other in every derived field;
 //   * the counter may restart at 0 but key reuse is impossible: at equal

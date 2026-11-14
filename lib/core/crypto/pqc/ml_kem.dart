@@ -16,7 +16,11 @@ class MlKem1024 implements PqKem {
   @override
   Future<bool> initialize() => ChhayaPqc.initialize();
 
-  Future<ChhayaPqcKeyPair> generateKeyPair() => ChhayaPqc.generateKemKeyPair();
+  @override
+  Future<({Uint8List publicKey, Uint8List privateKey})> generateKeyPair() async {
+    final pair = await ChhayaPqc.generateKemKeyPair();
+    return (publicKey: pair.publicKey, privateKey: pair.privateKey);
+  }
 
   @override
   Future<({Uint8List ciphertext, Uint8List sharedSecret})> encapsulate(

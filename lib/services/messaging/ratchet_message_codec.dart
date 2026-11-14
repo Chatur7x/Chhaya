@@ -21,6 +21,7 @@ import '../../core/crypto/primitives/aes_gcm.dart';
 import '../../core/crypto/primitives/rng.dart';
 import '../../core/crypto/ratchet/session_store.dart';
 import '../../core/crypto/ratchet/session_state.dart';
+import '../../core/crypto/ratchet/spqr.dart';
 import '../../core/crypto/ratchet/triple_ratchet.dart';
 import '../../core/crypto/pqc/ml_kem.dart';
 import '../../core/crypto/pqc/negotiation.dart';
@@ -51,6 +52,36 @@ Uint8List _hexToBytes(String hex) {
 
 String _bytesToHex(List<int> bytes) =>
     bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+
+/// Adapts the PQ KEM provider to the delayed-reseed seam (spec §3.9).
+/// The provider only participates when the feature flag is on and the
+/// provider is usable; otherwise callers get null and the session stays
+/// classical.
+class _ReseedKemAdapter extends ReseedKem {
+  _ReseedKemAdapter(this._kem);
+
+  final PqKem _kem;
+
+  @override
+  bool get isAvailable => _kem.isAvailable;
+
+  @override
+  Future<bool> initialize() => _kem.initialize();
+
+  @override
+  Future<({Uint8List publicKey, Uint8List privateKey})>
+      generateKeyPair() => _kem.generateKeyPair();
+
+  @override
+  Future<({Uint8List ciphertext, Uint8List sharedSecret})> encapsulate(
+    Uint8List publicKey,
+  ) =>
+      _kem.encapsulate(publicKey);
+
+  @override
+  Future<Uint8List> decapsulate(Uint8List privateKey, Uint8List ciphertext) =>
+      _kem.decapsulate(privateKey, ciphertext);
+}
 
 Uint8List peerPublicKeyBytes(String chhayaId) {
   if (!RegExp(r'^05[0-9a-f]{64}$').hasMatch(chhayaId)) {
@@ -135,6 +166,16 @@ class RatchetMessageCodec {
   Future<PqKem?> _kem() async {
     if (PqHybridV1.testKem != null) return PqHybridV1.testKem;
     return await _pqAvailable() ? MlKem1024() : null;
+  }
+
+  /// Delayed-reseed provider seam (spec §3.9): the same KEM provider as
+  /// the v2 establishment path, gated by the same flag (default OFF).
+  /// Null when unavailable — the reseed flight then silently never
+  /// fires and the session stays classical.
+  Future<ReseedKem?> _reseedKem() async {
+    if (!await PqHybridV1.enabled()) return null;
+    final kem = await _kem();
+    return kem == null ? null : _ReseedKemAdapter(kem);
   }
 
   List<Suite> ownOffers(bool pqAvailable, bool userConsented) {
@@ -708,7 +749,8 @@ class RatchetMessageCodec {
     }
     final state = await _prepareSession(peer, conversation);
     final flight = await _flightForEnvelope(peer, conversation, state);
-    final step = await TripleRatchet.encrypt(state);
+    final reseedKem = await _reseedKem();
+    final step = await TripleRatchet.encrypt(state, reseedKem: reseedKem);
     try {
       final header = step.header.toBytes();
       final aad = state.sessionVersion == 2
@@ -753,8 +795,9 @@ class RatchetMessageCodec {
     }
     final state = await _prepareSession(peer, conversation);
     final flight = await _flightForEnvelope(peer, conversation, state);
+    final reseedKem = await _reseedKem();
     try {
-      final step = await TripleRatchet.encrypt(state);
+      final step = await TripleRatchet.encrypt(state, reseedKem: reseedKem);
       try {
         final header = step.header.toBytes();
         final aad = state.sessionVersion == 2
@@ -864,7 +907,12 @@ class RatchetMessageCodec {
       }
     }
     final activeState = state; // promoted non-null by the branches above
-    final keys = await TripleRatchet.decrypt(activeState, TripleHeader.fromBytes(header));
+    final reseedKem = await _reseedKem();
+    final keys = await TripleRatchet.decrypt(
+      activeState,
+      TripleHeader.fromBytes(header),
+      reseedKem: reseedKem,
+    );
     try {
       final aad = v == 2
           ? _aadV2(conversation, messageId, sender, activeState.transcript!, header)
