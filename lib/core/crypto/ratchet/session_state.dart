@@ -1,8 +1,8 @@
 // Ratchet session state (V14 Part 4).
 //
-// Serializable snapshot of one Double Ratchet + SPQR session. All key
-// material is base64 in JSON; [wipe] zeroizes in-memory secrets.
-// Persistence itself lives in session_store.dart.
+// Serializable snapshot of one Double Ratchet + delayed-reseed session
+// (spec §3.9). All key material is base64 in JSON; [wipe] zeroizes
+// in-memory secrets. Persistence itself lives in session_store.dart.
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -52,9 +52,39 @@ class SessionState {
   /// DH ratchets, exactly like Signal's per-sender-chain cache.
   final Map<String, MessageKeyBundle> skipped;
 
-  /// SPQR seed shared at session start; epoch advances per 10 sends.
-  final Uint8List spqrSeed;
+  /// Delayed-reseed chain seed (spec §3.9); epoch advances per 10 sends.
+  /// Advanced one-way as epochs step; rotated on every reseed.
+  Uint8List spqrSeed;
   int spqrEpoch;
+
+  /// Retired-generation epoch keys kept for the skipped-message window,
+  /// keyed by 'generation:epoch'. Bounded by
+  /// SpqrChain.epochKeyCacheLimit; entries are single-generation and are
+  /// wiped on eviction and on [wipe].
+  final Map<String, Uint8List> spqrEpochKeys;
+
+  /// Number of reseed transitions applied (bumped on every delayed
+  /// reseed). Used to key the epoch-key cache so retiring and current
+  /// generations never collide.
+  int spqrGeneration;
+
+  /// Sends since the last reseed was initiated (cadence bookkeeping,
+  /// persisted with the session).
+  int reseedSendCounter;
+
+  /// Wall-clock ms when the last reseed was initiated (cadence
+  /// bookkeeping, persisted with the session).
+  int reseedLastAtMs;
+
+  /// Our freshly generated ML-KEM keypair offered for a delayed reseed,
+  /// awaiting the peer's encapsulation. Private key is in-memory/at-rest
+  /// secret material exactly like the DH keys; wiped on transition.
+  Uint8List? pendingReseedPublicKey;
+  Uint8List? pendingReseedPrivateKey;
+
+  /// Peer's advertised reseed public key; we encapsulate to it on our
+  /// next send and return the ciphertext in the trailing reseed section.
+  Uint8List? peerReseedPublicKey;
 
   /// 1 = legacy classical session, 2 = v2 hybrid PQXDH session.
   /// Absent in JSON ⇒ legacy (backwards compatible).
@@ -89,13 +119,21 @@ class SessionState {
     this.recvCounter = 0,
     this.recvGeneration = 0,
     this.spqrEpoch = 0,
+    this.spqrGeneration = 0,
+    this.reseedSendCounter = 0,
+    int? reseedLastAtMs,
+    Uint8List? pendingReseedPublicKey,
+    Uint8List? pendingReseedPrivateKey,
+    Uint8List? peerReseedPublicKey,
     this.sessionVersion = 1,
     Uint8List? transcript,
     this.nonPQ = false,
     this.consented = false,
     Map<String, dynamic>? establishFlight,
     Map<String, MessageKeyBundle>? skipped,
+    Map<String, Uint8List>? spqrEpochKeys,
   })  : rootKey = Uint8List.fromList(rootKey),
+
         sendChainKey = Uint8List.fromList(sendChainKey),
         recvChainKey = Uint8List.fromList(recvChainKey),
         ourPrivateKey = Uint8List.fromList(ourPrivateKey),
@@ -106,6 +144,23 @@ class SessionState {
             : Map<String, dynamic>.from(establishFlight),
         remotePublicKey = Uint8List.fromList(remotePublicKey),
         spqrSeed = Uint8List.fromList(spqrSeed),
+        pendingReseedPublicKey = pendingReseedPublicKey == null
+            ? null
+            : Uint8List.fromList(pendingReseedPublicKey),
+        pendingReseedPrivateKey = pendingReseedPrivateKey == null
+            ? null
+            : Uint8List.fromList(pendingReseedPrivateKey),
+        peerReseedPublicKey = peerReseedPublicKey == null
+            ? null
+            : Uint8List.fromList(peerReseedPublicKey),
+        spqrEpochKeys = spqrEpochKeys == null
+            ? {}
+            : Map<String, Uint8List>.fromEntries(
+                spqrEpochKeys.entries
+                    .map((e) => MapEntry(e.key, Uint8List.fromList(e.value))),
+              ),
+        reseedLastAtMs =
+            reseedLastAtMs ?? DateTime.now().millisecondsSinceEpoch,
         skipped = skipped ?? {};
 
   /// Serializes to JSON-safe primitives (bytes as base64).
@@ -125,6 +180,18 @@ class SessionState {
         'remotePublicKey': base64Encode(remotePublicKey),
         'spqrSeed': base64Encode(spqrSeed),
         'spqrEpoch': spqrEpoch,
+        'spqrGeneration': spqrGeneration,
+        'reseedSendCounter': reseedSendCounter,
+        'reseedLastAtMs': reseedLastAtMs,
+        'spqrEpochKeys': spqrEpochKeys.map(
+          (k, v) => MapEntry(k, base64Encode(v)),
+        ),
+        if (pendingReseedPublicKey != null)
+          'pendingReseedPublicKey': base64Encode(pendingReseedPublicKey!),
+        if (pendingReseedPrivateKey != null)
+          'pendingReseedPrivateKey': base64Encode(pendingReseedPrivateKey!),
+        if (peerReseedPublicKey != null)
+          'peerReseedPublicKey': base64Encode(peerReseedPublicKey!),
         'skipped': skipped.map(
           (k, v) => MapEntry(k, {
             'key': base64Encode(v.messageKey),
@@ -164,6 +231,22 @@ class SessionState {
         nonce: base64Decode(v['nonce'] as String),
       );
     }
+    final epochKeysRaw = json['spqrEpochKeys'];
+    final spqrEpochKeys = <String, Uint8List>{};
+    if (epochKeysRaw is Map) {
+      for (final entry in epochKeysRaw.entries) {
+        final v = entry.value;
+        if (v is! String) {
+          throw const FormatException('Corrupt epoch key cache entry');
+        }
+        spqrEpochKeys[entry.key as String] = base64Decode(v);
+      }
+    }
+    Uint8List? readBytes(String field) {
+      final raw = json[field];
+      return raw is String ? base64Decode(raw) : null;
+    }
+
     final transcriptRaw = json['transcript'];
     return SessionState(
       peerId: json['peerId'] as String,
@@ -181,6 +264,13 @@ class SessionState {
       remotePublicKey: b64('remotePublicKey'),
       spqrSeed: b64('spqrSeed'),
       spqrEpoch: json['spqrEpoch'] as int,
+      spqrGeneration: json['spqrGeneration'] as int? ?? 0,
+      reseedSendCounter: json['reseedSendCounter'] as int? ?? 0,
+      reseedLastAtMs: json['reseedLastAtMs'] as int?,
+      pendingReseedPublicKey: readBytes('pendingReseedPublicKey'),
+      pendingReseedPrivateKey: readBytes('pendingReseedPrivateKey'),
+      peerReseedPublicKey: readBytes('peerReseedPublicKey'),
+      spqrEpochKeys: spqrEpochKeys,
       skipped: skipped,
       sessionVersion: json['sessionVersion'] as int? ?? 1,
       transcript: transcriptRaw == null ? null : base64Decode(transcriptRaw as String),
@@ -218,6 +308,13 @@ class SessionState {
         remotePublicKey: remotePublicKey,
         spqrSeed: spqrSeed,
         spqrEpoch: spqrEpoch,
+        spqrGeneration: spqrGeneration,
+        reseedSendCounter: reseedSendCounter,
+        reseedLastAtMs: reseedLastAtMs,
+        pendingReseedPublicKey: pendingReseedPublicKey,
+        pendingReseedPrivateKey: pendingReseedPrivateKey,
+        peerReseedPublicKey: peerReseedPublicKey,
+        spqrEpochKeys: Map<String, Uint8List>.from(spqrEpochKeys),
         sessionVersion: sessionVersion ?? this.sessionVersion,
         transcript: transcript ?? this.transcript,
         nonPQ: nonPQ ?? this.nonPQ,
@@ -225,6 +322,14 @@ class SessionState {
         establishFlight: establishFlight ?? this.establishFlight,
         skipped: skipped,
       );
+
+  /// Replaces the chain seed with [newSeed], wiping the retiring seed.
+  /// Called by the delayed-reseed transition and by the one-way epoch
+  /// stepping.
+  void rotateSpqrSeed(Uint8List newSeed) {
+    Csprng.wipe(spqrSeed);
+    spqrSeed = Uint8List.fromList(newSeed);
+  }
 
   /// Zeroizes all in-memory key material (structure stays usable).
   void wipe() {
@@ -236,6 +341,19 @@ class SessionState {
     Csprng.wipe(recvChainKey);
     Csprng.wipe(ourPrivateKey);
     Csprng.wipe(spqrSeed);
+    if (pendingReseedPublicKey != null) {
+      Csprng.wipe(pendingReseedPublicKey!);
+    }
+    if (pendingReseedPrivateKey != null) {
+      Csprng.wipe(pendingReseedPrivateKey!);
+    }
+    if (peerReseedPublicKey != null) {
+      Csprng.wipe(peerReseedPublicKey!);
+    }
+    for (final v in spqrEpochKeys.values) {
+      Csprng.wipe(v);
+    }
+    spqrEpochKeys.clear();
     for (final v in skipped.values) {
       v.wipe();
     }

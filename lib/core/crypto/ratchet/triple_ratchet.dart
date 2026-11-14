@@ -1,12 +1,14 @@
 // Triple Ratchet facade (V14 Part 4).
 //
-// Combines the X25519 Double Ratchet with the SPQR epoch chain:
-//   messageKey = HKDF(dhMessageKey || spqrChainKey, counter)
-// The DH step runs on direction change; the SPQR epoch advances every
+// Combines the X25519 Double Ratchet with the delayed-reseed epoch
+// chain (spec §3.9):
+//   messageKey = HKDF(dhMessageKey || chainKey, counter)
+// The DH step runs on direction change; the epoch advances every
 // 10 sent messages. Session start validates the peer (verified only).
 //
-// Audit status: [ ] Ready for external audit. SPQR currently evolves
-// deterministically; production ML-KEM-1024 reseeding lands in Part 5.
+// Audit status: [ ] Ready for external audit. The delayed reseed rides
+// the normal authenticated envelope path (a trailing section of the
+// ratchet header); there is never an in-message network round-trip.
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -18,7 +20,7 @@ import 'message_keys.dart';
 import 'session_state.dart';
 import 'spqr.dart';
 
-/// Wire header: 40-byte DH header + u32be SPQR epoch (44 bytes total).
+/// Wire header: 40-byte DH header + u32be epoch (44 bytes total).
 class TripleHeader {
   static const int encodedLength = RatchetHeader.encodedLength + 4;
 
@@ -47,7 +49,7 @@ class TripleHeader {
       throw ArgumentError.value(
         bytes.length,
         'bytes',
-        'Triple headers must be $encodedLength bytes',
+        'Headers must be $encodedLength bytes',
       );
     }
     return TripleHeader(
@@ -96,11 +98,13 @@ class TripleRatchet {
     // sendCounter was already incremented; epoch of the message sent.
     final messageNumber = state.sendCounter - 1;
     final epoch = messageNumber ~/ SpqrChain.advanceEvery;
-    state.spqrEpoch = epoch;
-    final spqrKey = SpqrChain.chainKeyFor(state.spqrSeed, epoch);
+    // Epochs are monotone with the message number, so this steps the
+    // seed forward (retiring seeds are wiped) rather than reading a
+    // retired key.
+    final chainKey = SpqrChain.epochKey(state, epoch);
     final bundle = _combine(
       stepped.keys.messageKey,
-      spqrKey,
+      chainKey,
       messageNumber,
       epoch,
     );
@@ -111,17 +115,27 @@ class TripleRatchet {
     );
   }
 
-  /// Resolves the receiving key for [header]. Epoch keys are
-  /// deterministic, so late/jumped epochs need no extra round trips.
+  /// Resolves the receiving key for [header]. Epoch keys step the seed
+  /// forward one-way; past in-window epoch keys come from the bounded
+  /// cache (spec §3.9/§3.10).
   static Future<MessageKeyBundle> decrypt(
     SessionState state,
     TripleHeader header,
   ) async {
+    // Guard the epoch gap before any state mutation: a peer jumping
+    // more than the skip window is refused with state intact.
+    final epochGap = header.spqrEpoch - state.spqrEpoch;
+    if (epochGap > SpqrChain.maxSkip) {
+      throw TooManySkippedException(epochGap);
+    }
+    if (!SpqrChain.epochKeyAvailable(state, header.spqrEpoch)) {
+      throw EpochKeyUnavailableException(header.spqrEpoch);
+    }
     final dhKeys = await DoubleRatchet.decrypt(state, header.dh);
-    final spqrKey = SpqrChain.chainKeyFor(state.spqrSeed, header.spqrEpoch);
+    final chainKey = SpqrChain.epochKey(state, header.spqrEpoch);
     final bundle = _combine(
       dhKeys.messageKey,
-      spqrKey,
+      chainKey,
       header.dh.messageNumber,
       header.spqrEpoch,
     );
@@ -129,7 +143,7 @@ class TripleRatchet {
     return bundle;
   }
 
-  /// messageKey = HKDF(dhKey || spqrKey, 'Chhaya-triple-v1' ||
+  /// messageKey = HKDF(dhKey || chainKey, 'Chhaya-triple-v1' ||
   /// u32be(messageNumber) || u32be(epoch)). Both inputs are fixed by the
   /// wire header, so sender and receiver always agree.
   /// The nonce reuses the message-key derivation (unique per message).
