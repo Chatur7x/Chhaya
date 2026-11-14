@@ -276,3 +276,25 @@ What is **not** verified (explicit list):
 - Store-and-forward reseed arrival reordering against a live relay — only the in-memory unit-level flight is exercised.
 
 CSV/checklist statuses intentionally NOT flipped.
+
+## WS4 delayed reseed — review outcome (2026-11-14)
+
+The Tier-1 delayed reseed implementation (`c237f9d`, `1d43b8b`, `81be967`, `443f52d`) received an adversarial final review on 2026-11-14. Verdict: `needs_changes`. It is not approved for any flag-on and supports no claim. The earlier "Follow-up verification: delayed ML-KEM reseed (WS4, 14 Nov 2026)" section above records what was built and locally tested; this section records what the review found.
+
+Findings:
+
+- **C1 (HIGH, spec fidelity).** The implementation uses an ephemeral in-band offer/ct flight advertised in a trailing ratchet-header section instead of the spec's bundle-advertised `reseedKemKey` single-flight encapsulation with a `chhaya-reseed-v1` payload. The spec's "requires researcher sign-off" for ephemeral reseed KEM keys is unmet. Docs/comments mislabel this as "spec §3.9 done". `reseedKemKey` exists in the WS2 bundle parser but is never wired to the reseed. The two-flight design is inherently more complex than the spec.
+- **C2 (HIGH, availability, latent — flag OFF).** Store-and-forward reordering (M1 ct arrives after M2 data) would tear down the whole v2 conversation via the v==2 AEAD hard-abort. There are no reorder tests. The two-flight design cannot fix this without a two-chain receiver.
+- **B1 (MEDIUM).** The `spqrEpoch = +101` bump violates the spec's "advanceEvery stays 10; reseed cadence independent".
+- **C3 / C5 / B2 / C4 / E1.** State mutation before AEAD verification; offer persistence stores on flag-off peers; dead `nextIndex`; an oversized section is a throw, not a soft-fail; a lost offer permanently stalls the reseed cadence (no timeout); the epoch-key cache retains retired keys.
+
+Tests rerun by the reviewer: `flutter analyze lib test` clean; `flutter test test/unit/` — 422 passed / ~1 skipped; the 15 reseed tests pass; `python scripts/check_transcript_binding.py` — exit 0. Green tests here do not close the findings above.
+
+Required before ANY flag-on:
+
+1. Implement the spec flight (bundle-advertised `reseedKemKey`, single-flight encapsulation, `chhaya-reseed-v1` payload), or a signed researcher-approved deviation together with a spec revision.
+2. Fix C2 or obtain a formal waiver for it.
+3. Add the missing §F tests: reorder flight, duplicate-offer dedup, multi-generation key inequality, role-lock, cache eviction.
+4. External cryptographic review.
+
+Status: experimental. Flag `chhaya_pq_hybrid_v1` OFF (`const bool.fromEnvironment('chhaya_pq_hybrid_v1')` unset). NOT protocol-complete. NOT §3.9 satisfied. NO claim is made.
