@@ -9,8 +9,36 @@ import '../../widgets/chhaya_app_bar.dart';
 import '../../widgets/glass_container.dart';
 import '../../widgets/chhaya_button.dart';
 import '../../../core/router/chhaya_router.dart';
+import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../services/auth/backup_file.dart';
+
+/// Fail-closed reads of privacy settings: an unreadable or corrupt settings
+/// blob must fall back to the same defaults a fresh install shows, never
+/// crash the settings screen.
+bool _safeReadReceiptsEnabled(LocalDatabase db) {
+  try {
+    return db.getReadReceiptsEnabled();
+  } catch (_) {
+    return true;
+  }
+}
+
+bool _safeTypingIndicatorsEnabled(LocalDatabase db) {
+  try {
+    return db.getTypingIndicatorsEnabled();
+  } catch (_) {
+    return true;
+  }
+}
+
+int _safeGlobalDisappearingDuration(LocalDatabase db) {
+  try {
+    return db.getGlobalDisappearingDuration();
+  } catch (_) {
+    return 0;
+  }
+}
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -36,9 +64,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     super.initState();
     final db = ref.read(localDatabaseProvider);
     _biometricLock = safeBiometricLockEnabled(db);
-    _readReceipts = db.getReadReceiptsEnabled();
-    _typingIndicators = db.getTypingIndicatorsEnabled();
-    _disappearingMessages = db.getGlobalDisappearingDuration() > 0;
+    _readReceipts = _safeReadReceiptsEnabled(db);
+    _typingIndicators = _safeTypingIndicatorsEnabled(db);
+    _disappearingMessages = _safeGlobalDisappearingDuration(db) > 0;
   }
 
   Future<void> _configureServer() async {
