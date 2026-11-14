@@ -2,7 +2,7 @@
 
 Date: 2026-11-14 (register opened 2026-11-08; refreshed 2026-11-14). Repo: `D:\Projects\PROJ16`. Base commit: `8eeff19`. Working tree additionally carries uncommitted native registrant noise (`android/.../GeneratedPluginRegistrant.java`, `ios/Runner/GeneratedPluginRegistrant.m`, `windows/flutter/generated_*`, `.gradle` lock files) that is NOT part of this register. The PQ spec (`docs/spec-pq-hybrid-resync-v1.md`) was committed in `1274999`; `docs/spec-media-transfer-v1.md` is added in the same docs commit as this refresh.
 
-**Last verified (LOCAL ONLY): 2026-11-14 — `flutter test test/unit/` ≈404 passed + ≈1 skipped, per the latest local run reported; NOT re-run in this docs refresh; no CI, device, or integration evidence implied.**
+**Last verified (LOCAL ONLY): 2026-11-14 — `flutter test test/unit/` 406 passed + ~1 skipped, per the reviewer's re-run; no CI, device, or integration evidence implied.**
 
 **Standing verdict: Version 15 is NOT ready. No release may be labeled final, v15 complete, or production ready. No row of the 127-feature ledger is release-verified. This document is an internal evidence register, not a release note and not marketing.**
 
@@ -29,7 +29,7 @@ Forbidden (hard fail in any UI/store/marketing/README/SECURITY.md/CSV/checklist 
 
 | Item | Class | Result / location |
 |---|---|---|
-| `flutter test test/unit/` | unit | ≈404 passed + ≈1 skipped (LOCAL ONLY; latest local run reported 2026-11-14; recorded in `docs/ponytail-audit-2026-10-29.md` for the 2026-11-08 window at 303; NOT re-run in this refresh) |
+| `flutter test test/unit/` | unit | 406 passed + ~1 skipped (LOCAL ONLY; reviewer's re-run reported 2026-11-14; recorded in `docs/ponytail-audit-2026-10-29.md` for the 2026-11-08 window at 303; prior local run reported ≈404) |
 | `flutter analyze lib test` | static | No issues found (2026-11-08 record; NOT re-run in this refresh) |
 | `test/unit/database/interrupted_delivery_test.dart` | unit (Windows-gated) | 2 passed vs real SQLCipher files |
 | `backend/server/test/*` (prekey WS1) | integration | 38 backend tests reported for `5d2faf1`; NOT re-run in this window; CI not re-run |
@@ -84,15 +84,15 @@ Earlier context (pre-window, retained for honesty): `8a534cf` CI runs 4086677019
 | WS | Plan item | Status | Evidence / notes |
 |---|---|---|---|
 | WS1 | Audit UI/state/persistence/auth/messaging/calls/recovery; backend; native; CI | **done-local** (audit complete; findings NOT all closed) | `docs/ponytail-audit-2026-10-29.md`; must-fix items open |
-| WS2 | Reliable messaging + authenticated recovery | **done-local** (code + local suite; live criteria NOT RUN) | Resync/restore redesign landed locally behind default-OFF `chhaya_pq_hybrid_v1` flag (`ed1ff93`, `98aa043`); WS3 audit findings F1–F7 resolved locally (`e022db8`, `4d2e60b`, `fecb2cf`, `88ea78f`, `2eeb9b9`, `1c46316`, `8eeff19`); restore key/nonce defect addressed locally, re-review pending; live loopback NOT RUN (Docker down); two-phone not run; external review NOT commissioned; no "secure restore" claim |
+| WS2 | Reliable messaging + authenticated recovery | **done-local** (code + local suite; live criteria NOT RUN) | Resync/restore redesign landed locally behind default-OFF `chhaya_pq_hybrid_v1` flag (`ed1ff93`, `98aa043`); WS3 audit findings F1–F7 resolved locally and confirmed fixed in code by the 2026-11-14 re-review (`pass_with_observations`; residuals R1/R2/R3 open, see WS3-F1..F7 row) (`e022db8`, `4d2e60b`, `fecb2cf`, `88ea78f`, `2eeb9b9`, `1c46316`, `8eeff19`); restore key/nonce defect addressed locally; live loopback NOT RUN (Docker down); two-phone not run; external review NOT commissioned; no "secure restore" claim |
 | WS3 | Encrypted resumable transfers (large attachments) | **not_started** (spec added, claims gated) | Inline attachments capped at 256 KB; no resume/limits/cancel cleanup for large blobs. `docs/spec-media-transfer-v1.md` added 2026-11-14 — proposed spec only, not implemented, do not ship, claims gated |
 | WS4 | Authenticated group membership, linking, revocation | **in-progress / blocked** | Group admin APIs + backend lock tests exist; linking is scaffolding only; no authenticated enrollment/revocation; "Revoke" legacy UI does not revoke server sessions |
 | WS5 | Calls, background ringing, push, TURN, SFrame | **blocked / not_started** | Foreground WebRTC only; SFrame absent; background calls incomplete; no two-phone NAT/TURN/push evidence |
 | WS6 | PQ key distribution, negotiation, migration | **in-progress (PQ-spec WS1/WS2/WS3 done-local; WS4–WS6 not started)** | `5d2faf1` prekey backend (not deployed, CI not re-run); `docs/spec-pq-hybrid-resync-v1.md` committed in `1274999`; PQ-spec WS2 helpers `98aa043` done-local; PQ-spec WS3 v2 establishment/resync restore `ed1ff93` done-local; flag default OFF; hard external-review gate NOT passed; Windows PQ stub, iOS vectors pending |
 | PQ-WS1 | PQ spec: prekey bundle backend | **done-local** | `5d2faf1`; 38 backend tests reported; NOT deployed; CI not re-run |
 | PQ-WS2 | PQ spec: hybrid PQXDH establish/transcript/negotiation helpers | **done-local** | `98aa043`; unit tests green locally; no live bundle fetch; review pending |
-| PQ-WS3 | PQ spec: v2 establishment / post-restore resync | **DONE (code + local suite)** | `ed1ff93` + F1–F7 fixes; ≈404 passed + ≈1 skipped (LOCAL ONLY, 2026-11-14); live loopback criteria NOT RUN (Docker down); two-phone not run; flag `chhaya_pq_hybrid_v1` default OFF; external review NOT commissioned; no PQ/restore claims |
-| WS3-F1..F7 | PQ-spec WS3 audit findings F1–F7 (as tagged in commit messages) | **resolved locally (review pending re-review)** | F1 `e022db8`; F2 `4d2e60b`; F7 `fecb2cf`; F4 `88ea78f`; F3 `2eeb9b9`; F5 `1c46316`; F6 `8eeff19`; unit coverage added per fix; external re-review pending; NOT release evidence |
+| PQ-WS3 | PQ spec: v2 establishment / post-restore resync | **DONE (code + local suite)** | `ed1ff93` + F1–F7 fixes; 406 passed + ~1 skipped (LOCAL ONLY, reviewer's re-run 2026-11-14); final re-review returned `pass_with_observations` (see WS3-F1..F7 row); live loopback criteria NOT RUN (Docker down); two-phone not run; flag `chhaya_pq_hybrid_v1` default OFF; external review NOT commissioned; no PQ/restore claims |
+| WS3-F1..F7 | PQ-spec WS3 audit findings F1–F7 (as tagged in commit messages) | **resolved locally (re-reviewed 2026-11-14: `pass_with_observations`)** | F1 `e022db8`; F2 `4d2e60b`; F7 `fecb2cf`; F4 `88ea78f`; F3 `2eeb9b9`; F5 `1c46316`; F6 `8eeff19`; unit coverage added per fix. Final re-review (corrections range `ed1ff93`..`8eeff19`, range as of HEAD; includes `2d6b9bb` and `c857be5`) returned `pass_with_observations` — F1–F7 confirmed fixed in code. Open residuals (recorded verbatim; NOT release evidence; NOT silently patched): **R1** (adoption runs BEFORE echo verification in decrypt(): markResyncPending/peer_restored writes survive an echo abort — spec/lead decision required, NOT to be silently patched); **R2** (peer_restored write-only; pre-AEAD peer_restored=1 in cross-restore branch; markResyncPending mints fresh generation when none exists); **R3** (uint64-vs-int64 session_generation spec mismatch, fails closed to corrupt). Residuals R1/R2/R3 remain open; external review still NOT commissioned |
 | WS7 | Privacy transports (onion/mesh/LAN/shim/Arke) | **not_started** | Onion legacy code disabled; mesh/LAN/Arke/Shadow Codes not implemented; no relay deployment |
 | WS8 | UI flows, accessibility, desktop storage, lifecycle, device protection | **in-progress** | `b42d4e5`, `4194a35` lock lifecycle (unit evidence); Windows FFI SQLCipher done-local + CI; voice `record`/`audioplayers` migration; local `flutter build windows` blocked by missing ATL (`atlstr.h`); Windows build CI ok but app never launched; accessibility not device-reviewed |
 | WS9 | Ops: migrations, backup/restore drills, monitoring, rollback, SBOM/licenses | **in-progress / at risk** | Local restore drill + CI workflow exist; monitoring basic; SBOM/license inventory incomplete (root license effectively empty); **Render free-tier DB expiry 2026-11-27**; no production backup/restore evidence |
@@ -129,7 +129,7 @@ Plan item 10 (tag/publish Version 15) — **not_started and gated**; must not be
 | Authenticated linking/revocation | **FAIL / NOT DONE** | Scaffolding only |
 | Vault/duress/Canary safety features | **FAIL / NOT IMPLEMENTED** | — |
 | Windows desktop acceptance | **FAIL / NOT DONE** | CI build only; not launched; ATL missing locally |
-| Internal engineering gate (analysis + unit tests green) | **PASS (LOCAL ONLY)** | `flutter analyze` clean (2026-11-08 record, not re-run); ≈404 unit tests + ≈1 skip (LOCAL ONLY, latest local run reported 2026-11-14) |
+| Internal engineering gate (analysis + unit tests green) | **PASS (LOCAL ONLY)** | `flutter analyze` clean (2026-11-08 record, not re-run); 406 unit tests + ~1 skip (LOCAL ONLY, reviewer's re-run 2026-11-14) |
 
 **No gate that matters for a public release passes. "Version 15" must not be tagged, shipped, or labeled final.**
 
@@ -149,7 +149,7 @@ Plan item 10 (tag/publish Version 15) — **not_started and gated**; must not be
 2. Owner decision on Render (§10.2) BEFORE 2026-11-27, or accept and document service loss; migrate/restore drill on the target Postgres with evidence.
 3. Commission independent cryptographic review (§10.6) OR formally descope PQ/restore from the release; record the decision.
 4. Fix the verification-package failure mode: add the missing all-users pre-flight check to `scripts/run_android_acceptance.ps1`; re-verify its read-only behavior; then re-establish a device-test path (replace/repair Pixel 8a access).
-5. PQ-spec WS2 (`98aa043`) and WS3 (`ed1ff93`) are done-LOCAL only: re-run `56f054d`-pinned restore tests and re-review F1–F7 fixes; verify the live loopback resync round trip (criteria 2 and 3) once Docker is available; commission the external cryptographic review before any default-on or claim; do NOT enable `chhaya_pq_hybrid_v1` by default.
+5. PQ-spec WS2 (`98aa043`) and WS3 (`ed1ff93`) are done-LOCAL only: re-run `56f054d`-pinned restore tests; F1–F7 were re-reviewed 2026-11-14 (`pass_with_observations`; residuals R1/R2/R3 open — R1 needs a spec/lead decision, do not patch silently); verify the live loopback resync round trip (criteria 2 and 3) once Docker is available; commission the external cryptographic review before any default-on or claim; do NOT enable `chhaya_pq_hybrid_v1` by default.
 6. Deploy WS1 prekey backend to a persistent Postgres (not free tier) with re-upload runbook; re-run backend tests and CI; only then integration-test bundle pop against a real device.
 7. Two-phone Android acceptance for direct messaging, restore-resume, lock/lifecycle, and calls-signaling (not media); then iOS signing + device pass; then second-phone matrix.
 8. Large-attachment resumable encrypted transfers (WS3 of plan); authenticated linking/revocation (WS4); push/TURN/SFrame (WS5) — each behind its own acceptance evidence.
@@ -161,4 +161,6 @@ Plan item 10 (tag/publish Version 15) — **not_started and gated**; must not be
 - No independent review has occurred. Green unit tests are not audits.
 - The 2026-10-29 verification-package loss is unresolved; data is presumed destroyed; the cause is presumed (not device-log-proven) runner teardown.
 - Working tree contains uncommitted registrant/gradle changes; the PQ spec was committed in `1274999` and `docs/spec-media-transfer-v1.md` in the same docs commit as this refresh; this register's base is `8eeff19`.
+- Distribution rule: no commit may touch `.gradle/` or generated registrant files; none did — those remain uncommitted working-tree noise and are excluded from every commit in this window.
+- The 2026-11-14 WS3 re-review (`pass_with_observations`) is a document/code review of the correction range, not an external cryptographic review, and does not clear any release gate; residuals R1/R2/R3 (WS3-F1..F7 row) remain open.
 - Render free-tier evidence will expire 2026-11-27 regardless of this document.
