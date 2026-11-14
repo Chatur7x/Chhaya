@@ -9,11 +9,46 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:chaaya/core/crypto/chhaya_crypto_engine.dart';
 import 'package:chaaya/core/crypto/key_manager.dart';
+import 'package:chaaya/core/crypto/pqc/pqc_provider.dart';
+import 'package:chaaya/core/crypto/pqc/prekey_store.dart';
 import 'package:chaaya/core/crypto/primitives/rng.dart';
 import 'package:chaaya/core/crypto/storage/secure_storage_mock.dart';
 
 KeyManager makeManager([Map<String, String>? seed]) {
   return KeyManager(secureBackend: SecureStorageMock(seed));
+}
+
+class _RecordingStorage extends SecureStorageMock {
+  final Set<String> writtenKeys = {};
+  @override
+  Future<void> write({required String key, required String value}) async {
+    writtenKeys.add(key);
+    return super.write(key: key, value: value);
+  }
+}
+
+/// Minimal fake KEM; sizes are irrelevant for this test.
+class _TinyKem implements PqKem {
+  @override
+  String get name => 'ML-KEM-1024';
+  @override
+  bool get isAvailable => true;
+  @override
+  Future<bool> initialize() async => true;
+  @override
+  Future<({Uint8List publicKey, Uint8List privateKey})>
+      generateKeyPair() async => (
+            publicKey: Csprng.instance.bytes(32),
+            privateKey: Csprng.instance.bytes(32),
+          );
+  @override
+  Future<({Uint8List ciphertext, Uint8List sharedSecret})> encapsulate(
+          Uint8List publicKey) async =>
+      (ciphertext: Csprng.instance.bytes(32), sharedSecret: Csprng.instance.bytes(32));
+  @override
+  Future<Uint8List> decapsulate(
+          Uint8List privateKey, Uint8List ciphertext) async =>
+      Csprng.instance.bytes(32);
 }
 
 Uint8List hex(String s) {
@@ -32,6 +67,27 @@ void main() {
     final after=await manager.getDatabaseKey(userId:'local');
     expect(before,isNot(after));
     expect(await manager.getKeyPair(),isNull);
+  });
+
+  group('WS5 prekey wipe', () {
+    test('clearAllAccountSecrets also shreds prekey/* material', () async {
+      final storage = _RecordingStorage();
+      final manager = KeyManager(secureBackend: storage);
+      final pair = await ChhayaCryptoEngine.generateKeyPair();
+      await manager.storeKeyPair(pair);
+      final store = PrekeyStore(storage, kem: _TinyKem());
+      await store.generateFreshBundle();
+      final prekeyWrites =
+          storage.writtenKeys.where((k) => k.startsWith('prekey/')).toList();
+      expect(prekeyWrites, isNotEmpty);
+
+      await manager.clearAllAccountSecrets();
+
+      for (final key in prekeyWrites) {
+        expect(await storage.containsKey(key: key), isFalse, reason: key);
+      }
+      pair.dispose();
+    });
   });
 
   group('V13 API compatibility', () {

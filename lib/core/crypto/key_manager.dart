@@ -22,6 +22,7 @@ import 'primitives/hkdf.dart' as hkdf;
 import 'primitives/rng.dart';
 import 'primitives/sha.dart';
 import 'storage/secure_storage.dart';
+import 'pqc/prekey_store.dart';
 
 /// Announcement published when the identity key rotates.
 ///
@@ -219,6 +220,13 @@ class KeyManager with WidgetsBindingObserver {
     for(final key in [_publicKeyKey,_privateKeyKey,_recoveryPhraseKey,_chhayaIdKey,
         _masterSeedKey,_identityEd25519Key,_identityX25519Key,_identityEpochKey]) {
       await _backend.delete(key:key);
+    }
+    try {
+      // Wipe the WS5 v2 prekey private material too. Best-effort: a failure
+      // here must not affect the other secret wipes above.
+      await PrekeyStore(_backend).shredAll();
+    } on Object {
+      // ignore — prekey material wipe is best-effort during account removal
     }
     _rotationEpochs.clear();
   }

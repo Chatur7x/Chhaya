@@ -487,6 +487,45 @@ class RatchetMessageCodec {
     return recorded == null || theirsRaw.compareTo(recorded) > 0;
   }
 
+  /// Resolves the responder prekey material for an incoming flight.
+  ///
+  /// Test override ([PqHybridV1.testPrekeyProvider]) wins when set, exactly
+  /// as before. Otherwise the production seam
+  /// ([PqHybridV1.productionPrekeyProvider]) — wired by the messaging layer
+  /// to the on-device prekey store — is consulted with the ids the flight
+  /// names. Any failure (no seam, missing/corrupt material, storage error)
+  /// resolves to null so the caller fails closed with today's StateError.
+  Future<V2PrekeyMaterial?> _resolveResponderPrekeyMaterial(
+    Map<String, dynamic> flight,
+    ChhayaKeyPair identity,
+  ) async {
+    final testProvider = PqHybridV1.testPrekeyProvider;
+    if (testProvider != null) {
+      return testProvider(identity.publicKey);
+    }
+    final provider = PqHybridV1.productionPrekeyProvider;
+    if (provider == null) {
+      return null;
+    }
+    final spkId = flight['signedPreKeyId'];
+    final pqspkId = flight['pqSignedPreKeyId'];
+    if (spkId is! String || pqspkId is! String) {
+      return null;
+    }
+    try {
+      return await provider(
+        _bytesToHex(identity.publicKey),
+        signedPreKeyId: spkId,
+        pqSignedPreKeyId: pqspkId,
+        oneTimePreKeyId: flight['oneTimePreKeyId'] as String?,
+        pqOneTimePreKeyId: flight['pqOneTimePreKeyId'] as String?,
+      );
+    } on Object {
+      // Storage/KEM/parse failures must not bypass the fail-closed path.
+      return null;
+    }
+  }
+
   /// Acceptance-gate predicate (WS3 F2), stricter than the adoption
   /// predicate: the decrypt fallback may call `_acceptV2` only when the
   /// flight is the adoption candidate — it strictly advances the recorded
@@ -552,10 +591,10 @@ class RatchetMessageCodec {
     if (!_bytesEq(flightPeer, peerPub)) {
       throw StateError('Bootstrap identity does not match the verified contact');
     }
-    final material = PqHybridV1.testPrekeyProvider?.call(identity.publicKey);
+    final material = await _resolveResponderPrekeyMaterial(flight, identity);
     if (material == null) {
-      // Production has no client-side prekey private-key store yet
-      // (WS5+ follow-up): fail closed rather than guess.
+      // No material: fail closed rather than guess (today's behaviour when
+      // no prekey store is wired or nothing is stored for this flight).
       throw StateError('No responder prekey material available');
     }
     if (_requireString(flight, 'signedPreKeyId') != material.signedPreKeyId ||

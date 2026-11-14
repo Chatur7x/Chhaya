@@ -7,8 +7,10 @@
 // establishment was deleted (spec §3.11) — flag-off means a fresh
 // conversation fails closed rather than silently re-deriving old keys.
 //
-// The static seams exist ONLY for tests (unit + loopback integration).
-// Production leaves them null. The flag is read lazily on every use.
+// The static seams exist ONLY for tests (unit + loopback integration), with
+// one exception: `productionPrekeyProvider`, which the messaging layer wires
+// to the on-device prekey store (WS5 slice 2) and which fails closed when no
+// material is stored. The flag is read lazily on every use.
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -53,8 +55,23 @@ class PqHybridV1 {
 
   /// Resolves the responder prekey material for the LOCAL account, keyed by
   /// our X25519 identity public key (tests enroll one account per side).
+  /// Takes precedence over [productionPrekeyProvider].
   static V2PrekeyMaterial? Function(Uint8List ourIdentityPublicKey)?
       testPrekeyProvider;
+
+  /// Production responder prekey material resolver (WS5 slice 2). Wired by
+  /// the messaging layer to the on-device [PrekeyStore]; null in tests
+  /// unless a test sets it. Receives the hex X25519 identity public key and
+  /// the SPK/PQSPK ids the flight being accepted names (plus any one-time
+  /// prekey ids). Returns null when material is unavailable — callers then
+  /// fail closed exactly as before. Never logs key material.
+  static Future<V2PrekeyMaterial?> Function(
+    String identityPublicKey, {
+    required String signedPreKeyId,
+    required String pqSignedPreKeyId,
+    String? oneTimePreKeyId,
+    String? pqOneTimePreKeyId,
+  })? productionPrekeyProvider;
 
   /// Test bridge for the Ed25519 identity public key bound into the v2
   /// transcript (spec §3.3). When set, callers use this instead of the
@@ -91,6 +108,7 @@ class PqHybridV1 {
     testKem = null;
     testBundleFetcher = null;
     testPrekeyProvider = null;
+    productionPrekeyProvider = null;
     testEd25519PublicKey = null;
     testUserConsented = false;
   }

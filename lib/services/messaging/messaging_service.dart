@@ -15,8 +15,17 @@ import '../../core/models/message_attachment.dart';
 import 'message_payload.dart';
 import 'poll_payload.dart';
 import '../api/api_service.dart';
+import '../api/prekey_upload_client.dart';
+import '../../core/crypto/pqc/prekey_store.dart';
+import '../../core/crypto/storage/secure_storage.dart';
+import '../../core/log.dart';
 import 'ratchet_message_codec.dart';
 import 'pq_hybrid_v1.dart';
+
+/// WS5 slice 2: best-effort prekey bundle upload on startup is opt-in and
+/// DEFAULT OFF. Never blocks messaging; never throws out.
+const bool _prekeysUploadFlag =
+    bool.fromEnvironment('prekeys_upload', defaultValue: false);
 
 /// The message has committed locally; retry its existing ID instead of composing again.
 class MessageQueuedException implements Exception {
@@ -36,7 +45,13 @@ class MessagingService {
     required this.api,
     required this.database,
     required this.keys,
-  });
+  }) {
+    if (_prekeysUploadFlag) {
+      // Best-effort, fire-and-forget: upload a fresh bundle so peers can
+      // establish. Never blocks or fails messaging.
+      unawaited(_bestEffortPrekeyUpload());
+    }
+  }
 
   Future<T> _serial<T>(Future<T> Function() operation) {
     final next = _tail.then((_) => operation());
@@ -100,6 +115,27 @@ class MessagingService {
           authToken: api.authToken,
           baseUrl: api.baseUrl,
         );
+    // WS5 slice 2: wire the acceptance path to the on-device prekey store.
+    // Fails closed (null material) when nothing is stored or storage errors,
+    // preserving the existing fail-closed throw.
+    PqHybridV1.productionPrekeyProvider = (
+      identityPublicKey, {
+      required String signedPreKeyId,
+      required String pqSignedPreKeyId,
+      String? oneTimePreKeyId,
+      String? pqOneTimePreKeyId,
+    }) async {
+      try {
+        return await PrekeyStore(SecureStorages.platformDefault()).materialFor(
+          signedPreKeyId,
+          pqSignedPreKeyId: pqSignedPreKeyId,
+          oneTimePreKeyId: oneTimePreKeyId,
+          pqOneTimePreKeyId: pqOneTimePreKeyId,
+        );
+      } on Object {
+        return null; // fail closed
+      }
+    };
     return RatchetMessageCodec(
       sessions: LocalDatabaseSessionStorage(database),
       identity: identity,
@@ -110,6 +146,29 @@ class MessagingService {
           PqHybridV1.testEd25519PublicKey?.call(identity.publicKey) ??
           keys.getIdentityEd25519PublicKeyBytes(),
     );
+  }
+
+  /// Best-effort upload of a fresh prekey bundle (WS5 slice 2). Only ever
+  /// invoked when the `prekeys_upload` dart-define is ON (default OFF).
+  /// Any failure is logged as one debug line (no key material) and otherwise
+  /// swallowed — this must never affect messaging.
+  Future<void> _bestEffortPrekeyUpload() async {
+    try {
+      if (!api.isAuthenticated || api.authToken == null) {
+        return;
+      }
+      final storage = SecureStorages.platformDefault();
+      final store = PrekeyStore(storage);
+      final generation = await store.generateFreshBundle();
+      final token = api.authToken;
+      if (token == null) {
+        return;
+      }
+      await PrekeyUploadClient(baseUrl: api.baseUrl, authToken: token)
+          .uploadBundle(generation.bundleJson);
+    } on Object {
+      ChhayaLog.d('prekey bundle upload skipped', name: 'MessagingService');
+    }
   }
 
   /// 30 s throttle for outbound resync envelopes per conversation.
