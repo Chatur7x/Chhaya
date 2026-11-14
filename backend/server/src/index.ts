@@ -11,10 +11,11 @@ import { startOnionRelayServer } from './onion-relay';
 import { initPushNotifications } from './push';
 import { registerRoutes } from './routes';
 import { sweepMediaTransfersSafely } from './media';
+import { sweepDeviceLinkRequestsSafely } from './devices';
 import { ZodError } from 'zod';
 import { collectDefaultMetrics, register, Counter } from 'prom-client';
 import { consumeIpRateLimit, pruneExpiredRateLimits } from './rate-limit';
-import { authenticateToken } from './session';
+import { authenticateSession } from './session';
 
 export const app = express();
 app.set('trust proxy',config.TRUST_PROXY_HOPS);
@@ -35,9 +36,11 @@ app.use(async (req, res, next) => {
     // Resolve real sessions before assigning account buckets; arbitrary bearer
     // strings must not let an anonymous caller rotate through unlimited buckets.
     const authorization = req.headers.authorization;
-    const userId = !req.path.startsWith('/api/v1/auth/') && authorization?.startsWith('Bearer ')
-      ? await authenticateToken(authorization.substring(7)) : null;
+    const session = !req.path.startsWith('/api/v1/auth/') && authorization?.startsWith('Bearer ')
+      ? await authenticateSession(authorization.substring(7)) : null;
+    const userId = session?.userId ?? null;
     if (userId) res.locals.authenticatedUserId = userId;
+    if (session) res.locals.authenticatedSession = session;
     const decision = await consumeIpRateLimit(
       userId ? `account:${userId}` : req.ip || req.socket.remoteAddress || 'unknown',
       userId ? config.API_AUTH_RATE_LIMIT : config.API_RATE_LIMIT,
@@ -129,6 +132,8 @@ async function start() {
       // tick; bounded batches, fail-safe, not a separate daemon. When the
       // free-tier instance sleeps, nothing sweeps — documented limitation.
       void sweepMediaTransfersSafely();
+      // DL-A device-link GC (spec §4.5): bounded deletes, fail-safe.
+      void sweepDeviceLinkRequestsSafely();
     }, 5 * 60 * 1000);
     cleanupTimer.unref();
     initPushNotifications();

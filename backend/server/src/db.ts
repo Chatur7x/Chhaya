@@ -274,6 +274,47 @@ const runMigrations = async (p: Pool): Promise<void> => {
       PRIMARY KEY (transfer_id, chunk_index)
     );`,
 
+    // DL-A authenticated device linking (docs/spec-device-linking-v1.md §4.1). Additive only.
+    // Server stores public material, code hashes, opaque AEAD bytes and signatures over public
+    // transcripts; never plaintext approvals, SK, or any private key material. The spec sketch
+    // omitted a column for P's ephemeral X25519 public key, but §4.4#3 requires the server to
+    // store it at approve time and hand it back on the status poll (N needs it for the ECDH),
+    // so `prim_eph_pub` is included here (additive column inside this new table).
+    `CREATE TABLE IF NOT EXISTS device_link_requests (
+      request_id UUID PRIMARY KEY,
+      device_id UUID NOT NULL,
+      device_name VARCHAR(100) NOT NULL,
+      platform VARCHAR(20) NOT NULL,
+      device_public_key CHAR(64) NOT NULL,
+      ephemeral_public_key CHAR(64),
+      code_hash CHAR(64) NOT NULL,
+      state TEXT NOT NULL CHECK (state IN ('pending','approved','denied','consumed','expired')),
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      approval BYTEA,
+      approval_signature TEXT,
+      prim_eph_pub CHAR(64),
+      denied_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMPTZ NOT NULL
+    );
+     CREATE UNIQUE INDEX IF NOT EXISTS uq_device_link_pending_device
+       ON device_link_requests (device_id) WHERE state IN ('pending','approved');
+     CREATE INDEX IF NOT EXISTS idx_device_link_requests_user
+       ON device_link_requests (user_id);
+     CREATE TABLE IF NOT EXISTS device_link_events (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      device_id UUID,
+      action TEXT NOT NULL,
+      at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+     CREATE INDEX IF NOT EXISTS idx_device_link_events_device
+       ON device_link_events (device_id, at);
+     CREATE INDEX IF NOT EXISTS idx_device_link_events_user
+       ON device_link_events (user_id, at);
+     ALTER TABLE devices ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ;
+     ALTER TABLE auth_sessions ADD COLUMN IF NOT EXISTS device_id UUID REFERENCES devices(id) ON DELETE CASCADE;
+     CREATE INDEX IF NOT EXISTS idx_auth_sessions_device ON auth_sessions(device_id);`,
 
   ];
 

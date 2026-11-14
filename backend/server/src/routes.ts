@@ -6,11 +6,12 @@ import { logger } from './log';
 import { sendNewMessageNotification, sendCallNotification, registerFCMToken, subscribeToPush } from './push';
 import { broadcastToUser } from './signaling';
 import { issueIdentityChallenge, consumeIdentityChallenge } from './identity-proof';
-import { authenticateToken, issueSession, hashCredential, verifyCredential } from './session';
+import { authenticateSession, issueSession, hashCredential, verifyCredential } from './session';
 import { getPendingCallInvites } from './call-invites';
 import { consumeIpRateLimit } from './rate-limit';
 import { config } from './config';
 import { mediaRouter } from './media';
+import { devicesRouter } from './devices';
 
 const router = Router();
 const safe = (handler: (req: Request,res: Response,next: NextFunction)=>Promise<unknown>) =>
@@ -77,7 +78,8 @@ const updateSettingsSchema = z.object({
 
 const groupAdminSchema = z.object({ isAdmin: z.boolean() });
 
-// Auth middleware
+// Auth middleware. A session bound to a revoked device is rejected here on
+// every API surface (spec §2.5): authenticateSession applies the revoked_at IS NULL check.
 const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
@@ -86,9 +88,10 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction) =
   const token = authHeader.substring(7);
 
   try {
-    const userId = res.locals.authenticatedUserId ?? await authenticateToken(token);
-    if (!userId) return res.status(401).json({ error: 'Invalid or expired token' });
-    (req as any).userId = userId;
+    const session = res.locals.authenticatedSession ?? await authenticateSession(token);
+    if (!session) return res.status(401).json({ error: 'Invalid or expired token' });
+    (req as any).userId = session.userId;
+    (req as any).deviceId = session.deviceId;
     next();
   } catch (error) { next(error); }
 };
@@ -142,7 +145,7 @@ router.post('/auth/register', safe(async (req: Request, res: Response) => {
     }
 
     logger.info('Account registered');
-    res.status(201).json({ userId, token: await issueSession(userId) });
+    res.status(201).json({ userId, token: await issueSession(userId, data.deviceId) });
   } catch (e) {
     if (e instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: e.issues });
@@ -191,7 +194,7 @@ router.post('/auth/login', safe(async (req: Request, res: Response) => {
     await query('UPDATE users SET last_seen_at = NOW() WHERE id = $1', [userId]);
 
     logger.info('Session created');
-    res.json({ userId, token: await issueSession(userId) });
+    res.json({ userId, token: await issueSession(userId, data.deviceId) });
   } catch (e) {
     if (e instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: e.issues });
@@ -1036,6 +1039,7 @@ router.get('/prekeys/mine/count', authMiddleware, safe(async (req: Request, res:
 // WS-A media transfer routes (docs/spec-media-transfer-v1.md §8). Additive surface;
 // the raw chunk PUT body is mounted in index.ts before express.json().
 router.use('/media', mediaRouter);
+router.use('/devices', devicesRouter);
 
 export { router as apiRouter };
 export const registerRoutes = (app: Express): void => { app.use('/api/v1', router); };
