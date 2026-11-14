@@ -251,3 +251,28 @@ Known limits / honest caveats:
 - WS3 does not claim PQXDH is the right call without review — it is the spec's call. The external review gate remains binding (§7.2).
 
 Commit SHA and `git status` recorded in the PR description. CSV rows (21, 80, 81) and delivery checklist rows are intentionally NOT flipped.
+
+## Follow-up verification: delayed ML-KEM reseed (WS4, 14 Nov 2026)
+
+Scope: spec §3.9 Tier-1 reseed only (hash-step chain + sparse ML-KEM-1024 reseed). The reseed flight rides the normal authenticated envelope path as a trailing section of the ratchet header; no network round-trip is ever required inside a message. Flag `chhaya_pq_hybrid_v1` remains OFF by default; nothing is default-on; no claim is made that messaging is post-quantum or quantum-safe.
+
+What changed (high level):
+
+- `spqr.dart` — one-way hash-step evolution for the chain seed (`seed_{n+1} = HKDF(seed_n, "Chhaya-SPQR-step-v1" || u32be(n+1))`); epoch keys derive from the seed at that epoch; past in-window epoch keys are served from a bounded cache keyed by generation; gaps beyond 1000 are refused (`TooManySkippedException`). New `ReseedKem` structural seam (fail closed when no provider). See spec §3.9.
+- `session_state.dart` — additive, backwards-compatible persistence: retired epoch-key window cache, `spqrGeneration`, reseed cadence counters/timestamp, pending reseed keypair (wiped on transition).
+- `triple_ratchet.dart` — epoch keys step the seed one-way (state intact on refusal); trailing `pq` section added to the header (soft extension: fixed 44-byte prefix unchanged; unknown trailing sections are skipped; malformed reseed sections are ignored; oversized trailing rejected). Delayed-reseed flight: the session initiator advertises a fresh ML-KEM-1024 keypair every ~25 sends or ≥7 days; the peer encapsulates on its next message; both derive `HKDF(step(seed, generation+1) || SS_reseed, "Chhaya-SPQR-reseed-v1")` and switch chain state. The initiator side alone offers (prevents cross-flight forking); the responder answers once per offer (persisted dedup).
+- `ratchet_message_codec.dart` — threads the same ML-KEM provider used elsewhere (flag-gated, fail closed) through the reseed seam. No behaviour change when the flag is off.
+- `pqc_provider.dart` / `ml_kem.dart` — `PqKem` gained `generateKeyPair()` (default throws → reseed silently stays classical).
+- New `test/unit/crypto/ratchet/spqr_step_reseed_test.dart` — 15 tests covering the cadence boundary, seed change, old-epoch underivability, in-window decrypt across the boundary, >1000 gap refusal with state intact, provider-absent fail-closed path, and header soft-extension tolerance.
+
+What was verified in this environment (14 Nov 2026): `flutter analyze lib test` — No issues found. `flutter test test/unit/crypto/` — green (incl. 1M-message fuzz). `flutter test test/unit/messaging/` and `test/unit/database/` — green (81 passed). `python scripts/check_transcript_binding.py` — exits 0. No claim is made that a live reseed flight has traversed the loopback backend; the flight is wired through the normal envelope path and exercised at the ratchet layer only.
+
+What is **not** verified (explicit list):
+
+- Live reseed flights through the loopback backend — docker daemon unavailable on this host; not run.
+- Android/iOS device behaviour — never attempted.
+- Windows ML-KEM reseed path — no chhaya_pqc Windows provider; fail-closed path only.
+- External cryptographic review — unverified; review gate still blocks default-on and any post-quantum/secure-restore wording.
+- Store-and-forward reseed arrival reordering against a live relay — only the in-memory unit-level flight is exercised.
+
+CSV/checklist statuses intentionally NOT flipped.
