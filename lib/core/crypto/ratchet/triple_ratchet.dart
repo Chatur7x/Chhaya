@@ -388,7 +388,14 @@ class TripleRatchet {
     final stepped = await DoubleRatchet.encrypt(state);
     // sendCounter was already incremented; epoch of the message sent.
     final messageNumber = state.sendCounter - 1;
-    final epoch = messageNumber ~/ SpqrChain.advanceEvery;
+    // Epochs must never step the seed backwards (the receive path may
+    // have advanced it further via header-driven stepping), so the
+    // send epoch is the max of the local message position and the
+    // current chain position. Steps are absolute-index, so both sides
+    // derive identical seeds regardless of gaps.
+    final sendEpoch = messageNumber ~/ SpqrChain.advanceEvery;
+    final epoch =
+        sendEpoch > state.spqrEpoch ? sendEpoch : state.spqrEpoch;
     // Epochs are monotone with the message number, so this steps the
     // seed forward (retiring seeds are wiped) rather than reading a
     // retired key.

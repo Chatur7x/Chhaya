@@ -157,6 +157,20 @@ class SpqrChain {
 
   static String _cacheKey(int generation, int epoch) => '$generation:$epoch';
 
+  /// Returns the cached key for [epoch], scanning every known generation
+  /// from the current one backwards. Each generation occupies a disjoint
+  /// epoch range (applyReseed bumps the chain position), so there is
+  /// never ambiguity about which generation a past key belongs to.
+  static Uint8List? _cachedEpochKey(SessionState state, int epoch) {
+    for (var gen = state.spqrGeneration; gen >= 0; gen--) {
+      final hit = state.spqrEpochKeys[_cacheKey(gen, epoch)];
+      if (hit != null) {
+        return Uint8List.fromList(hit);
+      }
+    }
+    return null;
+  }
+
   static void _cacheEpochKey(
     SessionState state,
     int epoch,
@@ -187,9 +201,9 @@ class SpqrChain {
       throw TooManySkippedException(gap);
     }
     if (gap < 0) {
-      final cached = state.spqrEpochKeys[_cacheKey(state.spqrGeneration, epoch)];
+      final cached = _cachedEpochKey(state, epoch);
       if (cached != null) {
-        return Uint8List.fromList(cached);
+        return cached;
       }
       throw EpochKeyUnavailableException(epoch);
     }
@@ -214,9 +228,7 @@ class SpqrChain {
     final gap = epoch - state.spqrEpoch;
     if (gap > maxSkip) return false;
     if (gap >= 0) return true;
-    return state.spqrEpochKeys.containsKey(
-      _cacheKey(state.spqrGeneration, epoch),
-    );
+    return _cachedEpochKey(state, epoch) != null;
   }
 
   /// Pre-derives in-window epoch keys for the retiring generation so
@@ -256,6 +268,11 @@ class SpqrChain {
     state.rotateSpqrSeed(newSeed);
     Csprng.wipe(newSeed);
     state.spqrGeneration += 1;
+    // Each generation occupies a disjoint epoch range: bump the chain
+    // position past every key retiring with the old seed. A straggler
+    // can then only ever match a retiring-generation key, never a
+    // fresh-generation one with the same number.
+    state.spqrEpoch = state.spqrEpoch + epochSkipWindow + 1;
     state.reseedSendCounter = 0;
     state.reseedLastAtMs = DateTime.now().millisecondsSinceEpoch;
     if (state.answeredReseedOffer != null) {
