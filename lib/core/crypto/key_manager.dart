@@ -397,6 +397,18 @@ class KeyManager with WidgetsBindingObserver {
     }
   }
 
+  /// Returns the Ed25519 identity seed (32 bytes), resolving a stored seed
+  /// or deriving from the master seed exactly like
+  /// [getIdentityEd25519PublicKeyBytes]. Callers MUST wipe the returned
+  /// bytes as soon as they are no longer needed. Never log or persist them.
+  Future<Uint8List> getIdentityEd25519SeedBytes() async {
+    final stored = await _backend.read(key: _identityEd25519Key);
+    if (stored != null) {
+      return base64Decode(stored);
+    }
+    return derivePathKey(pathIdentityEd25519);
+  }
+
   /// Returns the Ed25519 identity public key (32 bytes), deriving it from
   /// the master seed when no explicit seed is stored. Read-only; the seed
   /// copy is wiped before returning.

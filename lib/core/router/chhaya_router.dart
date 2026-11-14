@@ -6,6 +6,8 @@ import 'package:chaaya/ui/screens/onboarding/onboarding_screen.dart';
 import 'package:chaaya/ui/screens/chat/chat_screen.dart';
 import 'package:chaaya/ui/screens/call/call_screen.dart';
 import 'package:chaaya/ui/screens/settings/settings_screen.dart';
+import 'package:chaaya/ui/screens/settings/device_link_screen.dart';
+import 'package:chaaya/ui/screens/settings/device_approve_screen.dart';
 import 'package:chaaya/ui/screens/profile/profile_screen.dart';
 import 'package:chaaya/ui/screens/verification/verification_screen.dart';
 import 'package:chaaya/ui/screens/home/home_shell.dart';
@@ -19,6 +21,8 @@ class ChhayaRouter {
   static const String chat = '/chat';
   static const String call = '/call';
   static const String settings = '/settings';
+  static const String deviceLink = '/settings/link-device';
+  static const String deviceApprove = '/settings/approve-device';
   static const String profile = '/profile';
   static const String verification = '/verification';
 
@@ -58,6 +62,16 @@ class ChhayaRouter {
       case settings:
         return _buildMaterialRoute(
           const SettingsScreen(),
+          routeSettings,
+        );
+      case deviceLink:
+        return _buildMaterialRoute(
+          const DeviceLinkScreen(),
+          routeSettings,
+        );
+      case deviceApprove:
+        return _buildMaterialRoute(
+          const DeviceApproveScreen(),
           routeSettings,
         );
       case profile:

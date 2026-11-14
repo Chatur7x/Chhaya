@@ -12,6 +12,8 @@ import '../../services/network/p2p_tunnel_service.dart';
 import '../../services/network/decentralized_file_client.dart';
 import '../../services/notification/notification_service.dart';
 import '../../services/api/api_service.dart';
+import '../../services/api/device_link_client.dart';
+import '../../services/auth/device_link_service.dart';
 import '../../services/messaging/messaging_service.dart';
 import '../../services/call/call_service.dart';
 
@@ -61,6 +63,29 @@ final fileClientProvider = Provider<DecentralizedFileClient>((ref) {
 
 final apiServiceProvider = Provider<ApiService>((ref) {
   return _apiSingleton;
+});
+
+final deviceLinkClientProvider = Provider<DeviceLinkClient>((ref) {
+  // DeviceLinkClient requires an HTTPS origin; when the server is not
+  // configured yet the UI still builds — link calls then fail with
+  // network_error and surface the offline copy. The live token provider
+  // always sees the freshest session token.
+  final baseUrl = _apiSingleton.isConfigured ? _apiSingleton.baseUrl : 'https://unconfigured.invalid';
+  return DeviceLinkClient(
+    baseUrl: baseUrl,
+    authToken: _apiSingleton.authToken,
+    tokenProvider: () async => _apiSingleton.authToken,
+  );
+});
+
+final deviceLinkServiceProvider = Provider<DeviceLinkService>((ref) {
+  return DeviceLinkService(
+    client: ref.read(deviceLinkClientProvider),
+    database: _dbSingleton,
+    keys: _keyManagerSingleton,
+    authTokenProvider: () async => _apiSingleton.authToken,
+    profileProvider: () async => _dbSingleton.getUserProfile(),
+  );
 });
 
 

@@ -9,6 +9,7 @@ import '../../widgets/chhaya_app_bar.dart';
 import '../../widgets/glass_container.dart';
 import '../../widgets/chhaya_button.dart';
 import '../../../core/router/chhaya_router.dart';
+import '../../../services/auth/device_link_service.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../services/auth/backup_file.dart';
@@ -421,22 +422,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _showLinkedDevices() {
-    final devices = ref.read(localDatabaseProvider).getLinkedDevices();
     showModalBottomSheet(
       context: context,
       backgroundColor: ChhayaPalette.of(context).sheetBackground,
-      builder: (_) => _buildBottomSheet(
-        title: 'Linked Devices',
-        child: Column(children: [
-          const Text('Secure device linking and revocation are not available yet. The entries below are local records, not proof of linked or revoked devices.'),
-          for (final device in devices)
-            ListTile(
-              leading: const Icon(Icons.devices_rounded),
-              title: Text(device['name'] as String? ?? 'Device'),
-              subtitle: Text(device['id'] as String? ?? ''),
-            ),
-        ]),
-      ),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(ChhayaRadius.xxl))),
+      builder: (_) => const _LinkedDevicesSheet(),
     );
   }
 
@@ -686,6 +677,209 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Linked devices list (DL-B). Real server-backed list when a session
+/// exists; local kv records otherwise. Revocation always calls the server;
+/// local state is flagged only after the server confirms.
+class _LinkedDevicesSheet extends ConsumerStatefulWidget {
+  const _LinkedDevicesSheet();
+
+  @override
+  ConsumerState<_LinkedDevicesSheet> createState() => _LinkedDevicesSheetState();
+}
+
+class _LinkedDevicesSheetState extends ConsumerState<_LinkedDevicesSheet> {
+  DeviceLinkDeviceList? _list;
+  Object? _loadError;
+  final Set<String> _revoking = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  Future<void> _reload() async {
+    final service = ref.read(deviceLinkServiceProvider);
+    setState(() => _loadError = null);
+    try {
+      final list = await service.listDevices();
+      if (!mounted) return;
+      setState(() => _list = list);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadError = error);
+    }
+  }
+
+  Future<void> _revoke(LinkedDeviceEntry device) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Revoke device?'),
+        content: Text(
+          'Revoke "${device.name}"? Its access to your account ends immediately — '
+          'it can no longer sync contacts or profile. Data already on that device '
+          'is not erased.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Revoke')),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    setState(() => _revoking.add(device.deviceId));
+    try {
+      await ref.read(deviceLinkServiceProvider).revokeDevice(deviceId: device.deviceId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('"${device.name}" access ended.')),
+      );
+      await _reload();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(deviceLinkErrorCopy(error))),
+      );
+    } finally {
+      if (mounted) setState(() => _revoking.remove(device.deviceId));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = ChhayaPalette.of(context);
+    final list = _list;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          ChhayaSpacing.space5,
+          ChhayaSpacing.space4,
+          ChhayaSpacing.space5,
+          ChhayaSpacing.space5,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.devices_rounded, color: palette.info),
+                const SizedBox(width: ChhayaSpacing.space2),
+                Text('Linked Devices', style: ChhayaType.of(context).displaySmall.copyWith(fontSize: 20)),
+              ],
+            ),
+            const SizedBox(height: ChhayaSpacing.space2),
+            Text(
+              'Linked devices see your contacts and profile. They cannot read or send messages.',
+              style: ChhayaType.of(context).bodyMedium.copyWith(color: palette.labelSecondary),
+            ),
+            const SizedBox(height: ChhayaSpacing.space3),
+            Row(
+              children: [
+                Expanded(
+                  child: ChhayaPrimaryButton(
+                    label: 'Link a new device',
+                    icon: Icons.link_rounded,
+                    height: 48,
+                    onPressed: () => Navigator.of(context).pushNamed(ChhayaRouter.deviceLink),
+                  ),
+                ),
+                const SizedBox(width: ChhayaSpacing.space2),
+                Expanded(
+                  child: ChhayaPrimaryButton(
+                    label: 'Approve an enrollment',
+                    icon: Icons.verified_user_rounded,
+                    height: 48,
+                    onPressed: () => Navigator.of(context).pushNamed(ChhayaRouter.deviceApprove),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: ChhayaSpacing.space3),
+            if (_loadError != null)
+              Text('Could not load devices. ${deviceLinkErrorCopy(_loadError!)}',
+                  style: TextStyle(color: palette.error)),
+            if (list?.serverUnavailable == true)
+              Container(
+                padding: const EdgeInsets.all(ChhayaSpacing.space2),
+                margin: const EdgeInsets.only(bottom: ChhayaSpacing.space2),
+                decoration: BoxDecoration(
+                  color: palette.fillTertiary,
+                  borderRadius: BorderRadius.circular(ChhayaRadius.md),
+                  border: Border.all(color: palette.separator),
+                ),
+                child: const Text('Showing locally recorded devices. Connect to the server to revoke access.'),
+              ),
+            if (list == null && _loadError == null)
+              const Padding(
+                padding: EdgeInsets.all(ChhayaSpacing.space4),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+            if (list != null && list.devices.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: ChhayaSpacing.space4),
+                child: Text('No devices linked yet.'),
+              ),
+            if (list != null && list.devices.isNotEmpty)
+              SizedBox(
+                height: 260,
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final device in list.devices)
+                      _deviceTile(palette, device),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _deviceTile(ChhayaPalette palette, LinkedDeviceEntry device) {
+    final subtitle = <String>[
+      if (device.platform.isNotEmpty) device.platform,
+      if (device.revokedAt != null) 'Revoked',
+      if (device.pending && device.revokedAt == null) 'Pending enrollment',
+    ].join(' · ');
+    final revoking = _revoking.contains(device.deviceId);
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(Icons.devices_rounded, color: device.revokedAt != null ? palette.labelTertiary : palette.info),
+      title: Row(
+        children: [
+          Flexible(child: Text(device.name, overflow: TextOverflow.ellipsis)),
+          if (device.isCurrent) ...[
+            const SizedBox(width: ChhayaSpacing.space2),
+            Semantics(
+              label: 'This device',
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: palette.fillTertiary,
+                  borderRadius: BorderRadius.circular(ChhayaRadius.sm),
+                ),
+                child: Text('This device', style: ChhayaType.of(context).labelSmall),
+              ),
+            ),
+          ],
+        ],
+      ),
+      subtitle: subtitle.isEmpty ? null : Text(subtitle),
+      trailing: device.revokedAt != null || device.isCurrent
+          ? null
+          : TextButton(
+              onPressed: revoking ? null : () => _revoke(device),
+              child: revoking
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Revoke'),
+            ),
     );
   }
 }
