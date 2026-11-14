@@ -298,3 +298,24 @@ Required before ANY flag-on:
 4. External cryptographic review.
 
 Status: experimental. Flag `chhaya_pq_hybrid_v1` OFF (`const bool.fromEnvironment('chhaya_pq_hybrid_v1')` unset). NOT protocol-complete. NOT §3.9 satisfied. NO claim is made.
+
+## Device linking — implementation and review outcome (2026-11-14)
+
+Scope: authenticated device linking (enroll, approve, revoke, audit). Spec, backend (DL-A) and client (DL-B) landed; DL-C (ApiService wire-through) not started. This section records what was built and reviewed; it makes no claim that message-device sync works end to end.
+
+What landed:
+
+- Spec committed `e3594d6` — specify authenticated device linking (enroll, approve, revoke, audit).
+- DL-A backend committed `12ea49f` — `auth_sessions` gains `device_id`; new enrollment endpoints. Local in-process PG verified green 62/62 including the concurrent-consume race; CI dispatched as run 43572256765 (result not yet verified in this session).
+- DL-B client committed `6d9a927` — 475 unit tests green locally; static gate exit 0; review verdict `pass_with_observations`.
+- Spec/code reconciliation `2184dba` — payload 8-field erratum; device Ed25519 seed not persisted; consume-token storage removed.
+
+What is **not** verified (explicit list):
+
+- Live DL-A deploy — not done; CI run 43572256765 not yet confirmed green.
+- Two-device run — never attempted.
+- Approval transcript external review — not commissioned.
+- DL-C ApiService wire-through — not started.
+- Approve per-route rate limit — not in place.
+
+Explicit non-claims: no claim is made that message-device sync works; no `release_verified` flips; no claims-policy wording changes; CSV rows and delivery-checklist rows intentionally NOT flipped.

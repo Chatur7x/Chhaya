@@ -97,6 +97,9 @@ Earlier context (pre-window, retained for honesty): `8a534cf` CI runs 4086677019
 | WS7 | Privacy transports (onion/mesh/LAN/shim/Arke) | **not_started** | Onion legacy code disabled; mesh/LAN/Arke/Shadow Codes not implemented; no relay deployment |
 | WS8 | UI flows, accessibility, desktop storage, lifecycle, device protection | **in-progress** | `b42d4e5`, `4194a35` lock lifecycle (unit evidence); Windows FFI SQLCipher done-local + CI; voice `record`/`audioplayers` migration; local `flutter build windows` blocked by missing ATL (`atlstr.h`); Windows build CI ok but app never launched; accessibility not device-reviewed |
 | WS9 | Ops: migrations, backup/restore drills, monitoring, rollback, SBOM/licenses | **in-progress / at risk** | Local restore drill + CI workflow exist; monitoring basic; SBOM/license inventory incomplete (root license effectively empty); **Render free-tier DB expiry 2026-11-27**; no production backup/restore evidence |
+| DL-A | Device linking backend (enroll, approve, revoke, audit) | **done-local** (CI pending; live deploy unverified) | `12ea49f`; `auth_sessions` gains `device_id`; new enrollment endpoints; local in-process PG green 62/62 incl. concurrent-consume race; CI dispatched run 43572256765 (not yet confirmed green); live deploy NOT done |
+| DL-B | Device linking client | **review pass_with_observations; 475 tests local; gates open** | `6d9a927`; static gate exit 0; pass_with_observations; live two-device run NOT attempted; DL-C not started; no claim that message-device sync works |
+| DL-C | Device linking ApiService wire-through | **not started** | — |
 
 Plan item 10 (tag/publish Version 15) — **not_started and gated**; must not begin until gates in §9 pass.
 
