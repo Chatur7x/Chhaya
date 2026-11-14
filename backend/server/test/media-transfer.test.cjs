@@ -192,7 +192,16 @@ const withHarness = (fn) => async () => {
     secret.fill(0);
     const r = await req('POST', '/auth/register', body);
     assert.equal(r.status, 201);
-    return {token: r.data.token, userId: r.data.userId};
+    return {token: r.data.token, userId: r.data.userId, chhayaId: body.chhayaId};
+  };
+  // The /conversations endpoint requires at least 2 other participants for a
+  // group and every participant to be an active, unblocked contact. The
+  // reliable way to get a 1:1 conversation is the address book: POST /contacts
+  // registers the pair and creates the direct conversation.
+  const makeDirectConversation = async (creator, peer, displayName = 'Media Peer') => {
+    const res = await req('POST', '/contacts', {chhayaId: peer.chhayaId, displayName}, creator.token);
+    assert.equal(res.status, 201);
+    return res.data.conversationId;
   };
   const startTransfer = (token, conversationId, sizeBytes) => {
     const {expectedTotalChunks} = require('../dist/media');
@@ -201,7 +210,7 @@ const withHarness = (fn) => async () => {
     }, token);
   };
   try {
-    await fn({req, putChunk, getChunk, signup, startTransfer, query, resetBuckets, base});
+    await fn({req, putChunk, getChunk, signup, startTransfer, makeDirectConversation, query, resetBuckets, base});
   } finally {
     await new Promise((resolve) => server.close(resolve));
     await closeDb();
@@ -210,13 +219,11 @@ const withHarness = (fn) => async () => {
 
 const dbTest = (name, fn) => test(name, {skip: !process.env.DATABASE_URL}, withHarness(fn));
 
-dbTest('start returns 201 with transferId, expiresAt ~1h and enforces validation errors', async ({req, signup, startTransfer}) => {
+dbTest('start returns 201 with transferId, expiresAt ~1h and enforces validation errors', async ({req, signup, startTransfer, makeDirectConversation}) => {
   const alice = await signup();
   const bob = await signup();
-  // Group conversation via /conversations needs only user IDs.
-  const group = await req('POST', '/conversations', {type: 'group', participantIds: [bob.userId], name: 'Media'}, alice.token);
-  assert.equal(group.status, 201);
-  const conversationId = group.data.conversationId;
+  // Direct 1:1 conversation via the address book (see harness makeDirectConversation).
+  const conversationId = await makeDirectConversation(alice, bob);
 
   const size = 300000; // 2 chunks
   const started = await startTransfer(alice.token, conversationId, size);
@@ -242,24 +249,21 @@ dbTest('start returns 201 with transferId, expiresAt ~1h and enforces validation
   assert.equal(mismatch.data.code, 'invalid_transfer_request');
 });
 
-dbTest('membership is enforced on start (403 for non-participants)', async ({req, signup}) => {
+dbTest('membership is enforced on start (403 for non-participants)', async ({req, signup, makeDirectConversation}) => {
   const alice = await signup();
   const bob = await signup();
   const eve = await signup();
-  const created = await req('POST', '/conversations', {type: 'group', participantIds: [bob.userId], name: 'M'}, alice.token);
-  assert.equal(created.status, 201);
-  const conversationId = created.data.conversationId;
+  const conversationId = await makeDirectConversation(alice, bob);
   const denied = await req('POST', '/media/transfers', {conversationId, sizeBytes: 100, totalChunks: 1, chunkSize: 262144}, eve.token);
   assert.equal(denied.status, 403);
   assert.equal(denied.data.code, 'not_conversation_member');
 });
 
-dbTest('start quotas: inflight cap and declared staged cap return stable 413 codes', async ({req, signup, startTransfer, resetBuckets}) => {
+dbTest('start quotas: inflight cap and declared staged cap return stable 413 codes', async ({req, signup, startTransfer, resetBuckets, makeDirectConversation}) => {
   const alice = await signup();
   const bob = await signup();
   await resetBuckets([alice.userId]);
-  const created = await req('POST', '/conversations', {type: 'group', participantIds: [bob.userId], name: 'M'}, alice.token);
-  const conversationId = created.data.conversationId;
+  const conversationId = await makeDirectConversation(alice, bob);
   // Inflight cap = 3 concurrent uploading transfers.
   for (let i = 0; i < 3; i++) {
     const started = await startTransfer(alice.token, conversationId, 262144);
@@ -274,8 +278,7 @@ dbTest('start quotas: inflight cap and declared staged cap return stable 413 cod
   const carol = await signup();
   const dave = await signup();
   await resetBuckets([carol.userId]);
-  const created2 = await req('POST', '/conversations', {type: 'group', participantIds: [dave.userId], name: 'M2'}, carol.token);
-  const conv2 = created2.data.conversationId;
+  const conv2 = await makeDirectConversation(carol, dave);
   assert.equal((await startTransfer(carol.token, conv2, 16777216)).status, 201);
   assert.equal((await startTransfer(carol.token, conv2, 16777216)).status, 201);
   const over = await startTransfer(carol.token, conv2, 1024); // 32 MiB already staged
@@ -283,12 +286,11 @@ dbTest('start quotas: inflight cap and declared staged cap return stable 413 cod
   assert.equal(over.data.code, 'quota_exceeded');
 });
 
-dbTest('conversation 50/day completed quota returns conversation_rate_exceeded', async ({req, signup, startTransfer, query, resetBuckets}) => {
+dbTest('conversation 50/day completed quota returns conversation_rate_exceeded', async ({req, signup, startTransfer, query, resetBuckets, makeDirectConversation}) => {
   const alice = await signup();
   const bob = await signup();
   await resetBuckets([alice.userId]);
-  const created = await req('POST', '/conversations', {type: 'group', participantIds: [bob.userId], name: 'M'}, alice.token);
-  const conversationId = created.data.conversationId;
+  const conversationId = await makeDirectConversation(alice, bob);
   await query(
     `INSERT INTO media_transfers (conversation_id, sender_id, size_bytes, chunk_size, total_chunks, state, completed_at, expires_at)
      SELECT $1, $2, 1, 262144, 1, 'completed', NOW(), NOW() + INTERVAL '1 hour' FROM generate_series(1, 50)`,
@@ -298,12 +300,11 @@ dbTest('conversation 50/day completed quota returns conversation_rate_exceeded',
   assert.equal(started.data.code, 'conversation_rate_exceeded');
 });
 
-dbTest('start rate limit is 20/hour per user (429 rate_limited with Retry-After)', async ({req, signup, resetBuckets}) => {
+dbTest('start rate limit is 20/hour per user (429 rate_limited with Retry-After)', async ({req, signup, resetBuckets, makeDirectConversation}) => {
   const alice = await signup();
   const bob = await signup();
   await resetBuckets([alice.userId]);
-  const created = await req('POST', '/conversations', {type: 'group', participantIds: [bob.userId], name: 'M'}, alice.token);
-  const conversationId = created.data.conversationId;
+  const conversationId = await makeDirectConversation(alice, bob);
   for (let i = 0; i < 20; i++) {
     const started = await req('POST', '/media/transfers', {conversationId, sizeBytes: 1, totalChunks: 1, chunkSize: 262144}, alice.token);
     assert.equal(started.status, 201, `start ${i} should succeed`);
@@ -315,12 +316,11 @@ dbTest('start rate limit is 20/hour per user (429 rate_limited with Retry-After)
   assert.ok(blocked.headers.get('retry-after'));
 });
 
-dbTest('chunk PUT: 201, idempotent re-upload (deduped), conflict on different hash, 409 on wrong SHA header', async ({req, putChunk, signup, startTransfer, resetBuckets}) => {
+dbTest('chunk PUT: 201, idempotent re-upload (deduped), conflict on different hash, 409 on wrong SHA header', async ({req, putChunk, signup, startTransfer, resetBuckets, makeDirectConversation}) => {
   const alice = await signup();
   const bob = await signup();
   await resetBuckets([alice.userId]);
-  const created = await req('POST', '/conversations', {type: 'group', participantIds: [bob.userId], name: 'M'}, alice.token);
-  const conversationId = created.data.conversationId;
+  const conversationId = await makeDirectConversation(alice, bob);
   const size = 300000;
   const started = await startTransfer(alice.token, conversationId, size);
   assert.equal(started.status, 201);
@@ -366,12 +366,11 @@ dbTest('chunk PUT: 201, idempotent re-upload (deduped), conflict on different ha
   assert.deepEqual(status.data.received, [0]);
 });
 
-dbTest('binary body round-trips unmangled through raw mounting and download GET', async ({req, putChunk, getChunk, signup, startTransfer, resetBuckets}) => {
+dbTest('binary body round-trips unmangled through raw mounting and download GET', async ({req, putChunk, getChunk, signup, startTransfer, resetBuckets, makeDirectConversation}) => {
   const alice = await signup();
   const bob = await signup();
   await resetBuckets([alice.userId]);
-  const created = await req('POST', '/conversations', {type: 'group', participantIds: [bob.userId], name: 'M'}, alice.token);
-  const conversationId = created.data.conversationId;
+  const conversationId = await makeDirectConversation(alice, bob);
   const size = 262144 + 100;
   const started = await startTransfer(alice.token, conversationId, size);
   const transferId = started.data.transferId;
@@ -394,12 +393,11 @@ dbTest('binary body round-trips unmangled through raw mounting and download GET'
   assert.match(got0.headers.get('content-type') ?? '', /application\/octet-stream/);
 });
 
-dbTest('complete: missing_chunks lists indices, then succeeds; idempotent; byte-cap 413 enforced', async ({req, putChunk, signup, startTransfer, query, resetBuckets}) => {
+dbTest('complete: missing_chunks lists indices, then succeeds; idempotent; byte-cap 413 enforced', async ({req, putChunk, signup, startTransfer, query, resetBuckets, makeDirectConversation}) => {
   const alice = await signup();
   const bob = await signup();
   await resetBuckets([alice.userId]);
-  const created = await req('POST', '/conversations', {type: 'group', participantIds: [bob.userId], name: 'M'}, alice.token);
-  const conversationId = created.data.conversationId;
+  const conversationId = await makeDirectConversation(alice, bob);
   const size = 300000;
   const started = await startTransfer(alice.token, conversationId, size);
   const transferId = started.data.transferId;
@@ -432,12 +430,11 @@ dbTest('complete: missing_chunks lists indices, then succeeds; idempotent; byte-
   assert.equal(oversized.data.code, 'transfer_too_large');
 });
 
-dbTest('expired staged transfers are rejected (404 transfer_expired) and swept by the GC helper', async ({req, putChunk, signup, startTransfer, query, resetBuckets}) => {
+dbTest('expired staged transfers are rejected (404 transfer_expired) and swept by the GC helper', async ({req, putChunk, signup, startTransfer, query, resetBuckets, makeDirectConversation}) => {
   const alice = await signup();
   const bob = await signup();
   await resetBuckets([alice.userId]);
-  const created = await req('POST', '/conversations', {type: 'group', participantIds: [bob.userId], name: 'M'}, alice.token);
-  const conversationId = created.data.conversationId;
+  const conversationId = await makeDirectConversation(alice, bob);
   const started = await startTransfer(alice.token, conversationId, 300000);
   const transferId = started.data.transferId;
   await query(`UPDATE media_transfers SET expires_at = NOW() - INTERVAL '1 minute' WHERE id = $1`, [transferId]);
@@ -463,12 +460,11 @@ dbTest('expired staged transfers are rejected (404 transfer_expired) and swept b
   assert.ok(second.expiredUploads === 0 || second.expiredUploads >= 0); // idempotent, no crash
 });
 
-dbTest('GC sweep removes 30-day-old completed blobs and keeps fresh ones (LIMIT-bounded)', async ({req, signup, startTransfer, query, resetBuckets}) => {
+dbTest('GC sweep removes 30-day-old completed blobs and keeps fresh ones (LIMIT-bounded)', async ({req, signup, startTransfer, query, resetBuckets, makeDirectConversation}) => {
   const alice = await signup();
   const bob = await signup();
   await resetBuckets([alice.userId]);
-  const created = await req('POST', '/conversations', {type: 'group', participantIds: [bob.userId], name: 'M'}, alice.token);
-  const conversationId = created.data.conversationId;
+  const conversationId = await makeDirectConversation(alice, bob);
   await query(
     `INSERT INTO media_transfers (conversation_id, sender_id, size_bytes, chunk_size, total_chunks, state, completed_at, expires_at)
      VALUES ($1, $2, 1, 262144, 1, 'completed', NOW() - INTERVAL '31 days', NOW() + INTERVAL '1 day'),
@@ -489,13 +485,18 @@ dbTest('GC sweep removes 30-day-old completed blobs and keeps fresh ones (LIMIT-
   assert.equal(byState.canceled, undefined, 'canceled row swept');
 });
 
-dbTest('sender-only DELETE: non-sender 403, sender 204, idempotent absent 204, chunks cascade', async ({req, putChunk, signup, startTransfer, query, resetBuckets}) => {
+dbTest('sender-only DELETE: non-sender 403, sender 204, idempotent absent 204, chunks cascade', async ({req, putChunk, signup, startTransfer, query, resetBuckets, makeDirectConversation}) => {
   const alice = await signup();
   const bob = await signup();
   const eve = await signup();
   await resetBuckets([alice.userId, eve.userId]);
-  const created = await req('POST', '/conversations', {type: 'group', participantIds: [bob.userId, eve.userId], name: 'M'}, alice.token);
-  const conversationId = created.data.conversationId;
+  // Group membership: alice must hold both bob and eve as contacts; the group
+  // endpoint then accepts the 2-participant group.
+  await makeDirectConversation(alice, bob);
+  await makeDirectConversation(alice, eve);
+  const group = await req('POST', '/conversations', {type: 'group', participantIds: [bob.userId, eve.userId], name: 'M'}, alice.token);
+  assert.equal(group.status, 201);
+  const conversationId = group.data.conversationId;
   const started = await startTransfer(alice.token, conversationId, 262144);
   const transferId = started.data.transferId;
   await putChunk(transferId, 0, randomBytes(262144), alice.token);
@@ -510,13 +511,12 @@ dbTest('sender-only DELETE: non-sender 403, sender 204, idempotent absent 204, c
   assert.equal(chunks.rows[0].n, 0);
 });
 
-dbTest('download init: member 201, non-member 403, incomplete 404, expired-blob 404, token flows', async ({req, putChunk, getChunk, signup, startTransfer, query, resetBuckets}) => {
+dbTest('download init: member 201, non-member 403, incomplete 404, expired-blob 404, token flows', async ({req, putChunk, getChunk, signup, startTransfer, query, resetBuckets, makeDirectConversation}) => {
   const alice = await signup();
   const bob = await signup();
   const eve = await signup();
   await resetBuckets([alice.userId, bob.userId, eve.userId]);
-  const created = await req('POST', '/conversations', {type: 'group', participantIds: [bob.userId], name: 'M'}, alice.token);
-  const conversationId = created.data.conversationId;
+  const conversationId = await makeDirectConversation(alice, bob);
   const size = 262144 + 50;
   const started = await startTransfer(alice.token, conversationId, size);
   const transferId = started.data.transferId;
@@ -579,15 +579,14 @@ dbTest('download init: member 201, non-member 403, incomplete 404, expired-blob 
   assert.equal(lateGet.status, 404);
 });
 
-dbTest('MEDIA_TRANSFER_ENABLED=false yields 503 feature_disabled', async ({req, signup}) => {
+dbTest('MEDIA_TRANSFER_ENABLED=false yields 503 feature_disabled', async ({req, signup, makeDirectConversation}) => {
   const {config} = require('../dist/config');
   const previous = config.MEDIA_TRANSFER_ENABLED;
   config.MEDIA_TRANSFER_ENABLED = false;
   try {
     const alice = await signup();
     const bob = await signup();
-    const created = await req('POST', '/conversations', {type: 'group', participantIds: [bob.userId], name: 'M'}, alice.token);
-    const conversationId = created.data.conversationId;
+    const conversationId = await makeDirectConversation(alice, bob);
     const denied = await req('POST', '/media/transfers', {conversationId, sizeBytes: 1, totalChunks: 1, chunkSize: 262144}, alice.token);
     assert.equal(denied.status, 503);
     assert.equal(denied.data.error, 'feature_disabled');
@@ -613,12 +612,11 @@ dbTest('migrations are additive-only: media tables exist and history checksums v
   // Boot already re-verified every historical checksum (applyMigrations throws on mismatch).
 });
 
-dbTest('sender is auto-authorized for download init; removed member (left_at set) is denied', async ({req, putChunk, signup, startTransfer, query, resetBuckets}) => {
+dbTest('sender is auto-authorized for download init; removed member (left_at set) is denied', async ({req, putChunk, signup, startTransfer, query, resetBuckets, makeDirectConversation}) => {
   const alice = await signup();
   const bob = await signup();
   await resetBuckets([alice.userId, bob.userId]);
-  const created = await req('POST', '/conversations', {type: 'group', participantIds: [bob.userId], name: 'M'}, alice.token);
-  const conversationId = created.data.conversationId;
+  const conversationId = await makeDirectConversation(alice, bob);
   const started = await startTransfer(alice.token, conversationId, 262144);
   const transferId = started.data.transferId;
   await putChunk(transferId, 0, randomBytes(262144), alice.token);
