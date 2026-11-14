@@ -1,6 +1,9 @@
 // Prekey bundle fetch and atomic-pop obligations (spec §4.2–§4.6).
 // Disposable loopback Postgres (chhaya_test); DB-backed tests self-skip without DATABASE_URL.
 process.env.PREKEYS_ENABLED = 'true';
+// Trust one proxy hop so the harness can pin a per-process client IP via X-Forwarded-For.
+// Keeps this file's per-IP rate-limit buckets unique against other test files sharing the CI DB.
+process.env.TRUST_PROXY_HOPS = '1';
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const {randomUUID, randomBytes, generateKeyPairSync, createPublicKey, diffieHellman, createHmac} = require('node:crypto');
@@ -27,13 +30,20 @@ const withHarness = (fn) => async () => {
   const {config} = require('../dist/config');
   const {app} = require('../dist/index');
   await initDb();
+  // Unique benchmark-range client IP per harness process (fresh each run; resetBuckets
+  // clears any stale row from a previous run). node --test runs test FILES concurrently
+  // against the same Postgres, so well-known loopback IPs race across files: another
+  // file's resetBuckets DELETE can wipe this file's `prekey:bundle:ip:127.0.0.1` bucket
+  // mid-loop and let request 61 pass. Pinning the caller IP here makes the per-IP
+  // bucket unreachable by other files.
+  const testIp = `198.18.${randomBytes(1)[0]}.${randomBytes(1)[0]}`;
   const server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   const base = `http://127.0.0.1:${server.address().port}/api/v1`;
   const req = async (method, path, body, token) => {
     const r = await fetch(base + path, {
       method,
-      headers: {'Content-Type': 'application/json', ...(token ? {Authorization: `Bearer ${token}`} : {})},
+      headers: {'Content-Type': 'application/json', 'X-Forwarded-For': testIp, ...(token ? {Authorization: `Bearer ${token}`} : {})},
       body: body ? JSON.stringify(body) : undefined,
     });
     return {status: r.status, data: await r.json().catch(() => null), headers: r.headers};
@@ -60,11 +70,11 @@ const withHarness = (fn) => async () => {
   };
   const resetBuckets = async (userIds = []) => {
     const hmac = (v) => createHmac('sha256', config.JWT_SECRET).update(v).digest('hex');
-    const identities = ['127.0.0.1', '::ffff:127.0.0.1', '::1']
+    const identities = ['127.0.0.1', '::ffff:127.0.0.1', '::1', testIp]
       .map((ip) => `prekey:bundle:ip:${ip}`)
       // Global unauthenticated IP bucket (index.ts): test files share it; clearing it
       // prevents cross-test/cross-run 429s in the fixed window.
-      .concat(['127.0.0.1', '::ffff:127.0.0.1', '::1'].map((ip) => ip))
+      .concat(['127.0.0.1', '::ffff:127.0.0.1', '::1', testIp].map((ip) => ip))
       .concat(userIds.flatMap((id) => [`prekey:upload:${id}`, `prekey:rotate:${id}`, `prekey:count:${id}`, `prekey:bundle:target:${id}`]));
     for (const identity of identities) {
       await query('DELETE FROM rate_limits WHERE key = $1', [`api:${hmac(identity)}`]);
