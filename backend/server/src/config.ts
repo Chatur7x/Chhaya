@@ -36,6 +36,9 @@ const envSchema = z.object({
 
   // WS1 prekey endpoints (docs/spec-pq-hybrid-resync-v1.md). Default off: 503 feature_disabled.
   PREKEYS_ENABLED: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+
+  // WS-A media transfer endpoints (docs/spec-media-transfer-v1.md). Default off: 503 feature_disabled.
+  MEDIA_TRANSFER_ENABLED: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
 });
 
 export const config = envSchema.parse(process.env);

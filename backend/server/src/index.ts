@@ -10,6 +10,7 @@ import { startSignalingServer, stopSignalingServer } from './signaling';
 import { startOnionRelayServer } from './onion-relay';
 import { initPushNotifications } from './push';
 import { registerRoutes } from './routes';
+import { sweepMediaTransfersSafely } from './media';
 import { ZodError } from 'zod';
 import { collectDefaultMetrics, register, Counter } from 'prom-client';
 import { consumeIpRateLimit, pruneExpiredRateLimits } from './rate-limit';
@@ -53,6 +54,11 @@ app.use(async (req, res, next) => {
     return res.status(503).json({ error: 'Service temporarily unavailable' });
   }
 });
+// Media chunk uploads are raw binary (application/octet-stream, <= 262 172 B);
+// mount the raw parser for the chunk route BEFORE the global 1 MB JSON parser
+// so binary bodies are never parsed/rejected as JSON (spec §8.2). Other content
+// types fall through unconsumed.
+app.use('/api/v1/media/transfers', express.raw({ limit: '262300b', type: 'application/octet-stream' }));
 // Rate limit before parsing request bodies so oversized unauthenticated posts
 // cannot spend parser/allocator work before consuming their request budget.
 app.use(express.json({ limit: '1mb' }));
@@ -119,6 +125,10 @@ async function start() {
       void pruneExpiredRateLimits().catch(() => {
         logger.warn('Rate limit bucket cleanup failed');
       });
+      // WS-A media GC (spec §9.3): invoked helper riding the existing maintenance
+      // tick; bounded batches, fail-safe, not a separate daemon. When the
+      // free-tier instance sleeps, nothing sweeps — documented limitation.
+      void sweepMediaTransfersSafely();
     }, 5 * 60 * 1000);
     cleanupTimer.unref();
     initPushNotifications();

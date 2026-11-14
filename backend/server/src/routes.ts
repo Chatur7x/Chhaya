@@ -10,6 +10,7 @@ import { authenticateToken, issueSession, hashCredential, verifyCredential } fro
 import { getPendingCallInvites } from './call-invites';
 import { consumeIpRateLimit } from './rate-limit';
 import { config } from './config';
+import { mediaRouter } from './media';
 
 const router = Router();
 const safe = (handler: (req: Request,res: Response,next: NextFunction)=>Promise<unknown>) =>
@@ -1031,6 +1032,10 @@ router.get('/prekeys/mine/count', authMiddleware, safe(async (req: Request, res:
     signedAgeDays: { ec: ageDays(signedRow.get('ec')), pq: ageDays(pqRow) },
   });
 }));
+
+// WS-A media transfer routes (docs/spec-media-transfer-v1.md §8). Additive surface;
+// the raw chunk PUT body is mounted in index.ts before express.json().
+router.use('/media', mediaRouter);
 
 export { router as apiRouter };
 export const registerRoutes = (app: Express): void => { app.use('/api/v1', router); };

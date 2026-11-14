@@ -240,6 +240,39 @@ const runMigrations = async (p: Pool): Promise<void> => {
     );
      CREATE INDEX IF NOT EXISTS idx_prekey_one_time_pop
        ON prekey_one_time (user_id, kind, created_at);`,
+    // WS-A media transfer (docs/spec-media-transfer-v1.md §18). Additive only.
+    // Ciphertext-only blob store: chunks arrive AEAD-encrypted with a client-held
+    // content key; the server stores size/hash/bytes and holds no key material,
+    // no file names and no plaintext. Additive-only; never edit existing entries.
+    `CREATE TABLE IF NOT EXISTS media_transfers (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+      sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      size_bytes BIGINT NOT NULL CHECK (size_bytes BETWEEN 1 AND 16777216),
+      chunk_size INTEGER NOT NULL CHECK (chunk_size = 262144),
+      total_chunks INTEGER NOT NULL CHECK (total_chunks BETWEEN 1 AND 64),
+      state TEXT NOT NULL CHECK (state IN ('uploading','completed','canceled','expired')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      completed_at TIMESTAMPTZ,
+      expires_at TIMESTAMPTZ NOT NULL
+    );
+     CREATE INDEX IF NOT EXISTS idx_media_transfers_sender_state
+       ON media_transfers (sender_id, state);
+     CREATE INDEX IF NOT EXISTS idx_media_transfers_expiry
+       ON media_transfers (expires_at);
+     CREATE INDEX IF NOT EXISTS idx_media_transfers_conversation
+       ON media_transfers (conversation_id);`,
+
+    `CREATE TABLE IF NOT EXISTS media_chunks (
+      transfer_id UUID NOT NULL REFERENCES media_transfers(id) ON DELETE CASCADE,
+      chunk_index INTEGER NOT NULL CHECK (chunk_index BETWEEN 0 AND 63),
+      sha256 CHAR(64) NOT NULL,
+      byte_size INTEGER NOT NULL CHECK (byte_size BETWEEN 29 AND 262172),
+      data BYTEA NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (transfer_id, chunk_index)
+    );`,
 
 
   ];
