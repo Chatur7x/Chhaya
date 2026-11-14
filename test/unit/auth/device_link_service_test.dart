@@ -90,7 +90,6 @@ Future<Pair> makePair() async {
     keys: primaryKeys,
     authTokenProvider: () async => accountToken,
     profileProvider: () async => makeProfile(),
-    secureStorage: SecureStorageMock(),
   );
 
   final newDeviceDb = await makeDb();
@@ -105,7 +104,6 @@ Future<Pair> makePair() async {
     keys: newDeviceKeys,
     authTokenProvider: () async => null,
     profileProvider: () async => null,
-    secureStorage: newDeviceSecure,
   );
 
   return Pair(fake, primaryService, newDeviceService, newDeviceSecure,
@@ -156,7 +154,8 @@ void main() {
     expect(outcome.deviceId, enrollment.deviceId);
     expect(pair.fake.auditEvents, containsAllInOrder(['request', 'approve', 'consume']));
 
-    // The new device persisted its local record and per-device token.
+    // The new device persisted its local record. The consume token is
+    // deliberately not persisted in v1, so no secure-storage key exists.
     // (The ffi in-memory database is process-global, so filter by deviceId
     // rather than asserting absolute counts.)
     final records = jsonDecode(
@@ -167,11 +166,6 @@ void main() {
     expect(record['name'], 'My laptop');
     expect(record['revokedAt'], isNull);
     expect(record['isCurrentLocal'], isTrue);
-
-    final token =
-        await pair.newDeviceSecure.read(key: 'chhaya_device_link_token_${enrollment.deviceId}');
-    expect(token, isNotNull);
-    expect(token, isNotEmpty);
 
     // Primary's list shows both devices, new one not current.
     final list = await pair.primary.listDevices();
@@ -203,12 +197,8 @@ void main() {
     final entry = list.devices.firstWhere((d) => d.deviceId == outcome.deviceId);
     expect(entry.revokedAt, isNotNull);
 
-    // The new device's token must no longer authenticate.
-    final token =
-        await pair.newDeviceSecure.read(key: 'chhaya_device_link_token_${enrollment.deviceId}');
-    expect(token, isNotNull);
-    expect(pair.fake.isDeviceTokenValid(token!), isFalse);
-
+    // Server-side sessions for the device are deleted by the revoke call;
+    // the client persists no token to invalidate locally in v1.
     // Re-revoke is idempotent (server returns 200).
     await pair.primary.revokeDevice(deviceId: outcome.deviceId);
 
@@ -367,7 +357,6 @@ void main() {
       keys: KeyManager(secureBackend: SecureStorageMock()),
       authTokenProvider: () async => 'bogus-token',
       profileProvider: () async => makeProfile(),
-      secureStorage: SecureStorageMock(),
     );
     final list = await offline.listDevices();
     expect(list.serverUnavailable, isTrue);

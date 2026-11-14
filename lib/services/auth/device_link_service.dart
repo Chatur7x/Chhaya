@@ -39,10 +39,6 @@ import '../../core/models/user_profile.dart';
 /// kv key for the local per-device records (JSON array).
 const String kLinkedDevicesKvKey = 'linked_devices_v1';
 
-/// Secure-storage key prefix for per-device session tokens minted at
-/// consume time. The token is never written to LocalDatabase or prefs.
-const String kDeviceLinkTokenKeyPrefix = 'chhaya_device_link_token_';
-
 const String _linkPrefix = 'Chhaya-link-v1';
 const String _capabilityMetadata = 'metadata';
 
@@ -453,6 +449,9 @@ class DeviceLinkService {
     required KeyManager keys,
     required Future<String?> Function() authTokenProvider,
     required Future<UserProfile?> Function() profileProvider,
+    // Ignored. Retained so existing call sites (UI widget tests) still
+    // compile. v1 persists nothing to secure storage; the consume token
+    // is deliberately never written.
     SecureStorage? secureStorage,
     Csprng? rng,
   })  : _client = client,
@@ -460,7 +459,6 @@ class DeviceLinkService {
         _keys = keys,
         _authTokenProvider = authTokenProvider,
         _profileProvider = profileProvider,
-        _secure = secureStorage ?? SecureStorages.platformDefault(),
         _rng = rng ?? Csprng.instance;
 
   final DeviceLinkClient _client;
@@ -468,7 +466,6 @@ class DeviceLinkService {
   final KeyManager _keys;
   final Future<String?> Function() _authTokenProvider;
   final Future<UserProfile?> Function() _profileProvider;
-  final SecureStorage _secure;
   final Csprng _rng;
 
   // --- in-flight enrollment attempt state (memory only, wiped on outcome) ---
@@ -701,8 +698,10 @@ class DeviceLinkService {
   }
 
   /// Redeems the approved request (one-shot). Persists the local device
-  /// record and the per-device session token, then wipes all attempt
-  /// secrets. Requires a prior successful [verifyApproval].
+  /// record, then wipes all attempt secrets. The per-device session token
+  /// returned by consume is NOT persisted in v1 (no ApiService consumer
+  /// exists yet); it does not outlive this call.
+  /// Requires a prior successful [verifyApproval].
   Future<EnrollOutcome> consumeAfterConfirm() async {
     final verified = _verifiedApproval;
     final code = _code, requestId = _requestId, deviceId = _deviceId;
@@ -723,17 +722,8 @@ class DeviceLinkService {
         isCurrentLocal: true,
       );
       await _upsertLocalRecord(record);
-      try {
-        await _secure.write(
-          key: '$kDeviceLinkTokenKeyPrefix$deviceId',
-          value: result.token,
-        );
-      } catch (error) {
-        // The server has consumed the link at this point; failing to persist
-        // the token must not report a successful enrollment as failed.
-        ChhayaLog.w('device link token could not be persisted',
-            name: 'DeviceLinkService');
-      }
+      // The consume token is deliberately not persisted: nothing in this
+      // release consumes it, so storing it would be a write-only credential.
       return EnrollOutcome(userId: result.userId, deviceId: result.deviceId);
     } finally {
       await _wipeAttempt();

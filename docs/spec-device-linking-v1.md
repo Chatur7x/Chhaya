@@ -339,3 +339,16 @@ Shipping requires: (a) §6 tests green on CI PostgreSQL; (b) one two-phone (or p
 
 - `decision_points`: Option B vs A (§3.4); any-session-approves vs primary-only (§4.3/OQ-4); soft-revoke vs hard-delete (§4.1/§4.6); contacts-metadata-yes/messages-no (§3.7).
 - `estimated_scope`: backend ~1.5–2 days (tables, 4 endpoints, session change, audit, tests); client ~2–3 days (service, DB migration, settings UI, fingerprint screen, tests); device acceptance ~0.5 day.
+
+---
+
+## Erratum (session 2, 2026-11-14)
+
+The following corrections record where the shipped DL-B client diverges from or narrows this spec. They amend the referenced sections; everything else stands.
+
+- **(a) §3.2 — canonical link payload.** The payload as implemented in DL-B is `Chhaya-link-v1:{requestId}:{code}:{eNPubHex}:{dPubHex}:{b64u(name)}:{platform}:{deviceId}` (8 fields), extending the spec's 5-field format with the base64url device name, platform and deviceId so the approve UI can render the remote device. The server never sees the payload; the DL-A schema is unaffected.
+- **(b) §3.4 — device Ed25519 seed is not persisted.** The new device's per-attempt Ed25519 seed is NOT persisted in v1 (wiped unconditionally at the end of the attempt); no device-proof consumer exists yet. The spec's "persist `chhaya_device_ed25519_seed`" contract is satisfied only when a device-proof endpoint is added (OQ-9); until then no persistent device seed is stored.
+- **(c) §5.x — metadata-only link; consume token unused.** The v1 device link is contacts-metadata only; the consume token issued in DL-A/DL-B is not consumed by ApiService in this release (no message sync, no server-side authenticated API traffic from the new device yet). The token is not persisted on the new device either. Revoked devices' data on device is unerasable by design — the UX says so.
+- **(d) §2.2 — approve rate limit.** `/link/approve` lacks a per-route rate limit in this implementation; the overall global limiter applies. Documented as a known follow-up (OQ-8).
+
+Known open items for the reviewer: the approval transcript boundary, QR→camera equivalence on Windows (OQ-6), and the seeded-token wire-through into ApiService — all remain for review and must not be papered over by shipped claims.
