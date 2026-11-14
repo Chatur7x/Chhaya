@@ -449,6 +449,59 @@ void main() {
     await bobDb.close();
   });
 
+  test(
+      'offer echo mismatch aborts before the caller commit persists the message',
+      () async {
+    final a = await ChhayaCryptoEngine.generateKeyPair();
+    final b = await ChhayaCryptoEngine.generateKeyPair();
+    final aid = '05${a.publicKeyHex}', bid = '05${b.publicKeyHex}';
+    final accountA =
+        await fakePrekeys.enroll('alice', Uint8List.fromList(a.publicKey));
+    final accountB =
+        await fakePrekeys.enroll('bob', Uint8List.fromList(b.publicKey));
+    final ap = contactFor(a, 'alice');
+    final bp = contactFor(b, 'bob');
+    const conversationOk = '123e4567-e89b-42d3-a456-4266554400dd';
+    const conversationBad = '123e4567-e89b-42d3-a456-4266554400ee';
+    final alice = RatchetMessageCodec(
+      sessions: InMemorySessionStorage(),
+      identity: a,
+      ownId: aid,
+      ed25519PublicKey: () async => accountA.identityEd25519Public,
+    );
+    final bob = RatchetMessageCodec(
+      sessions: InMemorySessionStorage(),
+      identity: b,
+      ownId: bid,
+      ed25519PublicKey: () async => accountB.identityEd25519Public,
+    );
+    // Correct echo: the caller commit runs.
+    final good = await alice.encrypt(
+        bp, conversationOk, 'echo-ok', 'alice', {'content': 'ok'},
+        echo: const ['chhaya-pqxdh-v1']);
+    var goodCommitted = false;
+    expect(
+            (await bob.decrypt(ap, conversationOk, 'echo-ok', 'alice', good,
+                commit: (state, payload) async {
+              goodCommitted = true;
+            }))['content'],
+            'ok');
+    expect(goodCommitted, isTrue);
+    // Mismatched echo: AEAD valid, but the caller commit must NOT run.
+    final bad = await alice.encrypt(
+        bp, conversationBad, 'echo-bad', 'alice', {'content': 'dropped'},
+        echo: const ['chhaya-classical-consent-v1']);
+    var badCommitted = false;
+    await expectLater(
+      bob.decrypt(ap, conversationBad, 'echo-bad', 'alice', bad,
+          commit: (state, payload) async {
+        badCommitted = true;
+      }),
+      throwsA(isA<FormatException>()),
+    );
+    expect(badCommitted, isFalse);
+  });
+
   test('prepared group wrappers advance only when the caller commits them', () async {
     final a = await ChhayaCryptoEngine.generateKeyPair();
     final b = await ChhayaCryptoEngine.generateKeyPair();

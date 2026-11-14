@@ -896,6 +896,12 @@ class RatchetMessageCodec {
       if (v == 2 && flightToAdopt != null) {
         await _adoptVerifiedFlight(conversation, flightToAdopt);
       }
+      // WS3 F6: echo verification (spec §3.5 rule 3) runs BEFORE the
+      // caller's commit — the message row must not persist before the
+      // echoed offers are trusted. Still over AEAD-valid input.
+      if (v == 2) {
+        await _afterV2Decrypt(peer, conversation, wire, result);
+      }
       if (commit != null) {
         if (legacyRetained) {
           // Callers persist the state under `ratchet_session/${state.peerId}`;
@@ -917,9 +923,6 @@ class RatchetMessageCodec {
         );
       } else {
         await sessions.saveSession(activeState);
-      }
-      if (v == 2) {
-        await _afterV2Decrypt(peer, conversation, wire, result);
       }
       return result;
     } finally {
