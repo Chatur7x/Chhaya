@@ -40,4 +40,19 @@ void main(){
     final peer=Contact(id:'bob',chhayaId:ChhayaId.fromPublicKey('05${b.publicKeyHex}'),displayName:'Bob');
     await expectLater(codec.encrypt(peer,'conversation','id','alice',{'content':'hello'}),throwsStateError);
   });
+  test('prepared group wrappers advance only when the caller commits them',() async {
+    final a=await ChhayaCryptoEngine.generateKeyPair();
+    final b=await ChhayaCryptoEngine.generateKeyPair();
+    final aid='05${a.publicKeyHex}',bid='05${b.publicKeyHex}';
+    final aStore=InMemorySessionStorage(),bStore=InMemorySessionStorage();
+    final alice=RatchetMessageCodec(sessions:aStore,identity:a,ownId:aid);
+    final bob=RatchetMessageCodec(sessions:bStore,identity:b,ownId:bid);
+    final ap=Contact(id:'alice',chhayaId:ChhayaId.fromPublicKey(aid),displayName:'Alice',isVerified:true);
+    final bp=Contact(id:'bob',chhayaId:ChhayaId.fromPublicKey(bid),displayName:'Bob',isVerified:true);
+    final prepared=await alice.prepareEncrypt(bp,'group','message-1','alice',{'kind':'key','key':'secret'});
+    expect(await aStore.loadSession(prepared.state.peerId),isNull);
+    await aStore.saveSession(prepared.state);
+    prepared.state.wipe();
+    expect((await bob.decrypt(ap,'group','message-1','alice',prepared.envelope))['key'],'secret');
+  });
 }

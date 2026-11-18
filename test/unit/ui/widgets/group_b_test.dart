@@ -6,7 +6,7 @@ import 'package:chaaya/ui/widgets/chhaya_chat_bubble.dart';
 import 'package:chaaya/ui/widgets/chhaya_pressable.dart';
 
 Widget _wrap(Widget child) {
-  return MaterialApp(home: Scaffold(body: child));
+  return MaterialApp(theme: ChhayaTheme.materialLight, home: Scaffold(body: child));
 }
 
 BoxDecoration _bubbleDecoration(WidgetTester tester) {

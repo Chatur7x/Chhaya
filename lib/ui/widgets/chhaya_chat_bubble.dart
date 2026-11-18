@@ -23,8 +23,8 @@ class ChhayaChatBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final maxWidth = MediaQuery.of(context).size.width * 0.75;
-    final fill = isMine ? ChhayaColors.bubbleSent : ChhayaColors.white;
-    final textColor = isMine ? ChhayaColors.white : ChhayaColors.ink;
+    final fill = isMine ? ChhayaPalette.of(context).bubbleSent : ChhayaPalette.of(context).cardSurface;
+    final textColor = isMine ? ChhayaPalette.of(context).white : ChhayaPalette.of(context).ink;
 
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
@@ -40,7 +40,7 @@ class ChhayaChatBubble extends StatelessWidget {
             borderRadius: BorderRadius.circular(ChhayaRadius.lg),
             border: isMine
                 ? null
-                : Border.all(color: ChhayaColors.borderMed, width: 1),
+                : Border.all(color: ChhayaPalette.of(context).borderMed, width: 1),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -48,7 +48,7 @@ class ChhayaChatBubble extends StatelessWidget {
             children: [
               Text(
                 message,
-                style: ChhayaTypography.body.copyWith(color: textColor),
+                style: ChhayaType.of(context).body.copyWith(color: textColor),
               ),
               if (timestamp != null || verified) ...[
                 const SizedBox(height: ChhayaSpacing.space1),
@@ -56,21 +56,21 @@ class ChhayaChatBubble extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (timestamp != null)
-                      Text(timestamp!, style: ChhayaTypography.caption.copyWith(color: textColor)),
+                      Text(timestamp!, style: ChhayaType.of(context).caption.copyWith(color: textColor)),
                     if (verified) ...[
                       if (timestamp != null)
                         const SizedBox(width: ChhayaSpacing.space1),
                       Container(
                         width: 14,
                         height: 14,
-                        decoration: const BoxDecoration(
-                          color: ChhayaColors.coralDeep,
+                        decoration: BoxDecoration(
+                          color: ChhayaPalette.of(context).coralDeep,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.check,
                           size: 9,
-                          color: ChhayaColors.white,
+                          color: ChhayaPalette.of(context).white,
                         ),
                       ),
                     ],

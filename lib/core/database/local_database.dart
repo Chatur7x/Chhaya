@@ -65,10 +65,23 @@ class SqlCipherOpener implements DatabaseOpener {
       onCreate: (db, _) => onOpen(db),
       onUpgrade: (db, _, __) => onOpen(db),
     );
-    // Hardening. Constant strings only — no parameters, no user input.
-    await db.execute('PRAGMA cipher_memory_security = ON');
-    await db.execute('PRAGMA journal_mode = DELETE');
-    return db;
+    try {
+      // Hardening. Constant strings only — no parameters, no user input.
+      await db.execute('PRAGMA cipher_memory_security = ON');
+      // journal_mode returns the resulting mode as a row. Android's
+      // SQLCipher driver rejects row-returning PRAGMAs through execute().
+      await db.rawQuery('PRAGMA journal_mode = DELETE');
+      return db;
+    } catch (_) {
+      // openDatabase has already handed us a native handle. If a hardening
+      // pragma fails, release that handle before allowing startup to retry.
+      try {
+        await db.close();
+      } catch (_) {
+        // Keep the original SQLCipher/SQLite exception for diagnostics.
+      }
+      rethrow;
+    }
   }
 }
 
@@ -82,12 +95,12 @@ const List<String> kHardeningPragmas = [
 /// Production migration chain: v001 → v005 in order. Single place that
 /// defines the full history; LocalDatabase and tests share it.
 List<Migration> chhayaMigrations() => [
-      MigrationV001Initial(),
-      MigrationV002Messages(),
-      MigrationV003Devices(),
-      MigrationV004Circuits(),
-      MigrationV005Payloads(),
-    ];
+  MigrationV001Initial(),
+  MigrationV002Messages(),
+  MigrationV003Devices(),
+  MigrationV004Circuits(),
+  MigrationV005Payloads(),
+];
 
 class LocalDatabase {
   static const _dbName = 'chhaya_v14.db';
@@ -114,10 +127,10 @@ class LocalDatabase {
     DatabaseOpener? opener,
     FlutterSecureStorage? secureStorage,
     String? dbPath,
-  })  : _keyManager = keyManager ?? KeyManager(),
-        _opener = opener ?? SqlCipherOpener(),
-        _dbPathOverride = dbPath,
-        _secure = secureStorage ?? const FlutterSecureStorage();
+  }) : _keyManager = keyManager ?? KeyManager(),
+       _opener = opener ?? SqlCipherOpener(),
+       _dbPathOverride = dbPath,
+       _secure = secureStorage ?? const FlutterSecureStorage();
 
   Future<bool> isBiometricAvailable() async {
     try {
@@ -137,13 +150,17 @@ class LocalDatabase {
     }
   }
 
-  Future<bool> authenticateWithBiometrics(
-      {String reason = 'Unlock Chhaya'}) async {
+  Future<bool> authenticateWithBiometrics({
+    String reason = 'Unlock Chhaya',
+  }) async {
     try {
       return await _localAuth.authenticate(
         localizedReason: reason,
         options: const AuthenticationOptions(
-            stickyAuth: true, biometricOnly: false, useErrorDialogs: true),
+          stickyAuth: true,
+          biometricOnly: false,
+          useErrorDialogs: true,
+        ),
       );
     } catch (_) {
       return false;
@@ -165,25 +182,43 @@ class LocalDatabase {
       }
     }
     _ownerId = await _keyManager.getChhayaId() ?? localOwnerId;
-    final dbKey = await DatabaseKey.derive(
-      _keyManager,
-      userId: _ownerId,
-    );
-    final passwordHex = DatabaseKey.toPragmaHex(dbKey);
-    final dbPath =
-        _dbPathOverride ?? p.join(await getDatabasesPath(), _dbName);
-    final runner = MigrationRunner(chhayaMigrations());
-    _db = await _opener.open(
-      path: dbPath,
-      version: runner.latestVersion,
-      passwordHex: passwordHex,
-      onOpen: (db) => runner.migrateTo(db, runner.latestVersion),
-    );
-    Csprng.wipe(dbKey);
-    _dbKey = await DatabaseKey.derive(_keyManager, userId: _ownerId);
-    _initialized = true;
-    await preloadSettings();
-    return true;
+    final dbKey = await DatabaseKey.derive(_keyManager, userId: _ownerId);
+    try {
+      final passwordHex = DatabaseKey.toPragmaHex(dbKey);
+      final dbPath =
+          _dbPathOverride ?? p.join(await getDatabasesPath(), _dbName);
+      final runner = MigrationRunner(chhayaMigrations());
+      _db = await _opener.open(
+        path: dbPath,
+        version: runner.latestVersion,
+        passwordHex: passwordHex,
+        onOpen: (db) => runner.migrateTo(db, runner.latestVersion),
+      );
+      _dbKey = await DatabaseKey.derive(_keyManager, userId: _ownerId);
+      _initialized = true;
+      await preloadSettings();
+      return true;
+    } catch (_) {
+      // A failed open/migration must not retain a partially opened native
+      // handle or leave init() marked complete, so the user can retry.
+      _initialized = false;
+      final failedDb = _db;
+      _db = null;
+      if (failedDb != null) {
+        try {
+          await failedDb.close();
+        } catch (_) {
+          // Preserve the original initialization error.
+        }
+      }
+      if (_dbKey != null) {
+        Csprng.wipe(_dbKey!);
+        _dbKey = null;
+      }
+      rethrow;
+    } finally {
+      Csprng.wipe(dbKey);
+    }
   }
 
   bool get isUnlockedWithBiometrics => _biometricUnlocked;
@@ -203,7 +238,7 @@ class LocalDatabase {
   }
 
   Future<void> destroy() async {
-    final path=_dbPathOverride??p.join(await getDatabasesPath(),_dbName);
+    final path = _dbPathOverride ?? p.join(await getDatabasesPath(), _dbName);
     await close();
     await deleteDatabase(path);
   }
@@ -214,60 +249,101 @@ class LocalDatabase {
     }
   }
 
-  String _enc(String plain) =>
-      DatabaseKey.encryptField(plain, _dbKey!);
+  String _enc(String plain) => DatabaseKey.encryptField(plain, _dbKey!);
 
-  String? _dec(String? envelope) =>
-      DatabaseKey.decryptField(envelope, _dbKey!);
+  String? _dec(String? envelope) => DatabaseKey.decryptField(envelope, _dbKey!);
 
   // ---- Messages
-  Map<String,Object?> _messageRow(Message message) => {
-      DbCols.id: message.id,
-      DbCols.conversationId: message.conversationId,
-      DbCols.senderId: message.senderId,
-      DbCols.encryptedContent: _enc(jsonEncode(message.toJson())),
-      DbCols.contentType: message.type.name,
-      DbCols.mediaBlob: null,
-      DbCols.mediaMetaEnc: null,
-      DbCols.replyToId: message.replyToId,
-      DbCols.sentAt: message.timestamp.millisecondsSinceEpoch,
-      DbCols.deliveredAt:
-          message.isDelivered ? message.timestamp.millisecondsSinceEpoch : null,
-      DbCols.readAt:
-          message.isRead ? message.timestamp.millisecondsSinceEpoch : null,
-    };
+  Map<String, Object?> _messageRow(Message message) => {
+    DbCols.id: message.id,
+    DbCols.conversationId: message.conversationId,
+    DbCols.senderId: message.senderId,
+    DbCols.encryptedContent: _enc(jsonEncode(message.toJson())),
+    DbCols.contentType: message.type.name,
+    DbCols.mediaBlob: null,
+    DbCols.mediaMetaEnc: null,
+    DbCols.replyToId: message.replyToId,
+    DbCols.sentAt: message.timestamp.millisecondsSinceEpoch,
+    DbCols.deliveredAt:
+        message.isDelivered ? message.timestamp.millisecondsSinceEpoch : null,
+    DbCols.readAt:
+        message.isRead ? message.timestamp.millisecondsSinceEpoch : null,
+  };
 
   Future<void> addMessage(Message message) async {
     _ensureInitialized();
-    await DbQueries.upsert(_db!,DbTables.messages,_messageRow(message));
+    await DbQueries.upsert(_db!, DbTables.messages, _messageRow(message));
   }
 
   /// Ratchet advancement and the plaintext's encrypted database row commit
   /// together, so a crash cannot consume a key without preserving its message.
-  Future<void> commitReceivedMessage(SessionState state,Message message) async {
+  Future<void> commitReceivedMessage(
+    SessionState state,
+    Message message,
+  ) async {
     _ensureInitialized();
     await _db!.transaction((transaction) async {
-      await DbQueries.upsert(transaction,DbTables.messages,_messageRow(message));
-      await DbQueries.upsert(transaction,DbTables.kv,{
-        DbCols.key:'$_sessionKeyPrefix${state.peerId}',
-        DbCols.value:_enc(jsonEncode(state.toJson())),
+      await DbQueries.upsert(
+        transaction,
+        DbTables.messages,
+        _messageRow(message),
+      );
+      await DbQueries.upsert(transaction, DbTables.kv, {
+        DbCols.key: '$_sessionKeyPrefix${state.peerId}',
+        DbCols.value: _enc(jsonEncode(state.toJson())),
       });
     });
   }
 
   /// Commit the ratchet advance, pending message, and exact retry ciphertext
   /// together. No ciphertext reaches the network before this transaction.
-  Future<void> commitOutgoingMessage(SessionState state,Message message,String envelope) async {
+  Future<void> commitOutgoingMessage(
+    SessionState state,
+    Message message,
+    String envelope,
+  ) async {
     _ensureInitialized();
     await _db!.transaction((transaction) async {
-      await DbQueries.upsert(transaction,DbTables.messages,_messageRow(message));
-      await DbQueries.upsert(transaction,DbTables.kv,{
-        DbCols.key:'$_sessionKeyPrefix${state.peerId}',
-        DbCols.value:_enc(jsonEncode(state.toJson())),
+      await DbQueries.upsert(
+        transaction,
+        DbTables.messages,
+        _messageRow(message),
+      );
+      await DbQueries.upsert(transaction, DbTables.kv, {
+        DbCols.key: '$_sessionKeyPrefix${state.peerId}',
+        DbCols.value: _enc(jsonEncode(state.toJson())),
       });
-      await DbQueries.upsert(transaction,DbTables.kv,{
-        DbCols.key:'${_sessionKeyPrefix}outbox:${message.id}',
-        DbCols.value:_enc(envelope),
+      await DbQueries.upsert(transaction, DbTables.kv, {
+        DbCols.key: '${_sessionKeyPrefix}outbox:${message.id}',
+        DbCols.value: _enc(envelope),
+      });
+    });
+  }
+
+  /// Atomically advances all peer ratchets and stores the one group message
+  /// plus its exact retry envelope. No partial group key distribution occurs.
+  Future<void> commitOutgoingGroupMessage(
+    List<SessionState> states,
+    Message message,
+    String envelope,
+  ) async {
+    _ensureInitialized();
+    if (states.isEmpty) throw ArgumentError('A group message needs recipients');
+    await _db!.transaction((transaction) async {
+      await DbQueries.upsert(
+        transaction,
+        DbTables.messages,
+        _messageRow(message),
+      );
+      for (final state in states) {
+        await DbQueries.upsert(transaction, DbTables.kv, {
+          DbCols.key: '$_sessionKeyPrefix${state.peerId}',
+          DbCols.value: _enc(jsonEncode(state.toJson())),
+        });
+      }
+      await DbQueries.upsert(transaction, DbTables.kv, {
+        DbCols.key: '${_sessionKeyPrefix}outbox:${message.id}',
+        DbCols.value: _enc(envelope),
       });
     });
   }
@@ -275,9 +351,13 @@ class LocalDatabase {
   Future<void> commitMessageSent(Message message) async {
     _ensureInitialized();
     await _db!.transaction((transaction) async {
-      await DbQueries.upsert(transaction,DbTables.messages,_messageRow(message));
-      await DbQueries.deleteWhere(transaction,DbTables.kv,{
-        DbCols.key:'${_sessionKeyPrefix}outbox:${message.id}',
+      await DbQueries.upsert(
+        transaction,
+        DbTables.messages,
+        _messageRow(message),
+      );
+      await DbQueries.deleteWhere(transaction, DbTables.kv, {
+        DbCols.key: '${_sessionKeyPrefix}outbox:${message.id}',
       });
     });
   }
@@ -291,27 +371,46 @@ class LocalDatabase {
       orderBy: const [DbOrder('sent_at')],
     );
     final list = <Message>[];
+    final expiredIds = <String>[];
     for (final row in rows) {
       try {
         final json = _dec(row[DbCols.encryptedContent] as String?);
         if (json == null) {
           continue; // skip corrupt/undecryptable row
         }
-        list.add(Message.fromJson(jsonDecode(json) as Map<String, dynamic>));
+        final message = Message.fromJson(
+          jsonDecode(json) as Map<String, dynamic>,
+        );
+        if (message.isExpired) {
+          expiredIds.add(message.id);
+        } else {
+          list.add(message);
+        }
       } catch (_) {
         continue; // skip malformed row, never crash the chat
       }
     }
+    await _purgeMessages(expiredIds);
     return list;
+  }
+
+  Future<void> _purgeMessages(List<String> messageIds) async {
+    if (messageIds.isEmpty) return;
+    await _db!.transaction((transaction) async {
+      for (final id in messageIds) {
+        await DbQueries.deleteWhere(transaction, DbTables.messages, {
+          DbCols.id: id,
+        });
+        await DbQueries.deleteWhere(transaction, DbTables.kv, {
+          DbCols.key: '${_sessionKeyPrefix}outbox:$id',
+        });
+      }
+    });
   }
 
   Future<void> deleteMessage(String messageId) async {
     _ensureInitialized();
-    await DbQueries.deleteWhere(
-      _db!,
-      DbTables.messages,
-      {DbCols.id: messageId},
-    );
+    await _purgeMessages([messageId]);
   }
 
   Future<List<Message>> searchMessages(String query) async {
@@ -322,14 +421,18 @@ class LocalDatabase {
     final lower = query.toLowerCase();
     final rows = await DbQueries.find(_db!, DbTables.messages);
     final out = <Message>[];
+    final expiredIds = <String>[];
     for (final row in rows) {
       try {
         final json = _dec(row[DbCols.encryptedContent] as String?);
         if (json == null) {
           continue;
         }
-        final m =
-            Message.fromJson(jsonDecode(json) as Map<String, dynamic>);
+        final m = Message.fromJson(jsonDecode(json) as Map<String, dynamic>);
+        if (m.isExpired) {
+          expiredIds.add(m.id);
+          continue;
+        }
         if (m.content.toLowerCase().contains(lower)) {
           out.add(m);
         }
@@ -337,6 +440,7 @@ class LocalDatabase {
         continue;
       }
     }
+    await _purgeMessages(expiredIds);
     return out;
   }
 
@@ -375,7 +479,7 @@ class LocalDatabase {
       DbCols.isBlocked: contact.isBlocked ? 1 : 0,
       DbCols.addedAt:
           contact.lastSeen?.millisecondsSinceEpoch ??
-              DateTime.now().millisecondsSinceEpoch,
+          DateTime.now().millisecondsSinceEpoch,
       'payload_enc': _enc(jsonEncode(contact.toJson())),
     });
   }
@@ -384,11 +488,10 @@ class LocalDatabase {
 
   Future<void> deleteContact(String contactId) async {
     _ensureInitialized();
-    await DbQueries.deleteWhere(
-      _db!,
-      DbTables.contacts,
-      {DbCols.userId: _ownerId, DbCols.contactId: contactId},
-    );
+    await DbQueries.deleteWhere(_db!, DbTables.contacts, {
+      DbCols.userId: _ownerId,
+      DbCols.contactId: contactId,
+    });
   }
 
   // ---- Ratchet sessions (persisted by Part 4 session_store.dart).
@@ -425,11 +528,9 @@ class LocalDatabase {
   /// Deletes the session blob for [peerId].
   Future<void> deleteSessionBlob(String peerId) async {
     _ensureInitialized();
-    await DbQueries.deleteWhere(
-      _db!,
-      DbTables.kv,
-      {DbCols.key: '$_sessionKeyPrefix$peerId'},
-    );
+    await DbQueries.deleteWhere(_db!, DbTables.kv, {
+      DbCols.key: '$_sessionKeyPrefix$peerId',
+    });
   }
 
   Future<Contact?> getContact(String contactId) async {
@@ -460,7 +561,10 @@ class LocalDatabase {
     final rows = await DbQueries.find(
       _db!,
       DbTables.conversations,
-      orderBy: const [DbOrder('pinned', descending: true), DbOrder('last_ts', descending: true)],
+      orderBy: const [
+        DbOrder('pinned', descending: true),
+        DbOrder('last_ts', descending: true),
+      ],
     );
     final out = <Conversation>[];
     for (final row in rows) {
@@ -469,8 +573,16 @@ class LocalDatabase {
         if (json == null) {
           continue;
         }
-        out.add(
-            Conversation.fromJson(jsonDecode(json) as Map<String, dynamic>));
+        final conversation = Conversation.fromJson(
+          jsonDecode(json) as Map<String, dynamic>,
+        );
+        if (conversation.lastMessage?.isExpired == true) {
+          final sanitized = conversation.copyWith(clearLastMessage: true);
+          out.add(sanitized);
+          await addConversation(sanitized);
+        } else {
+          out.add(conversation);
+        }
       } catch (_) {
         continue;
       }
@@ -491,8 +603,8 @@ class LocalDatabase {
 
   Future<void> addConversation(Conversation c) async {
     _ensureInitialized();
-    final lastTs = (c.lastMessage?.timestamp ?? c.createdAt)
-        .millisecondsSinceEpoch;
+    final lastTs =
+        (c.lastMessage?.timestamp ?? c.createdAt).millisecondsSinceEpoch;
     await DbQueries.upsert(_db!, DbTables.conversations, {
       DbCols.id: c.id,
       DbCols.type: c.isGroup ? 'group' : 'direct',
@@ -504,11 +616,9 @@ class LocalDatabase {
       DbCols.lastTs: lastTs,
       'payload_enc': _enc(jsonEncode(c.toJson())),
     });
-    await DbQueries.deleteWhere(
-      _db!,
-      DbTables.participants,
-      {DbCols.conversationId: c.id},
-    );
+    await DbQueries.deleteWhere(_db!, DbTables.participants, {
+      DbCols.conversationId: c.id,
+    });
     final now = DateTime.now().millisecondsSinceEpoch;
     for (var i = 0; i < c.participants.length; i++) {
       await DbQueries.upsert(_db!, DbTables.participants, {
@@ -521,26 +631,17 @@ class LocalDatabase {
     }
   }
 
-  Future<void> updateConversation(Conversation c) async =>
-      addConversation(c);
+  Future<void> updateConversation(Conversation c) async => addConversation(c);
 
   Future<void> deleteConversation(String id) async {
     _ensureInitialized();
-    await DbQueries.deleteWhere(
-      _db!,
-      DbTables.conversations,
-      {DbCols.id: id},
-    );
-    await DbQueries.deleteWhere(
-      _db!,
-      DbTables.messages,
-      {DbCols.conversationId: id},
-    );
-    await DbQueries.deleteWhere(
-      _db!,
-      DbTables.participants,
-      {DbCols.conversationId: id},
-    );
+    await DbQueries.deleteWhere(_db!, DbTables.conversations, {DbCols.id: id});
+    await DbQueries.deleteWhere(_db!, DbTables.messages, {
+      DbCols.conversationId: id,
+    });
+    await DbQueries.deleteWhere(_db!, DbTables.participants, {
+      DbCols.conversationId: id,
+    });
   }
 
   // ---- Profile
@@ -597,6 +698,111 @@ class LocalDatabase {
     });
   }
 
+  /// Replaces the locally backed-up account snapshot in one SQLCipher
+  /// transaction. Ratchet state and queued envelopes are intentionally not
+  /// imported; a restored account must establish fresh messaging sessions.
+  Future<void> replaceAccountSnapshot({
+    required UserProfile profile,
+    required List<Contact> contacts,
+    required List<Conversation> conversations,
+    required List<Message> messages,
+  }) async {
+    _ensureInitialized();
+    await _db!.transaction((transaction) async {
+      for (final table in [
+        DbTables.messages,
+        DbTables.participants,
+        DbTables.conversations,
+        DbTables.contacts,
+        DbTables.users,
+        DbTables.devices,
+        DbTables.circuits,
+      ]) {
+        await transaction.delete(table);
+      }
+
+      final keyRows = await DbQueries.find(transaction, DbTables.kv);
+      for (final row in keyRows) {
+        final key = row[DbCols.key] as String?;
+        if (key != null && key.startsWith(_sessionKeyPrefix)) {
+          await DbQueries.deleteWhere(transaction, DbTables.kv, {
+            DbCols.key: key,
+          });
+        }
+      }
+
+      final profileId = profile.chhayaId.publicKey;
+      await DbQueries.upsert(transaction, DbTables.users, {
+        DbCols.id: profileId,
+        DbCols.chhayaId: profileId,
+        DbCols.displayNameEnc: _enc(profile.displayName),
+        DbCols.publicKey: profileId,
+        DbCols.encryptedPrivateKey: '',
+        DbCols.createdAt: profile.createdAt.millisecondsSinceEpoch,
+        'payload_enc': _enc(jsonEncode(profile.toJson())),
+      });
+      await DbQueries.upsert(transaction, DbTables.kv, {
+        DbCols.key: 'current_user_id',
+        DbCols.value: profileId,
+      });
+
+      for (final contact in contacts) {
+        await DbQueries.upsert(transaction, DbTables.contacts, {
+          DbCols.userId: _ownerId,
+          DbCols.contactId: contact.id,
+          DbCols.displayNameEnc: _enc(contact.displayName),
+          DbCols.avatarEnc:
+              contact.avatarUrl == null ? null : _enc(contact.avatarUrl!),
+          DbCols.verificationLevel: contact.verificationLevel,
+          DbCols.isBlocked: contact.isBlocked ? 1 : 0,
+          DbCols.addedAt:
+              contact.lastSeen?.millisecondsSinceEpoch ??
+              DateTime.now().millisecondsSinceEpoch,
+          'payload_enc': _enc(jsonEncode(contact.toJson())),
+        });
+      }
+
+      final joinedAt = DateTime.now().millisecondsSinceEpoch;
+      for (final conversation in conversations) {
+        final lastTs =
+            (conversation.lastMessage?.timestamp ?? conversation.createdAt)
+                .millisecondsSinceEpoch;
+        await DbQueries.upsert(transaction, DbTables.conversations, {
+          DbCols.id: conversation.id,
+          DbCols.type: conversation.isGroup ? 'group' : 'direct',
+          DbCols.nameEnc:
+              conversation.groupName == null
+                  ? null
+                  : _enc(conversation.groupName!),
+          DbCols.avatarBlob: null,
+          DbCols.createdBy: _ownerId,
+          DbCols.createdAt: conversation.createdAt.millisecondsSinceEpoch,
+          DbCols.pinned: conversation.isPinned ? 1 : 0,
+          DbCols.lastTs: lastTs,
+          'payload_enc': _enc(jsonEncode(conversation.toJson())),
+        });
+        for (var i = 0; i < conversation.participants.length; i++) {
+          await DbQueries.upsert(transaction, DbTables.participants, {
+            DbCols.conversationId: conversation.id,
+            DbCols.userId: conversation.participants[i].id,
+            DbCols.joinedAt: joinedAt,
+            DbCols.leftAt: null,
+            DbCols.isAdmin: i == 0 ? 1 : 0,
+          });
+        }
+      }
+
+      for (final message in messages) {
+        await DbQueries.upsert(
+          transaction,
+          DbTables.messages,
+          _messageRow(message),
+        );
+      }
+    });
+    _deviceCache = null;
+  }
+
   // ---- Circuits (onion cache; wired by Part 10)
   /// Caches an encrypted circuit path until [expiresAt].
   Future<void> cacheCircuit({
@@ -645,11 +851,9 @@ class LocalDatabase {
     for (final row in rows) {
       final expiresAt = row[DbCols.expiresAt] as int? ?? 0;
       if (expiresAt <= now) {
-        await DbQueries.deleteWhere(
-          _db!,
-          DbTables.circuits,
-          {DbCols.id: row[DbCols.id] as String},
-        );
+        await DbQueries.deleteWhere(_db!, DbTables.circuits, {
+          DbCols.id: row[DbCols.id] as String,
+        });
         evicted++;
       }
     }
@@ -682,13 +886,14 @@ class LocalDatabase {
   }
 
   Map<String, dynamic> _defaultSettings() => {
-        'biometric_lock': true,
-        'read_receipts': true,
-        'global_disappearing_duration': 0,
-        'onion_routing': true,
-        'blocked_contacts': <String>[],
-        'linked_devices': <Map<String, dynamic>>[],
-      };
+    'biometric_lock': true,
+    'read_receipts': true,
+    'typing_indicators': true,
+    'global_disappearing_duration': 0,
+    'onion_routing': true,
+    'blocked_contacts': <String>[],
+    'linked_devices': <Map<String, dynamic>>[],
+  };
 
   Future<void> _saveSettings(Map<String, dynamic> s) async {
     _ensureInitialized();
@@ -714,6 +919,47 @@ class LocalDatabase {
     await _saveSettings(s);
     _settingsCache = s;
   }
+
+  bool getConversationReadReceiptsEnabled(String conversationId) {
+    final overrides = _getSettingsSync()['conversation_read_receipts'];
+    return getReadReceiptsEnabled() &&
+        (overrides is Map ? overrides[conversationId] as bool? ?? true : true);
+  }
+
+  Future<void> setConversationReadReceiptsEnabled(
+    String conversationId,
+    bool enabled,
+  ) async {
+    final settings = await _getSettings();
+    final overrides = Map<String, dynamic>.from(
+      settings['conversation_read_receipts'] as Map? ?? {},
+    );
+    overrides[conversationId] = enabled;
+    settings['conversation_read_receipts'] = overrides;
+    await _saveSettings(settings);
+    _settingsCache = settings;
+  }
+
+  bool getConversationTypingIndicatorsEnabled(String conversationId) {
+    final overrides = _getSettingsSync()['conversation_typing_indicators'];
+    return getTypingIndicatorsEnabled() &&
+        (overrides is Map ? overrides[conversationId] as bool? ?? true : true);
+  }
+
+  Future<void> setConversationTypingIndicatorsEnabled(
+    String conversationId,
+    bool enabled,
+  ) async {
+    final settings = await _getSettings();
+    final overrides = Map<String, dynamic>.from(
+      settings['conversation_typing_indicators'] as Map? ?? {},
+    );
+    overrides[conversationId] = enabled;
+    settings['conversation_typing_indicators'] = overrides;
+    await _saveSettings(settings);
+    _settingsCache = settings;
+  }
+
   bool getReadReceiptsEnabled() =>
       _getSettingsSync()['read_receipts'] as bool? ?? true;
   Future<void> setReadReceiptsEnabled(bool v) async {
@@ -722,6 +968,16 @@ class LocalDatabase {
     await _saveSettings(s);
     _settingsCache = s;
   }
+
+  bool getTypingIndicatorsEnabled() =>
+      _getSettingsSync()['typing_indicators'] as bool? ?? true;
+  Future<void> setTypingIndicatorsEnabled(bool v) async {
+    final s = await _getSettings();
+    s['typing_indicators'] = v;
+    await _saveSettings(s);
+    _settingsCache = s;
+  }
+
   int getGlobalDisappearingDuration() =>
       _getSettingsSync()['global_disappearing_duration'] as int? ?? 0;
   Future<void> setGlobalDisappearingDuration(int v) async {
@@ -730,6 +986,7 @@ class LocalDatabase {
     await _saveSettings(s);
     _settingsCache = s;
   }
+
   bool getOnionRoutingEnabled() =>
       _getSettingsSync()['onion_routing'] as bool? ?? true;
   Future<void> setOnionRoutingEnabled(bool v) async {
@@ -738,15 +995,15 @@ class LocalDatabase {
     await _saveSettings(s);
     _settingsCache = s;
   }
+
   List<String> getBlockedContacts() {
-    final list =
-        _getSettingsSync()['blocked_contacts'] as List<dynamic>?;
+    final list = _getSettingsSync()['blocked_contacts'] as List<dynamic>?;
     return list?.map((e) => e as String).toList() ?? <String>[];
   }
+
   Future<void> blockContact(String id) async {
     final s = await _getSettings();
-    final list =
-        (s['blocked_contacts'] as List<dynamic>? ?? []).cast<String>();
+    final list = (s['blocked_contacts'] as List<dynamic>? ?? []).cast<String>();
     if (!list.contains(id)) {
       list.add(id);
     }
@@ -754,23 +1011,25 @@ class LocalDatabase {
     await _saveSettings(s);
     _settingsCache = s;
   }
+
   Future<void> unblockContact(String id) async {
     final s = await _getSettings();
-    final list =
-        (s['blocked_contacts'] as List<dynamic>? ?? []).cast<String>();
+    final list = (s['blocked_contacts'] as List<dynamic>? ?? []).cast<String>();
     list.remove(id);
     s['blocked_contacts'] = list;
     await _saveSettings(s);
     _settingsCache = s;
   }
+
   List<Map<String, dynamic>> getLinkedDevices() {
     final rows = _deviceRowsSync();
     return rows;
   }
+
   Future<void> addLinkedDevice(Map<String, dynamic> d) async {
     _ensureInitialized();
-    final id = d['id'] as String? ??
-        'dev_${DateTime.now().millisecondsSinceEpoch}';
+    final id =
+        d['id'] as String? ?? 'dev_${DateTime.now().millisecondsSinceEpoch}';
     await DbQueries.upsert(_db!, DbTables.devices, {
       DbCols.id: id,
       DbCols.userId: _ownerId,
@@ -784,13 +1043,13 @@ class LocalDatabase {
     });
     await _refreshDeviceCache();
   }
+
   Future<void> removeLinkedDevice(String id) async {
     _ensureInitialized();
-    await DbQueries.deleteWhere(
-      _db!,
-      DbTables.devices,
-      {DbCols.userId: _ownerId, DbCols.id: id},
-    );
+    await DbQueries.deleteWhere(_db!, DbTables.devices, {
+      DbCols.userId: _ownerId,
+      DbCols.id: id,
+    });
     await _refreshDeviceCache();
   }
 
@@ -801,27 +1060,31 @@ class LocalDatabase {
       equals: {DbCols.userId: _ownerId},
     );
   }
+
   List<Map<String, dynamic>> _deviceRowsSync() {
     // Devices are read async everywhere except the legacy sync getter.
     // The sync getter cannot await, so it reports the last async load.
     return _deviceCache
-            ?.map((row) => <String, dynamic>{
-                  'id': row[DbCols.id],
-                  'name': row[DbCols.deviceName],
-                  'platform': row[DbCols.platform],
-                })
+            ?.map(
+              (row) => <String, dynamic>{
+                'id': row[DbCols.id],
+                'name': row[DbCols.deviceName],
+                'platform': row[DbCols.platform],
+              },
+            )
             .toList() ??
         [];
   }
+
   List<Map<String, Object?>>? _deviceCache;
-  String? getPanicPin() =>
-      _getSettingsSync()['panic_pin'] as String?;
+  String? getPanicPin() => _getSettingsSync()['panic_pin'] as String?;
   Future<void> setPanicPin(String? pin) async {
     final s = await _getSettings();
     s['panic_pin'] = pin;
     await _saveSettings(s);
     _settingsCache = s;
   }
+
   String? getAppPin() => _getSettingsSync()['app_pin'] as String?;
   Future<void> setAppPin(String pin) async {
     final s = await _getSettings();
@@ -829,6 +1092,7 @@ class LocalDatabase {
     await _saveSettings(s);
     _settingsCache = s;
   }
+
   bool getMeshRoutingEnabled() =>
       _getSettingsSync()['mesh_routing'] as bool? ?? false;
   Future<void> setMeshRoutingEnabled(bool v) async {
@@ -837,6 +1101,7 @@ class LocalDatabase {
     await _saveSettings(s);
     _settingsCache = s;
   }
+
   int getConversationTtl(String cid) =>
       _getSettingsSync()['ttl_$cid'] as int? ?? 0;
   Future<void> setConversationTtl(String cid, int v) async {

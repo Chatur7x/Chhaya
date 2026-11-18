@@ -12,11 +12,19 @@ import '../../core/crypto/primitives/rng.dart';
 import '../../core/database/local_database.dart';
 import '../../core/models/contact.dart';
 import '../api/api_service.dart';
+import 'incoming_call_window.dart';
 
 class IncomingCall {
   final String callId,conversationId,senderId,envelope;
   final bool video;
   IncomingCall(this.callId,this.conversationId,this.senderId,this.envelope,this.video);
+}
+
+class TypingUpdate {
+  final String conversationId;
+  final String senderId;
+  final bool isTyping;
+  const TypingUpdate(this.conversationId, this.senderId, this.isTyping);
 }
 
 /// Foreground WebRTC calls. Authenticated, encrypted SDP/ICE is relayed by
@@ -30,6 +38,8 @@ class CallService extends ChangeNotifier {
   final remoteRenderer=RTCVideoRenderer();
   final _incoming=StreamController<IncomingCall>.broadcast();
   Stream<IncomingCall> get incoming=>_incoming.stream;
+  final _typing=StreamController<TypingUpdate>.broadcast();
+  Stream<TypingUpdate> get typing=>_typing.stream;
   WebSocketChannel? _socket;
   Future<void>? _connecting;
   Completer<void>? _joined;
@@ -44,6 +54,7 @@ class CallService extends ChangeNotifier {
   bool _renderersReady=false,_remoteReady=false;
   Timer? _ringTimeout;
   final _candidates=<RTCIceCandidate>[];
+  final _incomingCallWindow=IncomingCallWindow();
   Future<void> _signalTail=Future.value();
 
   Future<void> ensureConnected() async {
@@ -51,6 +62,16 @@ class CallService extends ChangeNotifier {
     if(_connecting!=null) { return _connecting; }
     final pending=_connect(); _connecting=pending;
     try { await pending; } catch (_) { await _socket?.sink.close(); _socket=null; rethrow; } finally { _connecting=null; }
+  }
+
+  Future<void> sendTyping(String conversationId, bool active) async {
+    await ensureConnected();
+    final socket = _socket;
+    if (socket == null) throw StateError('Signaling connection unavailable');
+    socket.sink.add(jsonEncode({
+      'type': 'typing',
+      'payload': {'conversationId': conversationId, 'active': active},
+    }));
   }
   Future<void> _connect() async {
     final uri=Uri.parse(api.baseUrl).replace(scheme:'wss',path:'/signaling');
@@ -64,7 +85,29 @@ class CallService extends ChangeNotifier {
     },onError:(Object error){ _socket=null; status='Signaling offline'; notifyListeners(); },onDone:(){ _socket=null; });
     socket.sink.add(jsonEncode({'type':'join','payload':{'token':api.authToken,'deviceId':api.deviceId},'from':api.userId,'timestamp':DateTime.now().millisecondsSinceEpoch}));
     await _joined!.future.timeout(const Duration(seconds:15));
+    unawaited(_deliverPendingInvites());
   }
+
+  Future<void> _deliverPendingInvites() async {
+    try {
+      final invites=await api.getIncomingCallInvites();
+      for(final invite in invites) {
+        _signalTail=_signalTail.then((_)=>_handle({
+          'type':'offer','from':invite['senderId'],'payload':{
+            'callId':invite['callId'],'conversationId':invite['conversationId'],
+            'envelope':invite['envelope'],
+          },
+        })).catchError((Object _) {
+          status='Could not restore a pending call';
+          notifyListeners();
+        });
+      }
+      await _signalTail;
+    } catch (_) { /* Signaling remains usable if the optional queue is offline. */ }
+  }
+
+  /// Retry queued offers after the foreground conversation sync.
+  Future<void> checkPendingInvites() => _deliverPendingInvites();
 
   Future<Contact> _peer(String conversationId) async {
     final conversation=(await database.getAllConversations()).where((c)=>c.id==conversationId).firstOrNull;
@@ -153,6 +196,19 @@ class CallService extends ChangeNotifier {
     if(message['type']=='join') { if(_joined!=null&&!_joined!.isCompleted) _joined!.complete(); return; }
     if(message['type']=='ping') { _socket?.sink.add(jsonEncode({'type':'pong','payload':{}})); return; }
     final type=message['type'] as String?;
+    if (type == 'typing') {
+      final payload = message['payload'];
+      final senderId = message['from'];
+      if (payload is Map && senderId is String &&
+          payload['conversationId'] is String && payload['active'] is bool) {
+        _typing.add(TypingUpdate(
+          payload['conversationId'] as String,
+          senderId,
+          payload['active'] as bool,
+        ));
+      }
+      return;
+    }
     if(!['offer','answer','ice-candidate','call-end'].contains(type)) { return; }
     final payload=Map<String,dynamic>.from(message['payload'] as Map);
     final id=payload['callId'] as String;
@@ -164,6 +220,7 @@ class CallService extends ChangeNotifier {
       final key=await _key(peer,id);
       try {
         final offer=_open('offer',id,sender,payload['envelope'] as String,key);
+        if(!_incomingCallWindow.shouldPresent(id,DateTime.now())) { return; }
         _incoming.add(IncomingCall(id,conversation,sender,payload['envelope'] as String,offer['video'] as bool? ?? false));
       } finally { Csprng.wipe(key); }
       return;
@@ -209,5 +266,14 @@ class CallService extends ChangeNotifier {
     if(_signalKey!=null) { Csprng.wipe(_signalKey!); }
     _signalKey=null; _callId=null; _peerId=null; _conversationId=null;
     connected=false; status='Call ended'; notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    final socket = _socket;
+    if (socket != null) unawaited(socket.sink.close());
+    unawaited(_incoming.close());
+    unawaited(_typing.close());
+    super.dispose();
   }
 }

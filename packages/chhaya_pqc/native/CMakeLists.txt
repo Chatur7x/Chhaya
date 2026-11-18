@@ -1,0 +1,68 @@
+cmake_minimum_required(VERSION 3.22)
+project(chhaya_pqc LANGUAGES C CXX)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_C_STANDARD 11)
+option(CHHAYA_HOST_TESTS "Run the native provider verification harness" OFF)
+
+if(ANDROID AND NOT ANDROID_ABI STREQUAL "arm64-v8a")
+  # No undocumented algorithm fallback on architectures outside this provider's
+  # supported mobile build matrix. The channel reports unavailable explicitly.
+  add_library(chhaya_pqc SHARED chhaya_pqc_unavailable.c android_jni.cpp)
+  target_include_directories(chhaya_pqc PRIVATE include)
+  return()
+endif()
+
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+find_program(CHHAYA_GO go REQUIRED)
+# Keep generated paths short for Windows toolchains (Ninja/NDK still encounter
+# MAX_PATH limits on some installations). The source remains pinned and
+# checksum-verified by prepare.py.
+set(CHHAYA_CACHE "${CMAKE_CURRENT_BINARY_DIR}/lc")
+set(CHHAYA_PREPARE_ARGS --cache "${CHHAYA_CACHE}" --cmake "${CMAKE_COMMAND}" --go "${CHHAYA_GO}")
+if(CMAKE_GENERATOR STREQUAL "Ninja")
+  list(APPEND CHHAYA_PREPARE_ARGS --ninja "${CMAKE_MAKE_PROGRAM}")
+endif()
+if(ANDROID)
+  list(APPEND CHHAYA_PREPARE_ARGS --toolchain "${CMAKE_TOOLCHAIN_FILE}" --abi "${ANDROID_ABI}" --api "${ANDROID_PLATFORM}")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+  list(APPEND CHHAYA_PREPARE_ARGS --sdk "${CMAKE_OSX_SYSROOT}" --arch "${CMAKE_OSX_ARCHITECTURES}")
+endif()
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/../tool/prepare.py" ${CHHAYA_PREPARE_ARGS}
+                RESULT_VARIABLE CHHAYA_PREPARE_RESULT COMMAND_ECHO STDOUT)
+if(NOT CHHAYA_PREPARE_RESULT EQUAL 0)
+  message(FATAL_ERROR "Pinned AWS-LC preparation failed")
+endif()
+set(CHHAYA_AWS_SOURCE "${CHHAYA_CACHE}/source/aws-lc")
+if(CHHAYA_HOST_TESTS)
+  set(BUILD_TESTING ON CACHE BOOL "" FORCE)
+else()
+  set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+endif()
+set(BUILD_TOOL OFF CACHE BOOL "" FORCE)
+set(BUILD_LIBSSL OFF CACHE BOOL "" FORCE)
+set(DISABLE_PERL ON CACHE BOOL "" FORCE)
+set(DISABLE_GO OFF CACHE BOOL "" FORCE)
+set(ENABLE_SOURCE_MODIFICATION OFF CACHE BOOL "" FORCE)
+set(BORINGSSL_PREFIX chhaya_awslc CACHE STRING "" FORCE)
+set(BORINGSSL_PREFIX_SYMBOLS "${CHHAYA_CACHE}/symbols.txt" CACHE FILEPATH "" FORCE)
+add_subdirectory("${CHHAYA_AWS_SOURCE}" "${CMAKE_CURRENT_BINARY_DIR}/awslc")
+
+if(ANDROID)
+  add_library(chhaya_pqc SHARED chhaya_pqc.c android_jni.cpp)
+  target_link_options(chhaya_pqc PRIVATE "-Wl,--exclude-libs,ALL")
+else()
+  add_library(chhaya_pqc STATIC chhaya_pqc.c)
+endif()
+target_include_directories(chhaya_pqc PUBLIC include PRIVATE
+  "${CMAKE_CURRENT_BINARY_DIR}/awslc/symbol_prefix_include" "${CHHAYA_AWS_SOURCE}/include"
+  "${CHHAYA_AWS_SOURCE}/crypto/fipsmodule")
+target_compile_definitions(chhaya_pqc PRIVATE BORINGSSL_PREFIX=chhaya_awslc)
+add_dependencies(chhaya_pqc boringssl_prefix_symbols)
+target_link_libraries(chhaya_pqc PRIVATE crypto)
+
+if(CHHAYA_HOST_TESTS)
+  enable_testing()
+  add_executable(chhaya_pqc_test provider_test.c)
+  target_link_libraries(chhaya_pqc_test PRIVATE chhaya_pqc)
+  add_test(NAME chhaya_pqc_vectors_and_failures COMMAND chhaya_pqc_test)
+endif()

@@ -40,7 +40,8 @@ class _VerificationScreenState extends ConsumerState<VerificationScreen> {
       body:SafeArea(child:ListView(padding:const EdgeInsets.all(ChhayaSpacing.space4),children:[
         const Text('Your identity'),
         if(id!=null) ...[
-          Center(child:QrImageView(data:'chhaya://identity/$id',size:220)),
+          Center(child:QrImageView(data:'chhaya://identity/$id',size:220,
+            backgroundColor:ChhayaColors.white,padding:const EdgeInsets.all(16))),
           SelectableText(id),
           TextButton.icon(onPressed:()=>Clipboard.setData(ClipboardData(text:id)),icon:const Icon(Icons.copy),label:const Text('Copy identity')),
         ],

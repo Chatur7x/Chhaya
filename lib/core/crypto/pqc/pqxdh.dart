@@ -28,18 +28,28 @@ class Pqxdh {
     bool userConsented = false,
   }) async {
     final ours = await X25519Kex.generateKeyPair();
-    final classical = await X25519Kex.sharedSecret(
-      ours.privateKey,
-      remotePublicKey,
-    );
+    late final Uint8List classical;
     try {
-      if (pqKem != null && pqKem.isAvailable && pqPublicKey != null) {
+      classical = await X25519Kex.sharedSecret(
+        ours.privateKey,
+        remotePublicKey,
+      );
+    } finally {
+      ours.privateKey.fillRange(0, ours.privateKey.length, 0);
+    }
+    try {
+      if (pqKem != null && pqPublicKey != null && await pqKem.initialize()) {
         final enc = await pqKem.encapsulate(pqPublicKey);
-        final secret = HybridKex.combine(
-          classical: classical,
-          pq: enc.sharedSecret,
-          context: context,
-        );
+        late final HybridSecret secret;
+        try {
+          secret = HybridKex.combine(
+            classical: classical,
+            pq: enc.sharedSecret,
+            context: context,
+          );
+        } finally {
+          enc.sharedSecret.fillRange(0, enc.sharedSecret.length, 0);
+        }
         return (secret: secret, ourPublicKey: ours.publicKey);
       }
       if (!allowClassicalFallback || !userConsented) {

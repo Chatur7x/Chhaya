@@ -31,10 +31,10 @@ class _ChhayaCardState extends State<ChhayaCard> {
   Widget build(BuildContext context) {
     final Widget content = Container(
       decoration: BoxDecoration(
-        color: ChhayaColors.white,
+        color: ChhayaPalette.of(context).cardSurface,
         borderRadius: BorderRadius.circular(ChhayaRadius.lg),
         border: Border.all(
-          color: ChhayaColors.borderMed,
+          color: ChhayaPalette.of(context).borderMed,
           width: 0.75,
         ),
         boxShadow: ChhayaElevation.card,
@@ -98,10 +98,10 @@ class _ChhayaSectionCardState extends State<ChhayaSectionCard> {
   Widget build(BuildContext context) {
     final Widget content = Container(
       decoration: BoxDecoration(
-        color: ChhayaColors.cream,
+        color: ChhayaPalette.of(context).cream,
         borderRadius: BorderRadius.circular(ChhayaRadius.lg),
         border: Border.all(
-          color: ChhayaColors.borderMed,
+          color: ChhayaPalette.of(context).borderMed,
           width: 0.75,
         ),
         boxShadow: ChhayaElevation.card,
@@ -116,7 +116,7 @@ class _ChhayaSectionCardState extends State<ChhayaSectionCard> {
               Expanded(
                 child: Text(
                   widget.title,
-                  style: ChhayaTypography.title,
+                  style: ChhayaType.of(context).title,
                 ),
               ),
               if (widget.trailing != null) widget.trailing!,

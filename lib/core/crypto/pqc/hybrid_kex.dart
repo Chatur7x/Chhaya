@@ -59,18 +59,26 @@ class HybridKex {
         'PQ output must be at least 32 bytes',
       );
     }
-    final secret = Hkdf.deriveKey(
-      inputKeyMaterial: Uint8List.fromList([...classical, ...pq]),
-      salt: Uint8List.fromList(context),
-      info: Uint8List.fromList(utf8.encode('Chhaya-hybrid-v1')),
-      length: 32,
-    );
-    return HybridSecret(
+    final inputKeyMaterial = Uint8List.fromList([...classical, ...pq]);
+    late final Uint8List secret;
+    try {
+      secret = Hkdf.deriveKey(
+        inputKeyMaterial: inputKeyMaterial,
+        salt: Uint8List.fromList(context),
+        info: Uint8List.fromList(utf8.encode('Chhaya-hybrid-v1')),
+        length: 32,
+      );
+    } finally {
+      inputKeyMaterial.fillRange(0, inputKeyMaterial.length, 0);
+    }
+    final result = HybridSecret(
       secret: secret,
       pqUsed: true,
       classicalUsed: true,
       consentedFallback: false,
     );
+    secret.fillRange(0, secret.length, 0);
+    return result;
   }
 
   /// Classical-only fallback. Throws unless [userConsented] is true,
@@ -91,17 +99,25 @@ class HybridKex {
       'PQ KEM unavailable — classical-only session with user consent',
       name: 'HybridKex',
     );
-    final secret = Hkdf.deriveKey(
-      inputKeyMaterial: Uint8List.fromList(classical),
-      salt: Uint8List.fromList(context),
-      info: Uint8List.fromList(utf8.encode('Chhaya-classical-fallback-v1')),
-      length: 32,
-    );
-    return HybridSecret(
+    final inputKeyMaterial = Uint8List.fromList(classical);
+    late final Uint8List secret;
+    try {
+      secret = Hkdf.deriveKey(
+        inputKeyMaterial: inputKeyMaterial,
+        salt: Uint8List.fromList(context),
+        info: Uint8List.fromList(utf8.encode('Chhaya-classical-fallback-v1')),
+        length: 32,
+      );
+    } finally {
+      inputKeyMaterial.fillRange(0, inputKeyMaterial.length, 0);
+    }
+    final result = HybridSecret(
       secret: secret,
       pqUsed: false,
       classicalUsed: true,
       consentedFallback: true,
     );
+    secret.fillRange(0, secret.length, 0);
+    return result;
   }
 }

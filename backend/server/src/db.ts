@@ -130,6 +130,19 @@ const runMigrations = async (p: Pool): Promise<void> => {
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`,
 
+    `CREATE TABLE IF NOT EXISTS call_invites (
+      call_id UUID NOT NULL,
+      conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+      sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      recipient_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      envelope TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '60 seconds'),
+      PRIMARY KEY (call_id, recipient_id)
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_call_invites_recipient_expiry
+       ON call_invites(recipient_id, expires_at)`,
+
     `CREATE TABLE IF NOT EXISTS onion_nodes (
       id VARCHAR(50) PRIMARY KEY,
       address VARCHAR(100) NOT NULL,
@@ -152,6 +165,8 @@ const runMigrations = async (p: Pool): Promise<void> => {
     )`,
 
     `ALTER TABLE users ALTER COLUMN recovery_phrase_hash TYPE TEXT;
+     ALTER TABLE users ALTER COLUMN pin_hash TYPE TEXT;
+     ALTER TABLE users ALTER COLUMN panic_pin_hash TYPE TEXT;
      ALTER TABLE conversation_participants ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMPTZ DEFAULT 'epoch';
      ALTER TABLE conversation_participants ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ DEFAULT NOW();`,
     `CREATE TABLE IF NOT EXISTS identity_challenges (
@@ -172,6 +187,7 @@ const runMigrations = async (p: Pool): Promise<void> => {
      CREATE INDEX IF NOT EXISTS idx_contacts_user_id ON contacts(user_id);
      CREATE INDEX IF NOT EXISTS idx_conversations_updated ON conversations(updated_at DESC);
      CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, sent_at DESC);
+     CREATE INDEX IF NOT EXISTS idx_rate_limits_window ON rate_limits(window_start);
      CREATE INDEX IF NOT EXISTS idx_devices_user_id ON devices(user_id);
      CREATE INDEX IF NOT EXISTS idx_devices_fcm_token ON devices(fcm_token);
      CREATE INDEX IF NOT EXISTS idx_onion_nodes_region ON onion_nodes(region, is_active);

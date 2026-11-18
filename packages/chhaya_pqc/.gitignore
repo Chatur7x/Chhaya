@@ -1,0 +1,4 @@
+/build/
+/ios/Frameworks/
+/.dart_tool/
+/pubspec.lock

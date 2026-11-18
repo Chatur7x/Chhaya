@@ -179,6 +179,6 @@ STOP — await approval.
 
 ## Decisions on record
 
-- [`decisions/pqc-library.md`](decisions/pqc-library.md) — pure-Dart `pqcrypto`
+- [`decisions/pqc-library.md`](decisions/pqc-library.md) — pinned native AWS-LC provider decision and gates
 - [`decisions/no-golden-tests.md`](decisions/no-golden-tests.md) — behaviour assertions only
 - [`decisions/loadtest-location.md`](decisions/loadtest-location.md) — toolkit under `backend/server/loadtest/`

@@ -23,6 +23,7 @@ android {
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.chaaya.app.chaaya"
+        manifestPlaceholders["appLabel"] = "Chhaya"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion // Required minimum SDK for WebRTC/local_auth
@@ -32,6 +33,13 @@ android {
     }
 
     buildTypes {
+        debug {
+            // CI debug APKs use ephemeral signing keys. Give them a separate
+            // package so testers can install updates without deleting data
+            // from an existing Chhaya installation.
+            applicationIdSuffix = ".test"
+            manifestPlaceholders["appLabel"] = "Chhaya Test"
+        }
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.

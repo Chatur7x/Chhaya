@@ -30,12 +30,12 @@ class ChhayaPrimaryButton extends StatelessWidget {
     final double buttonHeight = height < contentHeight ? contentHeight : height;
 
     final Widget child = isLoading
-        ? const SizedBox(
+        ? SizedBox(
             width: 20,
             height: 20,
             child: CircularProgressIndicator(
               strokeWidth: 2.5,
-              color: ChhayaColors.white,
+              color: ChhayaPalette.of(context).white,
             ),
           )
         : Row(
@@ -43,14 +43,14 @@ class ChhayaPrimaryButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 18, color: ChhayaColors.white),
+                Icon(icon, size: 18, color: ChhayaPalette.of(context).white),
                 const SizedBox(width: ChhayaSpacing.space1),
               ],
               Flexible(
                 child: Text(
                   label,
-                  style: ChhayaTypography.headlineMedium.copyWith(
-                    color: ChhayaColors.white,
+                  style: ChhayaType.of(context).headlineMedium.copyWith(
+                    color: ChhayaPalette.of(context).white,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.1,
@@ -70,12 +70,12 @@ class ChhayaPrimaryButton extends StatelessWidget {
           width: expanded ? double.infinity : width,
           child: FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: ChhayaColors.accent,
-              foregroundColor: ChhayaColors.white,
-              disabledBackgroundColor: ChhayaColors.warmGray,
-              disabledForegroundColor: ChhayaColors.inkFaint,
+              backgroundColor: ChhayaPalette.of(context).accent,
+              foregroundColor: ChhayaPalette.of(context).white,
+              disabledBackgroundColor: ChhayaPalette.of(context).warmGray,
+              disabledForegroundColor: ChhayaPalette.of(context).inkFaint,
               elevation: 0,
-              shadowColor: ChhayaColors.coral.withValues(alpha: 0),
+              shadowColor: ChhayaPalette.of(context).coral.withValues(alpha: 0),
               minimumSize: const Size(44, 44),
               padding: const EdgeInsets.symmetric(
                 horizontal: ChhayaSpacing.space6,
@@ -133,11 +133,11 @@ class ChhayaSecondaryButton extends StatelessWidget {
         width: expanded ? double.infinity : width,
         child: OutlinedButton(
           style: OutlinedButton.styleFrom(
-            backgroundColor: ChhayaColors.white,
-            foregroundColor: ChhayaColors.coralDeep,
-            disabledBackgroundColor: ChhayaColors.warmGray,
-            side: const BorderSide(
-              color: ChhayaColors.borderMed,
+            backgroundColor: ChhayaPalette.of(context).cardSurface,
+            foregroundColor: ChhayaPalette.of(context).coralDeep,
+            disabledBackgroundColor: ChhayaPalette.of(context).warmGray,
+            side: BorderSide(
+              color: ChhayaPalette.of(context).borderMed,
               width: 1,
             ),
             shape: RoundedRectangleBorder(
@@ -156,12 +156,12 @@ class ChhayaSecondaryButton extends StatelessWidget {
                   onPressed();
                 },
           child: isLoading
-              ? const SizedBox(
+              ? SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2.5,
-                    color: ChhayaColors.coralDeep,
+                    color: ChhayaPalette.of(context).coralDeep,
                   ),
                 )
               : Row(
@@ -169,14 +169,14 @@ class ChhayaSecondaryButton extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     if (icon != null) ...[
-                      Icon(icon, size: 18, color: ChhayaColors.coralDeep),
+                      Icon(icon, size: 18, color: ChhayaPalette.of(context).coralDeep),
                       const SizedBox(width: ChhayaSpacing.space1),
                     ],
                     Flexible(
                       child: Text(
                         label,
-                        style: ChhayaTypography.headlineMedium.copyWith(
-                          color: ChhayaColors.coralDeep,
+                        style: ChhayaType.of(context).headlineMedium.copyWith(
+                          color: ChhayaPalette.of(context).coralDeep,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
@@ -224,12 +224,12 @@ class ChhayaPillButton extends StatelessWidget {
         height: buttonHeight,
         child: FilledButton(
           style: FilledButton.styleFrom(
-            backgroundColor: background,
-            foregroundColor: foreground,
-            disabledBackgroundColor: ChhayaColors.warmGray,
-            disabledForegroundColor: ChhayaColors.inkFaint,
+            backgroundColor: background == ChhayaColors.coral ? ChhayaPalette.of(context).accent : background,
+            foregroundColor: foreground == ChhayaColors.white ? ChhayaPalette.of(context).onAccent : foreground,
+            disabledBackgroundColor: ChhayaPalette.of(context).warmGray,
+            disabledForegroundColor: ChhayaPalette.of(context).inkFaint,
             elevation: 0,
-            shadowColor: ChhayaColors.coral.withValues(alpha: 0),
+            shadowColor: ChhayaPalette.of(context).coral.withValues(alpha: 0),
             minimumSize: const Size(44, 44),
             padding: const EdgeInsets.symmetric(
               horizontal: ChhayaSpacing.space4,
@@ -265,7 +265,7 @@ class ChhayaPillButton extends StatelessWidget {
                     Flexible(
                       child: Text(
                         label,
-                        style: ChhayaTypography.headlineSmall.copyWith(
+                        style: ChhayaType.of(context).headlineSmall.copyWith(
                           color: foreground,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -303,7 +303,7 @@ class ChhayaGhostButton extends StatelessWidget {
         onPressed();
       },
       style: TextButton.styleFrom(
-        foregroundColor: ChhayaColors.accent,
+        foregroundColor: ChhayaPalette.of(context).accent,
         padding: const EdgeInsets.symmetric(
           horizontal: ChhayaSpacing.space2,
           vertical: ChhayaSpacing.space1,
@@ -318,13 +318,13 @@ class ChhayaGhostButton extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 16, color: ChhayaColors.accent),
+            Icon(icon, size: 16, color: ChhayaPalette.of(context).accent),
             const SizedBox(width: ChhayaSpacing.space1),
           ],
           Text(
             label,
-            style: ChhayaTypography.footnote.copyWith(
-              color: ChhayaColors.accent,
+            style: ChhayaType.of(context).footnote.copyWith(
+              color: ChhayaPalette.of(context).accent,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -367,16 +367,16 @@ class ChhayaIconButton extends StatelessWidget {
             height: buttonSize * 0.4,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              color: color ?? ChhayaColors.accent,
+              color: color ?? ChhayaPalette.of(context).accent,
               valueColor: disableAnimations
-                  ? AlwaysStoppedAnimation<Color>(color ?? ChhayaColors.accent)
+                  ? AlwaysStoppedAnimation<Color>(color ?? ChhayaPalette.of(context).accent)
                   : null,
             ),
           )
         : Icon(
             icon,
             size: buttonSize * 0.48,
-            color: color ?? ChhayaColors.labelPrimary,
+            color: color ?? ChhayaPalette.of(context).labelPrimary,
           );
 
     final button = InkWell(
@@ -391,10 +391,10 @@ class ChhayaIconButton extends StatelessWidget {
         width: buttonSize,
         height: buttonSize,
         decoration: BoxDecoration(
-          color: background ?? ChhayaColors.fillTertiary,
+          color: background ?? ChhayaPalette.of(context).fillTertiary,
           shape: BoxShape.circle,
           border: Border.all(
-            color: ChhayaColors.glassBorder.withValues(alpha: 0.12),
+            color: ChhayaPalette.of(context).glassBorder.withValues(alpha: 0.12),
           ),
         ),
         child: Center(child: child),
@@ -462,7 +462,7 @@ class ChhayaFAB extends StatelessWidget {
               )
             : Text(
                 label,
-                style: ChhayaTypography.headlineMedium.copyWith(
+                style: ChhayaType.of(context).headlineMedium.copyWith(
                   color: scheme.onPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -535,29 +535,29 @@ class ChhayaChip extends StatelessWidget {
             Icon(icon,
                 size: 14,
                 color: selected
-                    ? ChhayaColors.onAccent
-                    : ChhayaColors.labelSecondary),
+                    ? ChhayaPalette.of(context).onAccent
+                    : ChhayaPalette.of(context).labelSecondary),
             const SizedBox(width: 4),
           ],
           Text(
             label,
-            style: ChhayaTypography.caption1.copyWith(
+            style: ChhayaType.of(context).caption1.copyWith(
               fontSize: 12,
               fontWeight: FontWeight.w600,
               color: selected
-                  ? ChhayaColors.onAccent
-                  : ChhayaColors.labelSecondary,
+                  ? ChhayaPalette.of(context).onAccent
+                  : ChhayaPalette.of(context).labelSecondary,
             ),
           ),
         ],
       ),
       selected: selected,
-      selectedColor: selectedColor ?? ChhayaColors.accent,
-      backgroundColor: backgroundColor ?? ChhayaColors.cardSurface,
+      selectedColor: selectedColor ?? ChhayaPalette.of(context).accent,
+      backgroundColor: backgroundColor ?? ChhayaPalette.of(context).cardSurface,
       side: BorderSide(
         color: selected
-            ? ChhayaColors.transparent
-            : ChhayaColors.glassBorder.withValues(alpha: 0.14),
+            ? ChhayaPalette.of(context).transparent
+            : ChhayaPalette.of(context).glassBorder.withValues(alpha: 0.14),
       ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(ChhayaRadius.pill),

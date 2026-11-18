@@ -222,10 +222,10 @@ class _NotificationOverlayState extends State<NotificationOverlay>
               vertical: ChhayaSpacing.space3,
             ),
             decoration: BoxDecoration(
-              color: ChhayaColors.secondaryBackground.withValues(alpha: 0.82),
+              color: ChhayaPalette.of(context).secondaryBackground.withValues(alpha: 0.82),
               borderRadius: BorderRadius.circular(_borderRadius),
               border: Border.all(
-                color: ChhayaColors.labelPrimary.withValues(alpha: 0.08),
+                color: ChhayaPalette.of(context).labelPrimary.withValues(alpha: 0.08),
                 width: 0.5,
               ),
             ),
@@ -248,8 +248,8 @@ class _NotificationOverlayState extends State<NotificationOverlay>
                           Expanded(
                             child: Text(
                               widget.senderName,
-                              style: ChhayaTypography.headlineMedium.copyWith(
-                                color: ChhayaColors.labelPrimary,
+                              style: ChhayaType.of(context).headlineMedium.copyWith(
+                                color: ChhayaPalette.of(context).labelPrimary,
                                 fontSize: 15,
                               ),
                               maxLines: 1,
@@ -259,8 +259,8 @@ class _NotificationOverlayState extends State<NotificationOverlay>
                           const SizedBox(width: ChhayaSpacing.space1),
                           Text(
                             'now',
-                            style: ChhayaTypography.labelMedium.copyWith(
-                              color: ChhayaColors.labelTertiary,
+                            style: ChhayaType.of(context).labelMedium.copyWith(
+                              color: ChhayaPalette.of(context).labelTertiary,
                             ),
                           ),
                         ],
@@ -268,8 +268,8 @@ class _NotificationOverlayState extends State<NotificationOverlay>
                       const SizedBox(height: ChhayaSpacing.space1),
                       Text(
                         widget.messagePreview,
-                        style: ChhayaTypography.bodySmall.copyWith(
-                          color: ChhayaColors.labelSecondary,
+                        style: ChhayaType.of(context).bodySmall.copyWith(
+                          color: ChhayaPalette.of(context).labelSecondary,
                           fontSize: 13,
                         ),
                         maxLines: 2,

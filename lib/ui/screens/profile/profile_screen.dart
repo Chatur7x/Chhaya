@@ -45,7 +45,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final verificationLevel = _contact?.verificationLevel ?? 3;
 
     return Scaffold(
-      backgroundColor: ChhayaColors.primaryBackground,
+      backgroundColor: ChhayaPalette.of(context).primaryBackground,
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
@@ -53,10 +53,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           SliverToBoxAdapter(child:Padding(padding:const EdgeInsets.all(24),child:Column(children:[
             AvatarWidget(name:displayName,size:80),
             const SizedBox(height:20),
-            Text(displayName,textAlign:TextAlign.center,style:ChhayaTypography.title.copyWith(fontSize:24)),
+            Text(displayName,textAlign:TextAlign.center,style:ChhayaType.of(context).title.copyWith(fontSize:24)),
             const SizedBox(height:8),
             if(!isOwnProfile) Text(_verificationLabel(verificationLevel),
-              style:ChhayaTypography.body.copyWith(color:_verificationColor(verificationLevel))),
+              style:ChhayaType.of(context).body.copyWith(color:_verificationColor(verificationLevel))),
           ]))),
           SliverToBoxAdapter(
             child: Padding(
@@ -69,12 +69,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       title: 'Chhaya ID',
                       child: Row(
                         children: [
-                          Expanded(child: Text(_shortId(chhayaIdText, 16), style: ChhayaTypography.code.copyWith(color: ChhayaColors.accent, fontSize: 13))),
+                          Expanded(child: Text(_shortId(chhayaIdText, 16), style: ChhayaType.of(context).code.copyWith(color: ChhayaPalette.of(context).accent, fontSize: 13))),
                           ChhayaIconButton(icon: Icons.copy_rounded, tooltip: 'Copy Chhaya ID', onPressed: () {
                             Clipboard.setData(ClipboardData(text: chhayaIdText));
                             ChhayaHaptics.selection();
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied')));
-                          }, size: 36, background: ChhayaColors.cardSurface),
+                          }, size: 36, background: ChhayaPalette.of(context).cardSurface),
                         ],
                       ),
                     ),
@@ -83,12 +83,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       title: 'Your Chhaya ID',
                       child: Row(
                         children: [
-                          Expanded(child: Text(_shortId(chhayaIdText, 16), style: ChhayaTypography.code.copyWith(color: ChhayaColors.accent, fontSize: 13))),
+                          Expanded(child: Text(_shortId(chhayaIdText, 16), style: ChhayaType.of(context).code.copyWith(color: ChhayaPalette.of(context).accent, fontSize: 13))),
                           ChhayaIconButton(icon: Icons.copy_rounded, tooltip: 'Copy Chhaya ID', onPressed: () {
                             Clipboard.setData(ClipboardData(text: chhayaIdText));
                             ChhayaHaptics.selection();
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied')));
-                          }, size: 36, background: ChhayaColors.cardSurface),
+                          }, size: 36, background: ChhayaPalette.of(context).cardSurface),
                         ],
                       ),
                     ),
@@ -99,16 +99,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ],
                   if (!isOwnProfile) ...[
                     _buildActionRow([
-                      _actionBtn(Icons.chat_bubble_rounded, 'Message', ChhayaColors.accent, () {
+                      _actionBtn(Icons.chat_bubble_rounded, 'Message', ChhayaPalette.of(context).accent, () {
                         _startChat();
                       }),
-                      _actionBtn(Icons.call_rounded, 'Audio Call', ChhayaColors.success, () {
+                      _actionBtn(Icons.call_rounded, 'Audio Call', ChhayaPalette.of(context).success, () {
                         Navigator.of(context).pushNamed(ChhayaRouter.call, arguments: {'conversationId':ref.read(conversationsProvider).where((c)=>c.participants.any((p)=>p.id==_contact?.id)).firstOrNull?.id??'', 'contactName': displayName, 'isVideo': false});
                       }),
-                      _actionBtn(Icons.videocam_rounded, 'Video Call', ChhayaColors.info, () {
+                      _actionBtn(Icons.videocam_rounded, 'Video Call', ChhayaPalette.of(context).info, () {
                         Navigator.of(context).pushNamed(ChhayaRouter.call, arguments: {'conversationId':ref.read(conversationsProvider).where((c)=>c.participants.any((p)=>p.id==_contact?.id)).firstOrNull?.id??'', 'contactName': displayName, 'isVideo': true});
                       }),
-                      _actionBtn(Icons.qr_code_rounded, 'Verify', ChhayaColors.warning, () {
+                      _actionBtn(Icons.qr_code_rounded, 'Verify', ChhayaPalette.of(context).warning, () {
                         Navigator.of(context).pushNamed(ChhayaRouter.verification);
                       }),
                     ]),
@@ -123,9 +123,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ),
                     ),
                     _buildActionRow([
-                      _actionBtn(_blocked ? Icons.check_circle_rounded : Icons.block_rounded, _blocked ? 'Unblock' : 'Block', _blocked ? ChhayaColors.success : ChhayaColors.error, () {
+                      _actionBtn(_blocked ? Icons.check_circle_rounded : Icons.block_rounded, _blocked ? 'Unblock' : 'Block', _blocked ? ChhayaPalette.of(context).success : ChhayaPalette.of(context).error, () {
                         _toggleBlock();
-                      }, bgColor: (_blocked ? ChhayaColors.success : ChhayaColors.error).withValues(alpha: 0.1), textColor: _blocked ? ChhayaColors.success : ChhayaColors.error),
+                      }, bgColor: (_blocked ? ChhayaPalette.of(context).success : ChhayaPalette.of(context).error).withValues(alpha: 0.1), textColor: _blocked ? ChhayaPalette.of(context).success : ChhayaPalette.of(context).error),
                     ]),
                   ],
                 ],
@@ -156,9 +156,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Color _verificationColor(int level) {
     switch (level) {
-      case 3: return ChhayaColors.verifiedLevel3;
-      case 2: return ChhayaColors.verifiedLevel2;
-      default: return ChhayaColors.verifiedLevel1;
+      case 3: return ChhayaPalette.of(context).verifiedLevel3;
+      case 2: return ChhayaPalette.of(context).verifiedLevel2;
+      default: return ChhayaPalette.of(context).verifiedLevel1;
     }
   }
 
@@ -182,7 +182,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
     showModalBottomSheet(
       context: context,
-      backgroundColor: ChhayaColors.sheetBackground,
+      backgroundColor: ChhayaPalette.of(context).sheetBackground,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(ChhayaRadius.xxl))),
       builder: (_) => Padding(
         padding: const EdgeInsets.all(ChhayaSpacing.space5),
@@ -190,25 +190,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Recovery Phrase', style: ChhayaTypography.displaySmall.copyWith(fontSize: 20)),
+            Text('Recovery Phrase', style: ChhayaType.of(context).displaySmall.copyWith(fontSize: 20)),
             const SizedBox(height: ChhayaSpacing.space3),
-            Text('Write these down. They restore your account.', style: ChhayaTypography.bodySmall.copyWith(color: ChhayaColors.labelTertiary)),
+            Text('Write these down. They restore your account.', style: ChhayaType.of(context).bodySmall.copyWith(color: ChhayaPalette.of(context).labelTertiary)),
             const SizedBox(height: ChhayaSpacing.space4),
             Wrap(
               spacing: ChhayaSpacing.space2, runSpacing: ChhayaSpacing.space2,
               children: List.generate(phrase.length, (i) => Container(
                 padding: const EdgeInsets.symmetric(horizontal: ChhayaSpacing.space3, vertical: ChhayaSpacing.space2),
                 decoration: BoxDecoration(
-                  color: ChhayaColors.fillTertiary,
+                  color: ChhayaPalette.of(context).fillTertiary,
                   borderRadius: BorderRadius.circular(ChhayaRadius.md),
-                  border: Border.all(color: ChhayaColors.separator),
+                  border: Border.all(color: ChhayaPalette.of(context).separator),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('${i + 1}.', style: ChhayaTypography.labelSmall.copyWith(color: ChhayaColors.accent, fontWeight: FontWeight.w700)),
+                    Text('${i + 1}.', style: ChhayaType.of(context).labelSmall.copyWith(color: ChhayaPalette.of(context).accent, fontWeight: FontWeight.w700)),
                     const SizedBox(width: ChhayaSpacing.space2),
-                    Text(phrase[i], style: ChhayaTypography.bodyMedium.copyWith(fontSize: 13, fontFamily: 'RobotoMono')),
+                    Text(phrase[i], style: ChhayaType.of(context).bodyMedium.copyWith(fontSize: 13, fontFamily: 'RobotoMono')),
                   ],
                 ),
               )),
@@ -245,14 +245,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       margin: const EdgeInsets.only(bottom: ChhayaSpacing.space3),
       padding: const EdgeInsets.all(ChhayaSpacing.space4),
       decoration: BoxDecoration(
-        color: ChhayaColors.cardSurface,
+        color: ChhayaPalette.of(context).cardSurface,
         borderRadius: BorderRadius.circular(ChhayaRadius.lg),
-        border: Border.all(color: ChhayaColors.opaqueSeparator.withValues(alpha: 0.45), width: 0.7),
+        border: Border.all(color: ChhayaPalette.of(context).opaqueSeparator.withValues(alpha: 0.45), width: 0.7),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: ChhayaTypography.labelSmall.copyWith(letterSpacing: 0.2, color: ChhayaColors.labelTertiary, fontWeight: FontWeight.w700)),
+          Text(title, style: ChhayaType.of(context).labelSmall.copyWith(letterSpacing: 0.2, color: ChhayaPalette.of(context).labelTertiary, fontWeight: FontWeight.w700)),
           const SizedBox(height: ChhayaSpacing.space3),
           child,
         ],
@@ -268,16 +268,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget _actionBtn(IconData icon,String label,Color color,VoidCallback onTap,
       {Color? bgColor,Color? textColor}) => TextButton.icon(
     onPressed:onTap,icon:Icon(icon,size:20),label:Text(label),
-    style:TextButton.styleFrom(foregroundColor:ChhayaColors.accent,
-      backgroundColor:ChhayaColors.coralTint,minimumSize:const Size(48,48)),
+    style:TextButton.styleFrom(foregroundColor:ChhayaPalette.of(context).accent,
+      backgroundColor:ChhayaPalette.of(context).coralTint,minimumSize:const Size(48,48)),
   );
 
   Widget _detailRow(String label,String value) => Padding(
     padding:const EdgeInsets.symmetric(vertical:8),child:Column(
       crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Text(label,style:ChhayaTypography.caption),
+        Text(label,style:ChhayaType.of(context).caption),
         const SizedBox(height:4),
-        Text(value,style:ChhayaTypography.bodyLarge),
+        Text(value,style:ChhayaType.of(context).bodyLarge),
       ],
     ),
   );

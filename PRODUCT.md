@@ -1,53 +1,36 @@
-# PRODUCT.md — Chhaya (Secure Messenger)
+# Chhaya V14 — current product definition
 
-## Product Identity
-**Name:** Chhaya  
-**Tagline:** Privacy Redefined. Speed Perfected.  
-**Version:** 12.0.0  
-**Platform:** Flutter (Android, iOS, Windows, Web)
+**Product:** Chhaya, a privacy-focused messenger prototype
+**Client:** Flutter for Android and iOS, with additional repository targets
+**Account:** Chhaya identity key and recovery phrase; no phone number or email is required by the app account model
+**Visual identity:** Warm cream and coral, Departure Mono for the established display treatment, and the Chhaya crescent/chat avatar.
 
-## Core Value Proposition
-A privacy-first, end-to-end encrypted messenger inspired by Threema and Session. No phone number, no email, no central server — just a 66-character anonymous identity and military-grade encryption.
+## Product promise
 
-## Target Audience
-- **Primary:** Privacy-conscious consumers, activists, journalists, professionals handling sensitive communications
-- **Secondary:** Security researchers, crypto enthusiasts, teams needing confidential collaboration
-- **Tertiary:** General users seeking WhatsApp/Telegram alternative with true anonymity
+Chhaya aims to let people communicate without tying the app account to a phone number or email. Current code includes direct and group encrypted-message flows, identity verification controls, replies, attachments, polls, disappearing-message controls, local search/pin/block features, call signaling, app lock, local encrypted storage and encrypted export/restore scaffolding.
 
-## Key Differentiators
-1. **Zero-Knowledge Identity** — No phone/email tied to account
-2. **Double Ratchet + AES-256-GCM** — Forward secrecy, keys rotate per message
-3. **Onion Routing (3-hop)** — Hides origin IP across anonymous relays
-4. **P2P WebRTC Calls** — Direct peer-to-peer voice/video, no server relay
-5. **Decentralized File Sharing** — Chunked, encrypted, swarm-distributed
-6. **Steganography** — Hide messages inside PNG images (LSB)
-7. **Panic PIN** — Instant wipe on coercion
-8. **Biometric Lock** — Fingerprint/FaceID gate
-9. **Disappearing Messages** — Configurable TTL per conversation
-10. **QR Verification** — In-person contact verification
+This is an active development project. A feature in the code is not considered production-ready until its acceptance evidence is recorded in [the delivery checklist](docs/delivery-checklist.md). Current build, hosted-backend, device-test and security-review limitations are listed there.
 
-## Product Mode
-**Operate** — This is a daily-use communication tool. Scanability, consistency, native expectations, and real usage scenes outrank expression. Brand lives in precise details.
+## Security wording
 
-## Current State
-- **Architecture:** Clean layered (UI → Services → Core → Storage)
-- **State Management:** Riverpod (providers + StateNotifier)
-- **Navigation:** Named routes with MaterialPageRoute
-- **Theme:** Custom Material 3 dark theme (ChhayaTheme) — 700+ lines
-- **Backend:** Go Onion Node (WSS) + Rust Swarm Relay (Axum)
-- **Tests:** Basic widget + crypto/onion unit tests
+Use precise statements only:
 
-## Constraints
-- Must maintain Flutter/Dart codebase (not React)
-- Must preserve all existing crypto/security logic
-- Must work on Android, iOS, Windows, Web
-- Must support RTL languages (future)
-- Must pass WCAG AA accessibility
-- Must honor `prefers-reduced-motion` equivalent
+- Direct chat encryption currently uses Chhaya's custom X25519/Double Ratchet/AES-GCM implementation. It has not received an independent protocol audit.
+- ML-KEM/ML-DSA primitives are present, but the live messaging protocol does not yet use authenticated post-quantum key establishment or ratchet reseeding.
+- The onion-router prototype is not connected to normal message delivery.
+- The backend can observe account/conversation relationships and delivery metadata while it stores encrypted envelopes.
+- Device security, backups, push notifications, background calls, and production deployment require further platform work and validation.
 
-## Success Metrics
-- App launch < 500ms cold start
-- Message send-to-deliver < 200ms (onion routing)
-- Call connect < 3s (WebRTC)
-- 60fps animations on 5-year-old devices
-- Zero critical security findings
+Do not use “military grade,” “unbreakable,” “zero knowledge,” “anonymous,” “no central server,” or intelligence-agency comparisons as product guarantees. A protocol name, dependency or design goal is not evidence of a deployed protection.
+
+## Current feature boundaries
+
+The app provides the user flows represented in the repository, subject to the open checks in the delivery checklist. It does not currently provide verified sealed sender, a production onion network, complete device pairing/revocation, background incoming-call integration, SFrame media encryption, production push delivery, or a deployed SaaS backend with an owned domain and operational database. Group participant addition/invitation still needs a secure acceptance and key-session flow.
+
+## Product quality goals
+
+- Keep Android and iOS behavior aligned and accessible.
+- Respect reduced-motion settings and use platform-appropriate interaction patterns.
+- Keep local data encrypted and explain backup/recovery trade-offs.
+- Make identity verification, session encryption level, membership changes and delivery state understandable to users.
+- Measure startup time, message latency, media throughput, battery and resource use on named physical devices before publishing performance claims.

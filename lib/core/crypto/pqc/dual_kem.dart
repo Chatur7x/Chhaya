@@ -35,12 +35,17 @@ class DualKem {
         'KEM outputs must be at least 32 bytes',
       );
     }
-    return Hkdf.deriveKey(
-      inputKeyMaterial: Uint8List.fromList([...primary, ...secondary]),
-      salt: Uint8List.fromList(context),
-      info: Uint8List.fromList(utf8.encode('Chhaya-dualkem-v1')),
-      length: 32,
-    );
+    final inputKeyMaterial = Uint8List.fromList([...primary, ...secondary]);
+    try {
+      return Hkdf.deriveKey(
+        inputKeyMaterial: inputKeyMaterial,
+        salt: Uint8List.fromList(context),
+        info: Uint8List.fromList(utf8.encode('Chhaya-dualkem-v1')),
+        length: 32,
+      );
+    } finally {
+      inputKeyMaterial.fillRange(0, inputKeyMaterial.length, 0);
+    }
   }
 
   /// Runs [primary] and [secondary] KEMs and combines. Either being
@@ -52,18 +57,26 @@ class DualKem {
     required Uint8List secondaryPublicKey,
     required Uint8List context,
   }) async {
-    if (!primary.isAvailable) {
+    if (!await primary.initialize()) {
       throw PqcUnavailableException(primary.name);
     }
-    if (!secondary.isAvailable) {
+    if (!await secondary.initialize()) {
       throw PqcUnavailableException(secondary.name);
     }
     final a = await primary.encapsulate(primaryPublicKey);
-    final b = await secondary.encapsulate(secondaryPublicKey);
-    return combine(
-      primary: a.sharedSecret,
-      secondary: b.sharedSecret,
-      context: context,
-    );
+    try {
+      final b = await secondary.encapsulate(secondaryPublicKey);
+      try {
+        return combine(
+          primary: a.sharedSecret,
+          secondary: b.sharedSecret,
+          context: context,
+        );
+      } finally {
+        b.sharedSecret.fillRange(0, b.sharedSecret.length, 0);
+      }
+    } finally {
+      a.sharedSecret.fillRange(0, a.sharedSecret.length, 0);
+    }
   }
 }

@@ -1,22 +1,27 @@
-// ML-DSA-87 signatures — AUDIT-GATED placeholder (V14 Part 5).
-//
-// Paired with Ed25519 (Part 1, audited) until an approved FIPS 204
-// implementation lands. Same gating rationale as ml_kem.dart.
+// ML-DSA-87 adapter for the pinned native AWS-LC provider.
 import 'dart:typed_data';
+
+import 'package:chhaya_pqc/chhaya_pqc.dart';
 
 import 'pqc_provider.dart';
 
-/// ML-DSA-87 (FIPS 204) provider shape. Unavailable until approved.
+/// ML-DSA-87 (FIPS 204) primitive adapter. Identity use stays separately gated.
 class MlDsa87 implements PqSigner {
   @override
   String get name => 'ML-DSA-87';
 
   @override
-  bool get isAvailable => false;
+  bool get isAvailable => ChhayaPqc.isAvailable;
 
   @override
-  Future<Uint8List> sign(Uint8List privateKey, Uint8List message) {
-    throw PqcUnavailableException(name);
+  Future<bool> initialize() => ChhayaPqc.initialize();
+
+  Future<ChhayaPqcKeyPair> generateKeyPair() => ChhayaPqc.generateDsaKeyPair();
+
+  @override
+  Future<Uint8List> sign(Uint8List privateKey, Uint8List message) async {
+    if (!await initialize()) throw PqcUnavailableException(name);
+    return ChhayaPqc.sign(privateKey, message);
   }
 
   @override
@@ -24,7 +29,8 @@ class MlDsa87 implements PqSigner {
     Uint8List publicKey,
     Uint8List message,
     Uint8List signature,
-  ) {
-    throw PqcUnavailableException(name);
+  ) async {
+    if (!await initialize()) throw PqcUnavailableException(name);
+    return ChhayaPqc.verify(publicKey, message, signature);
   }
 }
