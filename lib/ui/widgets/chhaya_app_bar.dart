@@ -1,12 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:chaaya/ui/theme/chhaya_theme.dart';
 
-/// ChhayaAppBar — 56px top bar.
-///
-/// Translucent [ChhayaColors.cream] background (alpha ~0.9) with no
-/// elevation. The title uses [ChhayaTypography.title] in
-/// [ChhayaColors.ink]; the optional subtitle uses
-/// [ChhayaTypography.caption] in [ChhayaColors.inkMuted].
+/// Pixel display heading with native navigation and scaling-aware content.
 class ChhayaAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final String? subtitle;
@@ -32,6 +27,7 @@ class ChhayaAppBar extends StatelessWidget implements PreferredSizeWidget {
       scrolledUnderElevation: 0,
       toolbarHeight: 64,
       titleSpacing: 24,
+      shape: const Border(bottom: BorderSide(color: ChhayaColors.borderSoft)),
       leading: leading,
       actions: actions,
       title: Column(

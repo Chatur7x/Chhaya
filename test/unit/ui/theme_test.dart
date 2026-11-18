@@ -64,6 +64,10 @@ void main() {
     test('primary actions and sent text meet normal-text contrast', () {
       expect(_contrast(ChhayaColors.white, ChhayaColors.accent), greaterThanOrEqualTo(4.5));
       expect(_contrast(ChhayaColors.bubbleSentText, ChhayaColors.bubbleSent), greaterThanOrEqualTo(4.5));
+      for(final state in [ChhayaColors.success,ChhayaColors.warning,ChhayaColors.error,ChhayaColors.info]) {
+        expect(_contrast(state,ChhayaColors.cream),greaterThanOrEqualTo(4.5));
+        expect(_contrast(state,ChhayaColors.white),greaterThanOrEqualTo(4.5));
+      }
     });
 
     test('light scheme is light, dark preserved', () {

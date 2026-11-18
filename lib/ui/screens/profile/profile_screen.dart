@@ -53,7 +53,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           SliverToBoxAdapter(child:Padding(padding:const EdgeInsets.all(24),child:Column(children:[
             AvatarWidget(name:displayName,size:80),
             const SizedBox(height:20),
-            Text(displayName,textAlign:TextAlign.center,style:ChhayaTypography.headline),
+            Text(displayName,textAlign:TextAlign.center,style:ChhayaTypography.title.copyWith(fontSize:24)),
             const SizedBox(height:8),
             if(!isOwnProfile) Text(_verificationLabel(verificationLevel),
               style:ChhayaTypography.body.copyWith(color:_verificationColor(verificationLevel))),

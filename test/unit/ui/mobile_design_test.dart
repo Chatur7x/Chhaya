@@ -59,6 +59,7 @@ void main() {
     final loader=FontLoader('Inter')..addFont(rootBundle.load('assets/fonts/Inter-Variable.ttf'));
     await loader.load();
     await (FontLoader('MaterialIcons')..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
+    await (FontLoader('DepartureMono')..addFont(rootBundle.load('assets/fonts/DepartureMono-Regular.otf'))).load();
     await (FontLoader('RobotoMono')..addFont(rootBundle.load('assets/fonts/RobotoMono-Variable.ttf'))).load();
   });
   final scenes=<String,Widget>{
@@ -75,13 +76,14 @@ void main() {
     'signup':const OnboardingScreen(),
     'restore':const OnboardingScreen(),
     'conversation':const ChatScreen(conversationId:'design-chat',contactName:'Maya Rao'),
+    'conversation-keyboard':const ChatScreen(conversationId:'design-chat',contactName:'Maya Rao'),
     'profile':const ProfileScreen(contactId:'maya'),
     'verification':const VerificationScreen(),
   };
   for(final viewport in [(360.0,1.0),(320.0,2.0),(768.0,1.0)]) {
     for(final entry in scenes.entries) {
       testWidgets('${entry.key} fits ${viewport.$1}dp at ${viewport.$2}x text', (tester) async {
-        tester.view.physicalSize=Size(viewport.$1,820);
+        tester.view.physicalSize=Size(viewport.$1,viewport.$1==320?568:820);
         tester.view.devicePixelRatio=1;
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
@@ -98,7 +100,8 @@ void main() {
         await tester.pumpWidget(UncontrolledProviderScope(container:container,
           child:RepaintBoundary(key:capture,child:MaterialApp(debugShowCheckedModeBanner:false,theme:ChhayaTheme.materialLight,
             builder:(context,child)=>MediaQuery(data:MediaQuery.of(context).copyWith(
-              disableAnimations:true,textScaler:TextScaler.linear(viewport.$2)),child:child!),
+              disableAnimations:true,textScaler:TextScaler.linear(viewport.$2),
+              viewInsets:entry.key=='conversation-keyboard'?const EdgeInsets.only(bottom:260):EdgeInsets.zero),child:child!),
             home:entry.value)),
         ));
         await tester.pump();
@@ -121,6 +124,19 @@ void main() {
         if(entry.key=='home') {
           expect(find.byType(NavigationRail),viewport.$1>=720?findsOneWidget:findsNothing);
           expect(find.byType(NavigationBar),viewport.$1<720?findsOneWidget:findsNothing);
+        }
+        if(entry.key=='chats') {
+          final search = find.byType(TextField);
+          await tester.enterText(search, 'no-such-person');
+          await tester.pump();
+          expect(find.text('No matching conversations'), findsOneWidget);
+          await tester.tap(find.byTooltip('Clear search'));
+          await tester.pump();
+          expect(find.text('Maya Rao'), findsOneWidget);
+          expect(find.byTooltip('Clear search'), findsNothing);
+          FocusManager.instance.primaryFocus?.unfocus();
+          await tester.pump();
+          expect(tester.takeException(), isNull);
         }
         if(entry.key=='conversation') {
           expect(find.byTooltip('Send message'),findsOneWidget);

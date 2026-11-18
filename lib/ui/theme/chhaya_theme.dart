@@ -3,7 +3,7 @@
 // Token classes live in their own files and are re-exported here, so
 // every existing `import 'chhaya_theme.dart'` keeps working:
 //   chhaya_colors.dart      Coral-on-Cream light tokens
-//   chhaya_typography.dart  Inter / Tiempos / Departure Mono scale
+//   chhaya_typography.dart  Inter reading / Departure Mono display scale
 //   chhaya_spacing.dart     4-based scale (spec sizes present)
 //   chhaya_radius.dart      Round posture (spec set 8/12/16/20/9999)
 //   chhaya_elevation.dart   Soft warm shadows (+ legacy ChhayaShadows)
@@ -103,7 +103,7 @@ class ChhayaTheme {
         elevation: 0,
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: scheme.surfaceContainerLow.withValues(alpha: 0.94),
+        backgroundColor: scheme.surfaceContainerLow,
         indicatorColor: scheme.primaryContainer,
         overlayColor: WidgetStateProperty.all(Colors.transparent),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {

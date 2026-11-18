@@ -53,6 +53,7 @@ void main() async {
 
   LicenseRegistry.addLicense(() async* {
     yield LicenseEntryWithLineBreaks(['Inter'],await rootBundle.loadString('assets/fonts/OFL-Inter.txt'));
+    yield LicenseEntryWithLineBreaks(['Departure Mono'],await rootBundle.loadString('assets/fonts/OFL-DepartureMono.txt'));
     yield LicenseEntryWithLineBreaks(['Roboto Mono'],await rootBundle.loadString('assets/fonts/OFL-RobotoMono.txt'));
   });
   runApp(const ProviderScope(child: ChhayaApp()));
@@ -263,129 +264,39 @@ class _AppStartupGateState extends ConsumerState<AppStartupGate> {
 
   @override
   Widget build(BuildContext context) {
-    final disableAnimations = MediaQuery.of(context).disableAnimations;
-
-    if (!_showPinPad) {
-      return const _SplashScreen();
-    }
-
-    return Scaffold(
-      backgroundColor: ChhayaColors.primaryBackground,
-      body: Stack(
-        children: [
-          Positioned(
-            top: -80, left: -80, right: -80, height: 320,
-            child: Container(decoration: const BoxDecoration(gradient: ChhayaColors.glowGradient)),
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                const Spacer(flex: 2),
-                Container(
-                  width: 72, height: 72,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(ChhayaRadius.lg),
-                    color: ChhayaColors.cardSurface,
-                    border: Border.all(
-                      color: ChhayaColors.accent.withValues(alpha: 0.5),
-                      width: 1.5,
-                    ),
-                  ),
-                  child: const Icon(Icons.lock_person_outlined, size: 34, color: ChhayaColors.accent),
-                ),
-                const SizedBox(height: ChhayaSpacing.space4),
-                Text('Unlock Chhaya', style: ChhayaTypography.displaySmall.copyWith(fontSize: 22)),
-                const SizedBox(height: ChhayaSpacing.space1),
-                Text(ref.read(localDatabaseProvider).getAppPin() == null
-                    ? 'Use device authentication to unlock'
-                    : 'Use your app PIN or device authentication', style: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.labelTertiary)),
-                const SizedBox(height: ChhayaSpacing.space5),
-                AnimatedContainer(
-                  duration: disableAnimations ? Duration.zero : const Duration(milliseconds: 100),
-                  transform: _shakeError
-                      ? Matrix4.translationValues(10.0, 0.0, 0.0)
-                      : Matrix4.identity(),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(4, (i) {
-                      final filled = i < _enteredPin.length;
-                      return AnimatedContainer(
-                        duration: disableAnimations ? Duration.zero : ChhayaAnimation.fast,
-                        margin: const EdgeInsets.symmetric(horizontal: 10),
-                        width: 16, height: 16,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: filled ? ChhayaColors.accent : ChhayaColors.cardSurface,
-                          border: Border.all(
-                            color: filled ? ChhayaColors.accent : ChhayaColors.opaqueSeparator,
-                            width: 1.5,
-                          ),
-                        ),
-                      );
-                    }),
-                  ),
-                ),
-                const Spacer(flex: 1),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 48),
-                  child: Column(
-                    children: [
-                      for (final row in [['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9'], ['', '0', '⌫']])
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: row.map((digit) {
-                              if (digit.isEmpty) return const SizedBox(width: 64, height: 64);
-                              if (digit == '⌫') {
-                                return SizedBox(
-                                  width: 64, height: 64,
-                                  child: IconButton(
-                                    style: IconButton.styleFrom(
-                                      backgroundColor: ChhayaColors.cardSurface,
-                                      shape: const CircleBorder(),
-                                      side: BorderSide(color: ChhayaColors.glassBorder.withValues(alpha: 0.12)),
-                                    ),
-                                    onPressed: _onPinDelete,
-                                    icon: const Icon(Icons.backspace_outlined, color: ChhayaColors.labelPrimary, size: 22),
-                                  ),
-                                );
-                              }
-                              return InkWell(
-                                customBorder: const CircleBorder(),
-                                onTap: () {
-                                  if (!disableAnimations) ChhayaHaptics.light();
-                                  _onPinDigit(digit);
-                                },
-                                child: Container(
-                                  width: 64, height: 64,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: ChhayaColors.cardSurface,
-                                    border: Border.all(color: ChhayaColors.glassBorder.withValues(alpha: 0.14)),
-                                    boxShadow: disableAnimations ? null : ChhayaShadows.subtle,
-                                  ),
-                                  child: Center(child: Text(digit, style: ChhayaTypography.displaySmall.copyWith(fontWeight: FontWeight.w300, fontSize: 26))),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: ChhayaSpacing.space4),
-                TextButton.icon(
-                  onPressed: _checkAuth,
-                  icon: const Icon(Icons.fingerprint_rounded, size: 18, color: ChhayaColors.accent),
-                  label: Text('Use Device Authentication', style: ChhayaTypography.labelMedium.copyWith(color: ChhayaColors.accent, fontWeight: FontWeight.w600, fontSize: 14)),
-                ),
-                const Spacer(flex: 1),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+    if(!_showPinPad) return const _SplashScreen();
+    final hasPin=ref.read(localDatabaseProvider).getAppPin()!=null;
+    return Scaffold(body:SafeArea(child:ListView(
+      padding:const EdgeInsets.symmetric(horizontal:24,vertical:32),children:[
+        const Icon(Icons.lock_outline,size:48,color:ChhayaColors.accent),
+        const SizedBox(height:24),
+        Text('Unlock Chhaya',textAlign:TextAlign.center,style:ChhayaTypography.headline),
+        const SizedBox(height:12),
+        Text(hasPin?'Use your app PIN or device authentication':'Use device authentication to unlock',
+          textAlign:TextAlign.center,style:ChhayaTypography.bodyLarge.copyWith(color:ChhayaColors.inkMuted)),
+        const SizedBox(height:24),
+        Semantics(label:'${_enteredPin.length} of 4 passcode digits entered',excludeSemantics:true,
+          child:Row(mainAxisAlignment:MainAxisAlignment.center,children:List.generate(4,(i)=>Container(
+            margin:const EdgeInsets.symmetric(horizontal:8),width:14,height:14,
+            decoration:BoxDecoration(shape:BoxShape.circle,
+              color:_shakeError?ChhayaColors.error:i<_enteredPin.length?ChhayaColors.accent:ChhayaColors.borderMed),
+          )))),
+        const SizedBox(height:24),
+        for(final row in [['1','2','3'],['4','5','6'],['7','8','9'],['','0','delete']])
+          Padding(padding:const EdgeInsets.only(bottom:12),child:Row(
+            mainAxisAlignment:MainAxisAlignment.spaceEvenly,
+            children:[for(final digit in row) SizedBox(width:64,height:64,
+              child:digit.isEmpty?null:digit=='delete'?IconButton(
+                tooltip:'Delete passcode digit',onPressed:_onPinDelete,icon:const Icon(Icons.backspace_outlined)):
+                OutlinedButton(onPressed:()=>_onPinDigit(digit),
+                  style:OutlinedButton.styleFrom(padding:EdgeInsets.zero,shape:const CircleBorder()),
+                  child:Text(digit,style:ChhayaTypography.title)),
+            )],
+          )),
+        const SizedBox(height:12),
+        TextButton.icon(onPressed:_checkAuth,icon:const Icon(Icons.fingerprint),
+          label:const Text('Use Device Authentication')),
+      ],
+    )));
   }
 }

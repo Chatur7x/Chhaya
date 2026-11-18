@@ -1,5 +1,6 @@
 import '../../../services/call/call_service.dart';
 import '../call/call_screen.dart';
+import '../../widgets/chhaya_pixel_mark.dart';
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/app_providers.dart';
@@ -99,6 +100,7 @@ class _HomeShellState extends ConsumerState<HomeShell> with WidgetsBindingObserv
     return Scaffold(
       body:Row(children:[
         if(wide) NavigationRail(
+          leading: const Padding(padding: EdgeInsets.symmetric(vertical:24),child:ChhayaPixelMark(size:32)),
           selectedIndex:_selectedIndex,onDestinationSelected:_select,
           labelType:NavigationRailLabelType.all,groupAlignment:-0.7,
           backgroundColor:ChhayaColors.surface,
@@ -113,11 +115,13 @@ class _HomeShellState extends ConsumerState<HomeShell> with WidgetsBindingObserv
           ]),
         ))),
       ]),
-      bottomNavigationBar:wide?null:NavigationBar(
+      bottomNavigationBar:wide?null:DecoratedBox(
+        decoration:const BoxDecoration(border:Border(top:BorderSide(color:ChhayaColors.borderSoft))),
+        child:NavigationBar(
         selectedIndex:_selectedIndex,onDestinationSelected:_select,
         destinations:[for(var i=0;i<labels.length;i++) NavigationDestination(
           icon:Icon(icons[i]),selectedIcon:Icon(selectedIcons[i]),label:labels[i])],
-      ),
+      )),
     );
   });
 }

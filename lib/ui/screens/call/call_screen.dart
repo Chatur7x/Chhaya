@@ -44,7 +44,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         )) else Expanded(child:Center(child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
           AvatarWidget(name:widget.contactName,size:96),
           const SizedBox(height:24),
-          Text(widget.contactName,textAlign:TextAlign.center,style:ChhayaTypography.headline),
+          Text(widget.contactName,textAlign:TextAlign.center,style:ChhayaTypography.title.copyWith(fontSize:24)),
         ])))),
         const Text('Keep both apps open during your call.',textAlign:TextAlign.center),
         const SizedBox(height:16),

@@ -164,8 +164,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       AvatarWidget(name:widget.contactName,size:40),
       const SizedBox(width:12),
       Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Text(widget.contactName,maxLines:2,overflow:TextOverflow.ellipsis,style:ChhayaTypography.title),
-        Text(convo?.participants.firstOrNull?.isVerified==true?'Verified identity':'Verify identity before messaging',
+        Text(widget.contactName,maxLines:MediaQuery.viewInsetsOf(context).bottom>0?1:2,overflow:TextOverflow.ellipsis,style:ChhayaTypography.title),
+        if(MediaQuery.viewInsetsOf(context).bottom==0) Text(convo?.participants.firstOrNull?.isVerified==true?'Verified identity':'Verify identity before messaging',
           maxLines:2,style:ChhayaTypography.caption),
       ])),
       PopupMenuButton<String>(tooltip:'Chat options',onSelected:(action){
@@ -421,7 +421,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     child:Row(crossAxisAlignment:CrossAxisAlignment.end,children:[
       IconButton(tooltip:'Attachment availability',icon:const Icon(Icons.add_rounded),onPressed:_showAttachmentSheet),
       const SizedBox(width:8),
-      Expanded(child:TextField(controller:_msgCtrl,minLines:1,maxLines:4,
+      Expanded(child:TextField(controller:_msgCtrl,minLines:1,
+        maxLines:MediaQuery.viewInsetsOf(context).bottom>0?2:4,
         style:ChhayaTypography.bodyLarge,textCapitalization:TextCapitalization.sentences,
         decoration:const InputDecoration(hintText:'Write a message',
           contentPadding:EdgeInsets.symmetric(horizontal:16,vertical:12)),
