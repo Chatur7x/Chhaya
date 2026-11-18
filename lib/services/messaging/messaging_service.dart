@@ -6,8 +6,18 @@ import '../../core/database/local_database.dart';
 import '../../core/models/contact.dart';
 import '../../core/models/conversation.dart';
 import '../../core/models/message.dart';
+import '../../core/models/message_attachment.dart';
+import 'message_payload.dart';
 import '../api/api_service.dart';
 import 'ratchet_message_codec.dart';
+
+/// The message has committed locally; retry its existing ID instead of composing again.
+class MessageQueuedException implements Exception {
+  final Message message;
+  MessageQueuedException(this.message);
+  @override
+  String toString() => 'Message saved on this device and waiting to send';
+}
 
 class MessagingService {
   final ApiService api;
@@ -30,7 +40,8 @@ class MessagingService {
         identity:identity,ownId:profile.chhayaId.publicKey);
   }
 
-  Future<Message> send(Conversation conversation,String text,{Duration? ttl}) => _serial(() async {
+  Future<Message> send(Conversation conversation,String text,{Duration? ttl,
+      String? replyToId, MessageAttachment? attachment, MessageType type = MessageType.text}) => _serial(() async {
     if(!api.isAuthenticated) { throw StateError('Connect your server in Settings first'); }
     if(conversation.isGroup||conversation.participants.length!=1) { throw StateError('Encrypted group messaging is not available yet'); }
     final peer=await database.getContact(conversation.participants.single.id) ?? conversation.participants.single;
@@ -38,11 +49,13 @@ class MessagingService {
     final globalTtl=database.getGlobalDisappearingDuration();
     final effectiveTtl=ttl??(globalTtl>0?Duration(seconds:globalTtl):null);
     final message=Message(id:const Uuid().v4(),conversationId:conversation.id,
-        senderId:'me',content:text,timestamp:DateTime.now(),isSent:false,ttl:effectiveTtl);
+        senderId:'me',content:text,timestamp:DateTime.now(),isSent:false,ttl:effectiveTtl,
+        replyToId:replyToId,attachment:attachment,type:type);
     final envelope=await (await _codec()).encrypt(peer,conversation.id,message.id,api.userId!,
-        {'content':text,'ttlMs':effectiveTtl?.inMilliseconds},
+        MessagePayload.encode(message),
         commit:(state,envelope)=>database.commitOutgoingMessage(state,message,envelope));
-    return _deliver(message,envelope);
+    try { return await _deliver(message,envelope); }
+    catch (_) { throw MessageQueuedException(message); }
   });
 
   Future<Message> _deliver(Message message,String envelope) async {
@@ -53,12 +66,26 @@ class MessagingService {
   }
 
   Future<void> retryPending(String conversationId) => _serial(() async {
+    if (!api.isAuthenticated) return;
+    final conversation = (await database.getAllConversations())
+      .where((c) => c.id == conversationId).firstOrNull;
+    if (conversation == null || conversation.isGroup || conversation.participants.length != 1) return;
+    final peer = await database.getContact(conversation.participants.single.id) ?? conversation.participants.single;
+    if (!peer.isVerified || peer.isBlocked || database.getBlockedContacts().contains(peer.id)) return;
     for(final message in await database.getMessages(conversationId)) {
-      if(message.senderId!='me'||message.isSent) { continue; }
+      if(message.senderId!='me'||message.isSent||message.isExpired) { continue; }
       final envelope=await database.loadSessionBlob('outbox:${message.id}');
       if(envelope!=null) { await _deliver(message,envelope); }
     }
   });
+
+  Future<void> retryAllPending() async {
+    if (!api.isAuthenticated) return;
+    for (final conversation in await database.getAllConversations()) {
+      try { await retryPending(conversation.id); }
+      catch (_) { if (!api.isAuthenticated) return; }
+    }
+  }
 
   Future<List<Conversation>> sync() => _serial(() async {
     if(!api.isAuthenticated) { return database.getAllConversations(); }
@@ -99,8 +126,7 @@ class MessagingService {
           if(known.contains(message.id)) { continue; }
           await codec.decrypt(peers.single,conversation.id,message.id,message.senderId,message.content,
             commit:(state,payload) async {
-              final received=message.copyWith(content:payload['content'] as String,
-                  ttl:payload['ttlMs']==null?null:Duration(milliseconds:payload['ttlMs'] as int));
+              final received=MessagePayload.decode(message,payload);
               await database.commitReceivedMessage(state,received);
             });
         }

@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:convert';
+import 'package:chaaya/core/models/message_attachment.dart';
 import 'dart:async';
 import 'package:chaaya/main.dart';
 import 'package:chaaya/ui/screens/call/call_screen.dart';
@@ -36,6 +38,8 @@ final _conversations=[
     createdAt:DateTime(2026,10,22)),
 ];
 class DesignDatabase extends LocalDatabase {
+  final bool rich;
+  DesignDatabase({this.rich=false});
   @override
   Future<bool> isBiometricAvailable() async => false;
   @override
@@ -48,6 +52,16 @@ class DesignDatabase extends LocalDatabase {
       timestamp:DateTime(2026,10,23,9,40),isRead:true),
     Message(id:'reply',conversationId:id,senderId:'me',content:'Absolutely. Same place, a little after ten.',
       timestamp:DateTime(2026,10,23,9,41),isRead:true,isDelivered:true),
+    if(rich) Message(id:'rich-reply',conversationId:id,senderId:'maya',content:'This is the place.',
+      replyToId:'hello',timestamp:DateTime(2026,10,23,9,42),isRead:true),
+    if(rich) Message(id:'rich-photo',conversationId:id,senderId:'maya',content:'',type:MessageType.image,
+      attachment:MessageAttachment.fromBytes(name:'Meetup.png',mimeType:'image/png',
+        bytes:base64Decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=')),
+      timestamp:DateTime(2026,10,23,9,43),isRead:true),
+    if(rich) Message(id:'rich-file',conversationId:id,senderId:'me',content:'',type:MessageType.file,
+      attachment:MessageAttachment.fromBytes(name:'Meeting notes.txt',mimeType:'text/plain',bytes:utf8.encode('Fixture notes')),
+      timestamp:DateTime(2026,10,23,9,44),isSent:true),
+
   ];
   @override
   Future<Contact?> getContact(String id) async => _maya;
@@ -76,6 +90,8 @@ void main() {
     'signup':const OnboardingScreen(),
     'restore':const OnboardingScreen(),
     'conversation':const ChatScreen(conversationId:'design-chat',contactName:'Maya Rao'),
+    'conversation-rich':const ChatScreen(conversationId:'design-chat',contactName:'Maya Rao'),
+    'conversation-reply-draft':const ChatScreen(conversationId:'design-chat',contactName:'Maya Rao'),
     'conversation-keyboard':const ChatScreen(conversationId:'design-chat',contactName:'Maya Rao'),
     'profile':const ProfileScreen(contactId:'maya'),
     'verification':const VerificationScreen(),
@@ -87,7 +103,7 @@ void main() {
         tester.view.devicePixelRatio=1;
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
-        final container=ProviderContainer(overrides:[localDatabaseProvider.overrideWithValue(DesignDatabase()),
+        final container=ProviderContainer(overrides:[localDatabaseProvider.overrideWithValue(DesignDatabase(rich:entry.key=='conversation-rich')),
           if(entry.key=='loading') appInitializationProvider.overrideWith((ref)=>Completer<bool>().future),
           if(entry.key=='startup-error') appInitializationProvider.overrideWith((ref) async=>throw StateError('fixture failure')),
         ]);
@@ -119,6 +135,13 @@ void main() {
           expect(tester.takeException(),isNull);
           await tester.tap(find.byTooltip('Hide recovery phrase'));
           await tester.pump();
+        }
+        if(entry.key=='conversation-reply-draft') {
+          await tester.longPress(find.text('Hey! Are we still on for tomorrow?'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Reply'));
+          await tester.pumpAndSettle();
+          expect(find.byTooltip('Cancel reply'),findsOneWidget);
         }
         expect(tester.takeException(),isNull,reason:'No layout or runtime errors at large text');
         if(entry.key=='home') {

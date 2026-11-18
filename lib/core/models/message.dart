@@ -1,3 +1,5 @@
+import 'message_attachment.dart';
+
 enum MessageType { text, image, file, voice, system, poll }
 
 class Message {
@@ -11,6 +13,7 @@ class Message {
   final bool isDelivered;
   final bool isSent;
   final String? replyToId;
+  final MessageAttachment? attachment;
   final Duration? ttl;
   final List<String> agreeUsers;
   final List<String> disagreeUsers;
@@ -26,6 +29,7 @@ class Message {
     this.isDelivered = false,
     this.isSent = true,
     this.replyToId,
+    this.attachment,
     this.ttl,
     List<String>? agreeUsers,
     List<String>? disagreeUsers,
@@ -43,6 +47,7 @@ class Message {
     bool? isDelivered,
     bool? isSent,
     String? replyToId,
+    MessageAttachment? attachment,
     Duration? ttl,
     List<String>? agreeUsers,
     List<String>? disagreeUsers,
@@ -58,6 +63,7 @@ class Message {
       isDelivered: isDelivered ?? this.isDelivered,
       isSent: isSent ?? this.isSent,
       replyToId: replyToId ?? this.replyToId,
+      attachment: attachment ?? this.attachment,
       ttl: ttl ?? this.ttl,
       agreeUsers: agreeUsers ?? this.agreeUsers,
       disagreeUsers: disagreeUsers ?? this.disagreeUsers,
@@ -84,6 +90,8 @@ class Message {
       isDelivered: json['isDelivered'] as bool? ?? false,
       isSent: json['isSent'] as bool? ?? true,
       replyToId: json['replyToId'] as String?,
+      attachment: json['attachment'] == null ? null : MessageAttachment.fromJson(
+        Map<String, dynamic>.from(json['attachment'] as Map)),
       ttl: json['ttlMs'] != null
           ? Duration(milliseconds: json['ttlMs'] as int)
           : null,
@@ -103,6 +111,7 @@ class Message {
     'isDelivered': isDelivered,
     'isSent': isSent,
     'replyToId': replyToId,
+    if (attachment != null) 'attachment': attachment!.toJson(),
     'ttlMs': ttl?.inMilliseconds,
     'agreeUsers': agreeUsers,
     'disagreeUsers': disagreeUsers,
